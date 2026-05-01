@@ -1,0 +1,48 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build (with placeholder env)
+        env:
+          NEXT_PUBLIC_SITE_URL: https://kibarometer.no
+          NEXT_PUBLIC_SUPABASE_URL: https://kibarometer.no/supabase
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy
+          SUPABASE_SERVICE_ROLE_KEY: dummy
+          SUPABASE_INTERNAL_URL: http://localhost:8000
+        run: pnpm build
+
+      - name: Gitleaks
+        run: |
+          curl -sL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz | tar xz gitleaks
+          ./gitleaks detect --source . --config .gitleaks.toml --no-banner
+
+      - name: Validate supabase compose was forked
+        # Catch regressions where someone re-lifts the upstream supabase
+        # compose without re-running scripts/fork-supabase-compose.sh.
+        run: |
+          ! grep -qE '^\s*container_name:\s*supabase-' docker/supabase/docker-compose.yml
+          ! grep -q '/opt/tenki/' docker/supabase/docker-compose.yml
+
+      - name: Validate stripped supabase services stay stripped
+        # Phase 0.5 stripped storage/imgproxy/realtime/edge-functions/vector/
+        # supavisor. If anyone re-introduces them via merge or fresh fork,
+        # CI catches it here.
+        run: |
+          ! grep -qE '^\s+(storage|imgproxy|realtime|functions|vector|supavisor):$' docker/supabase/docker-compose.yml
