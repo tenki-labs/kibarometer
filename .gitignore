@@ -26,3 +26,6 @@ local-dev/.env
 local-dev/env/
 local-dev/data/
 local-dev/secrets/
+
+# Other
+description.md
