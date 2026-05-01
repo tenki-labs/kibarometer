@@ -1,0 +1,7 @@
+# kibarometer fetcher crontab. Rendered by fetcher-entrypoint.sh which
+# expands the bearer-token + admin-URL placeholders at container start.
+# The expanded crontab calls the admin's bearer-authed endpoint which does
+# the actual NAV fetch + DB writes.
+#
+# Schedule: hourly at :07 (off-the-hour to spread load).
+7 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 60 ${ADMIN_URL}/admin/api/jobs/fetch-nav > /var/log/last-fetch.log 2>&1 || logger -s "kiba-fetcher: fetch-nav failed at $(date -Iseconds)"
