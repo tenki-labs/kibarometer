@@ -97,12 +97,22 @@ else
   echo "  $LOCAL/.env already exists — leaving it alone."
 fi
 
+# Mint a FETCHER_TOKEN once per local-dev install. Shared between admin
+# (verifies inbound bearer) and fetcher (sends bearer). Persisted in .env so
+# subsequent setup.sh runs derive admin.env + fetcher.env from the same value.
+if ! grep -q '^FETCHER_TOKEN=' "$LOCAL/.env" 2>/dev/null; then
+  FETCHER_TOKEN=$(openssl rand -hex 32)
+  echo "FETCHER_TOKEN=$FETCHER_TOKEN" >> "$LOCAL/.env"
+  echo "  Minted FETCHER_TOKEN."
+fi
+
 # Always (re)derive admin.env from .env. Cheap, idempotent, and recovers
 # from the case where .env exists but admin.env was lost.
 if [ ! -f "$LOCAL/env/admin.env" ]; then
   ANON_KEY=$(grep -E '^ANON_KEY=' "$LOCAL/.env" | head -1 | cut -d= -f2-)
   SERVICE_ROLE_KEY=$(grep -E '^SERVICE_ROLE_KEY=' "$LOCAL/.env" | head -1 | cut -d= -f2-)
   JWT_SECRET=$(grep -E '^JWT_SECRET=' "$LOCAL/.env" | head -1 | cut -d= -f2-)
+  FETCHER_TOKEN=$(grep -E '^FETCHER_TOKEN=' "$LOCAL/.env" | head -1 | cut -d= -f2-)
   cat > "$LOCAL/env/admin.env" <<EOF
 PORT=4000
 SUPABASE_INTERNAL_URL=http://kong:8000
@@ -112,11 +122,30 @@ SUPABASE_JWT_SECRET=$JWT_SECRET
 SUPABASE_EXTERNAL_URL=http://localhost:8000
 PUBLIC_BASE_URL=http://localhost:4000
 REDIS_URL=redis://redis:6379
+FETCHER_TOKEN=$FETCHER_TOKEN
 EOF
   chmod 600 "$LOCAL/env/admin.env"
   echo "  Generated $LOCAL/env/admin.env from .env."
 else
-  echo "  $LOCAL/env/admin.env already exists — leaving it alone."
+  # Idempotent backfill — older installs (pre-Phase 4) have no FETCHER_TOKEN.
+  if ! grep -q '^FETCHER_TOKEN=' "$LOCAL/env/admin.env" 2>/dev/null; then
+    FETCHER_TOKEN=$(grep -E '^FETCHER_TOKEN=' "$LOCAL/.env" | head -1 | cut -d= -f2-)
+    echo "FETCHER_TOKEN=$FETCHER_TOKEN" >> "$LOCAL/env/admin.env"
+    echo "  Backfilled FETCHER_TOKEN into admin.env (force-recreate admin to pick it up)."
+  else
+    echo "  $LOCAL/env/admin.env already exists — leaving it alone."
+  fi
+fi
+
+# Always (re)derive fetcher.env from .env.
+if [ ! -f "$LOCAL/env/fetcher.env" ]; then
+  FETCHER_TOKEN=$(grep -E '^FETCHER_TOKEN=' "$LOCAL/.env" | head -1 | cut -d= -f2-)
+  cat > "$LOCAL/env/fetcher.env" <<EOF
+FETCHER_TOKEN=$FETCHER_TOKEN
+ADMIN_URL=http://kiba-admin:4000
+EOF
+  chmod 600 "$LOCAL/env/fetcher.env"
+  echo "  Generated $LOCAL/env/fetcher.env from .env."
 fi
 
 # Compose needs the absolute repo path to expand ${KIBA_REPO_ROOT} in
@@ -127,11 +156,13 @@ else
   echo "KIBA_REPO_ROOT=$ROOT" >> "$LOCAL/.env"
 fi
 
-echo "== 2. docker compose up (db, kong, rest, auth, meta, studio, redis, admin) =="
+echo "== 2. docker compose up (db, kong, rest, auth, meta, studio, redis, admin, fetcher) =="
 "${COMPOSE[@]}" up -d db kong rest auth meta studio redis
 # --force-recreate --no-deps on admin so bind-mount path changes take effect
 # even if a previous failed-run container is sitting in 'restarting' state.
 "${COMPOSE[@]}" up -d --force-recreate --no-deps admin
+# Fetcher comes up after admin is healthy (its depends_on enforces order).
+"${COMPOSE[@]}" up -d --force-recreate --no-deps fetcher
 
 echo "== 3. Wait for db healthy =="
 for _ in $(seq 1 60); do

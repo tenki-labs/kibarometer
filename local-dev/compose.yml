@@ -41,6 +41,7 @@ services:
       # the host's source files on Fedora-style SELinux-enforcing hosts.
       - ${KIBA_REPO_ROOT}/scripts/admin-server.js:/app/server.js:ro,z
       - ${KIBA_REPO_ROOT}/scripts/admin-sections:/app/sections:ro,z
+      - ${KIBA_REPO_ROOT}/scripts/nav:/app/nav:ro,z
     ports:
       - "4000:4000"
     depends_on:
@@ -56,6 +57,20 @@ services:
     networks:
       default:
         aliases: [kiba-admin]
+
+  fetcher:
+    image: alpine:3.20
+    container_name: kiba-fetcher
+    restart: unless-stopped
+    env_file:
+      - ${KIBA_REPO_ROOT}/local-dev/env/fetcher.env
+    volumes:
+      - ${KIBA_REPO_ROOT}/scripts/fetcher-entrypoint.sh:/entrypoint.sh:ro,z
+      - ${KIBA_REPO_ROOT}/scripts/fetcher-crontab:/etc/cron-template:ro,z
+    depends_on:
+      admin: { condition: service_healthy }
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    mem_limit: 32m
 
   # Redirect db's bind-mount paths into local-dev/data/ so /opt/kibarometer is
   # never touched. Init-script paths reference the upstream supabase compose's

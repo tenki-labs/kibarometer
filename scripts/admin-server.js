@@ -4,16 +4,18 @@
 import { createServer } from "node:http";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { URL } from "node:url";
-import { btn, esc, parseFlash } from "./sections/shared.js";
+import { btn, esc, parseFlash, flashQs } from "./sections/shared.js";
+import * as Jobs from "./sections/jobs.js";
 
 const PORT = Number(process.env.PORT || 4000);
 const SUPABASE_URL = process.env.SUPABASE_INTERNAL_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const JWT_SECRET = process.env.SUPABASE_JWT_SECRET;
+const FETCHER_TOKEN = process.env.FETCHER_TOKEN;
 const NODE_ENV = process.env.NODE_ENV || "development";
 
-for (const [k, v] of Object.entries({ SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, JWT_SECRET })) {
+for (const [k, v] of Object.entries({ SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, JWT_SECRET, FETCHER_TOKEN })) {
   if (!v) { console.error(`Missing env: ${k}`); process.exit(1); }
 }
 
@@ -155,9 +157,10 @@ th, td { padding: .65rem .85rem; text-align: left; border-bottom: 1px solid var(
 th { font: 500 .68rem/1 "DM Mono", monospace; text-transform: uppercase; letter-spacing: .18em; color: var(--muted); }
 `;
 
-// Sidebar nav. NAV-domain entries land in Phase 4.
+// Sidebar nav.
 const NAV = [
   ["/admin", "Oversikt"],
+  ["/admin/jobs", "Jobber"],
 ];
 
 async function layout(path, claims, inner, flash) {
@@ -259,6 +262,22 @@ const server = createServer(async (req, res) => {
       return res.end(JSON.stringify({ ok: true }));
     }
 
+    // Bearer-authed cron endpoint. No cookie auth, no PRG — returns JSON.
+    // Caddy routes /admin/* to this server, so this path is reachable
+    // externally; FETCHER_TOKEN is the only thing protecting it.
+    if (path === "/admin/api/jobs/fetch-nav" && req.method === "POST") {
+      const auth = req.headers.authorization || "";
+      const presented = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+      const a = Buffer.from(presented), b = Buffer.from(FETCHER_TOKEN);
+      if (a.length !== b.length || !timingSafeEqual(a, b)) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        return res.end(JSON.stringify({ error: "unauthorized" }));
+      }
+      const result = await Jobs.fetchNav({ sb: sbFetch, trigger: "cron" });
+      res.writeHead(200, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify(result));
+    }
+
     if (path === "/admin/login" && req.method === "GET") return send(200, loginPage());
     if (path === "/admin/login" && req.method === "POST") {
       const body = await readBody(req);
@@ -276,6 +295,17 @@ const server = createServer(async (req, res) => {
     if (path.startsWith("/admin") && (!claims || !isStaff(claims))) return redirect("/admin/login");
 
     if (path === "/admin" || path === "/admin/") return sendPage(dashboardInner(claims));
+
+    if (path === "/admin/jobs" && req.method === "GET")
+      return sendPage(await Jobs.listInner({ sb: sbFetch }));
+    if (path === "/admin/jobs/fetch" && req.method === "POST") {
+      try {
+        const result = await Jobs.fetchNav({ sb: sbFetch, trigger: "manual" });
+        return redirect(`/admin/jobs${flashQs({ ok: `Hentet ${result.rows_processed} stillinger` })}`);
+      } catch (err) {
+        return redirect(`/admin/jobs${flashQs({ error: `Henting feilet: ${err.message}` })}`);
+      }
+    }
 
     return send(404, `<h1>404</h1><p>Fant ikke ${esc(path)}</p>`);
   } catch (err) {
