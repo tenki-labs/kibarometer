@@ -1,0 +1,9 @@
+# compose.prod.yml — prod-only memory caps for the supabase fleet.
+# storage + imgproxy intentionally absent (stripped in Phase 0.5).
+services:
+  db:        { mem_limit: 768m }
+  studio:    { mem_limit: 192m }
+  kong:      { mem_limit: 192m }
+  auth:      { mem_limit: 96m }
+  rest:      { mem_limit: 96m }
+  meta:      { mem_limit: 96m }

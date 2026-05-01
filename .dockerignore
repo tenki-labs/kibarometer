@@ -1,0 +1,45 @@
+# Anything not needed for `pnpm install && pnpm build` should be excluded
+# from the build context. Saves time + avoids permission errors on bind-mount
+# data dirs (e.g. local-dev/data/postgres/ is root-owned by Postgres).
+
+node_modules
+.next
+out
+dist
+build
+
+# Local-dev pod state (gitignored; never wanted in production image)
+local-dev
+
+# Tests / CI artefacts
+coverage
+playwright-report
+test-results
+
+# Environment + secrets
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.DS_Store
+.vscode
+.idea
+*.log
+
+# Git
+.git
+.gitignore
+.gitleaks.toml
+
+# Documentation that doesn't ship in the image
+*.md
+docs
+
+# Admin / server-side code is not part of the Next.js bundle. The admin
+# container mounts these from /opt/kibarometer/admin/ instead.
+scripts
+
+# Supabase compose lives outside the Next.js image.
+docker/supabase
+supabase/migrations

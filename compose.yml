@@ -1,0 +1,62 @@
+# compose.yml — base composition for the production stack on the VPS.
+# Layered with docker/supabase/docker-compose.yml + compose.boot.yml
+# (+ compose.prod.yml for memory caps) at deploy time. See scripts/deploy.sh
+# (Phase 8) for the canonical bring-up command.
+#
+# Backup service intentionally absent — added in Phase 10.
+
+name: kibarometer
+
+networks:
+  default:
+    name: kiba
+  edge_net:
+    external: true
+
+volumes:
+  redis_data:
+
+services:
+  web:
+    container_name: kiba-web
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    restart: unless-stopped
+    env_file:
+      - /opt/kibarometer/env/.env.production
+    depends_on:
+      kong: { condition: service_healthy }
+      redis: { condition: service_started }
+    networks: [default, edge_net]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/healthz"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    mem_limit: 384m
+
+  redis:
+    container_name: kiba-redis
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "no"]
+    volumes:
+      - redis_data:/data
+    mem_limit: 64m
+
+  fetcher:
+    container_name: kiba-fetcher
+    image: alpine:3.20
+    restart: unless-stopped
+    env_file:
+      - /opt/kibarometer/env/fetcher.env
+    volumes:
+      # deploy.sh (Phase 8) places these alongside server.js + sections/ + nav/
+      # at /opt/kibarometer/admin/. Single-source-of-truth = the repo's scripts/.
+      - /opt/kibarometer/admin/fetcher-entrypoint.sh:/entrypoint.sh:ro
+      - /opt/kibarometer/admin/fetcher-crontab:/etc/cron-template:ro
+    depends_on:
+      admin: { condition: service_healthy }
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    mem_limit: 32m

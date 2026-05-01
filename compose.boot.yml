@@ -1,0 +1,42 @@
+# compose.boot.yml — runtime overrides for the deployed stack.
+#   - admin Node service (zero npm deps)
+#   - web overrides for production tagged image
+#
+# Layered AFTER compose.yml + docker/supabase/docker-compose.yml.
+
+services:
+  admin:
+    container_name: kiba-admin
+    image: node:22-alpine
+    working_dir: /app
+    command: ["node", "server.js"]
+    env_file:
+      - /opt/kibarometer/env/admin.env
+    volumes:
+      # Single directory mount. deploy.sh populates /opt/kibarometer/admin/
+      # with this layout:
+      #   server.js
+      #   sections/{shared,jobs}.js
+      #   nav/client.js
+      #   fetcher-entrypoint.sh, fetcher-crontab  (consumed by kiba-fetcher)
+      - /opt/kibarometer/admin:/app:ro
+    networks: [default, edge_net]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/admin/health"]
+      interval: 20s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+    mem_limit: 128m
+
+  web:
+    image: kiba-web:latest
+    build: !reset null
+    environment:
+      NEXT_PUBLIC_SITE_URL: https://kibarometer.no
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+    depends_on: !override
+      admin: { condition: service_healthy }
+    command: !override ["node", "server.js"]
