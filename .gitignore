@@ -1,0 +1,28 @@
+node_modules
+.next
+next-env.d.ts
+tsconfig.tsbuildinfo
+out
+dist
+build
+coverage
+playwright-report
+test-results
+*.log
+.DS_Store
+.vscode/
+
+# Env files (commit only .env.example)
+.env
+.env.*
+!.env.example
+
+# Vendored Supabase upstream container data
+docker/supabase/volumes
+data/
+
+# Local-dev stack — generated secrets + container data dirs
+local-dev/.env
+local-dev/env/
+local-dev/data/
+local-dev/secrets/
