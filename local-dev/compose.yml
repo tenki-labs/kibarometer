@@ -40,6 +40,7 @@ services:
       # ro,z: read-only + shared SELinux relabel so the container can read
       # the host's source files on Fedora-style SELinux-enforcing hosts.
       - ${KIBA_REPO_ROOT}/scripts/admin-server.js:/app/server.js:ro,z
+      - ${KIBA_REPO_ROOT}/scripts/admin-sections:/app/sections:ro,z
     ports:
       - "4000:4000"
     depends_on:

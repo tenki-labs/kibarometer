@@ -185,6 +185,23 @@ SVC=$(grep -E '^SERVICE_ROLE_KEY=' "$LOCAL/.env" | cut -d= -f2)
 SUPABASE_URL=http://localhost:8000 SERVICE_ROLE_KEY="$SVC" \
   node "$LOCAL/create-admin-user.mjs" "$ADMIN_EMAIL" "$ADMIN_PASS" "$ADMIN_NAME" || true
 
+# Backfill public.profiles for any auth.users created BEFORE 0001_baseline
+# was applied (the on_auth_user_created trigger only fires on INSERT, so users
+# seeded by an earlier setup.sh run without this migration get skipped).
+# Idempotent: on conflict do nothing is a no-op once profiles are in sync.
+# Skipped silently when public.profiles doesn't exist yet (pre-migration runs).
+docker exec -e PGPASSWORD="$PGPW" kiba-supabase-db psql -U postgres -d postgres -tAc "
+do \$\$ begin
+  if to_regclass('public.profiles') is not null then
+    insert into public.profiles (id, full_name, role)
+    select id,
+           coalesce(raw_user_meta_data->>'full_name', email),
+           coalesce(raw_user_meta_data->>'role', 'employee')
+    from auth.users
+    on conflict (id) do nothing;
+  end if;
+end \$\$;" >/dev/null
+
 echo
 echo "==========================================================="
 echo "  Local stack is up."
