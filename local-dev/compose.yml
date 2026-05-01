@@ -1,0 +1,74 @@
+# Local-dev override. Pairs with docker/supabase/docker-compose.yml.
+#
+# Stack: db + kong + auth + rest + meta + studio + redis + admin.
+# (storage / imgproxy / realtime / functions / vector / supavisor were stripped
+#  in Phase 0.5 — they don't exist in our forked supabase compose at all.)
+#
+# All persistent data lives under local-dev/data/ — gitignored, host-owned.
+#
+# Bind-mount sources reference ${KIBA_REPO_ROOT}, an absolute path written into
+# local-dev/.env by setup.sh. Resolving via the .env file (instead of shell
+# ${PWD}) is sudo/cron/IDE-terminal proof.
+#
+# File order matters: docker/supabase/docker-compose.yml comes FIRST so this
+# file's `volumes: !override` actually replaces the upstream values (overrides
+# are applied in -f order; the LAST file's values win).
+#
+# Bring up:   docker compose --env-file local-dev/.env \
+#               -f docker/supabase/docker-compose.yml -f local-dev/compose.yml up -d
+# Tear down (preserve data):  same files, `down`
+# Wipe data:                  rm -rf local-dev/data/
+
+name: kiba-dev
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: kiba-redis
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "no"]
+    mem_limit: 64m
+
+  admin:
+    image: node:22-alpine
+    container_name: kiba-admin
+    working_dir: /app
+    command: ["node", "server.js"]
+    env_file:
+      - ${KIBA_REPO_ROOT}/local-dev/env/admin.env
+    volumes:
+      # ro,z: read-only + shared SELinux relabel so the container can read
+      # the host's source files on Fedora-style SELinux-enforcing hosts.
+      - ${KIBA_REPO_ROOT}/scripts/admin-server.js:/app/server.js:ro,z
+    ports:
+      - "4000:4000"
+    depends_on:
+      db: { condition: service_healthy }
+      kong: { condition: service_healthy }
+      redis: { condition: service_started }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/admin/health"]
+      interval: 20s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      default:
+        aliases: [kiba-admin]
+
+  # Redirect db's bind-mount paths into local-dev/data/ so /opt/kibarometer is
+  # never touched. Init-script paths reference the upstream supabase compose's
+  # volumes/ dir, hydrated by setup.sh from the supabase upstream repo.
+  db:
+    volumes: !override
+      - ${KIBA_REPO_ROOT}/docker/supabase/volumes/db/realtime.sql:/docker-entrypoint-initdb.d/migrations/99-realtime.sql:Z
+      - ${KIBA_REPO_ROOT}/docker/supabase/volumes/db/webhooks.sql:/docker-entrypoint-initdb.d/init-scripts/98-webhooks.sql:Z
+      - ${KIBA_REPO_ROOT}/docker/supabase/volumes/db/roles.sql:/docker-entrypoint-initdb.d/init-scripts/99-roles.sql:Z
+      - ${KIBA_REPO_ROOT}/docker/supabase/volumes/db/jwt.sql:/docker-entrypoint-initdb.d/init-scripts/99-jwt.sql:Z
+      - ${KIBA_REPO_ROOT}/docker/supabase/volumes/db/_supabase.sql:/docker-entrypoint-initdb.d/migrations/97-_supabase.sql:Z
+      - ${KIBA_REPO_ROOT}/docker/supabase/volumes/db/logs.sql:/docker-entrypoint-initdb.d/migrations/99-logs.sql:Z
+      - ${KIBA_REPO_ROOT}/docker/supabase/volumes/db/pooler.sql:/docker-entrypoint-initdb.d/migrations/99-pooler.sql:Z
+      - ${KIBA_REPO_ROOT}/local-dev/data/postgres:/var/lib/postgresql/data:Z
+      - db-config:/etc/postgresql-custom
+    ports:
+      - "5432:5432"
