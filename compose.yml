@@ -9,7 +9,12 @@ name: kibarometer
 
 networks:
   default:
+    # External so the network survives `compose down` — Caddy stays connected
+    # via `docker network connect kiba edge-caddy-1` (run by deploy.sh on
+    # every push) without needing a reconnect each redeploy. bootstrap.sh
+    # creates the network; compose just attaches.
     name: kiba
+    external: true
   edge_net:
     external: true
 

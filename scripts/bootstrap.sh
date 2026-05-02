@@ -32,6 +32,47 @@ install -d -o deploy -g deploy \
 echo "== create kiba network =="
 docker network inspect kiba >/dev/null 2>&1 || docker network create kiba
 
+echo "== hydrate upstream supabase volumes =="
+# The upstream supabase compose bind-mounts kong.yml + db init scripts from
+# ./volumes/, which are gitignored. If the files don't exist, Docker silently
+# creates empty directories at the source paths and bind-mounts THOSE — then
+# Postgres/Kong try to source them as files and crash. Fetch them from the
+# upstream supabase repo at master (idempotent — skips files that already
+# exist with non-zero size).
+SUPA_RAW="https://raw.githubusercontent.com/supabase/supabase/master/docker/volumes"
+SUPA_FILES=(
+  "api/kong.yml"
+  "api/kong-entrypoint.sh"
+  "db/realtime.sql"
+  "db/webhooks.sql"
+  "db/roles.sql"
+  "db/jwt.sql"
+  "db/_supabase.sql"
+  "db/logs.sql"
+  "db/pooler.sql"
+)
+VOL=$ROOT/website/docker/supabase/volumes
+for f in "${SUPA_FILES[@]}"; do
+  dest="$VOL/$f"
+  if [ -f "$dest" ] && [ -s "$dest" ]; then continue; fi
+  # Wipe whatever stub Docker might have created (empty dir or zero-byte file).
+  rm -rf "$dest"
+  install -d -o deploy -g deploy "$(dirname "$dest")"
+  curl -fsSL "$SUPA_RAW/$f" -o "$dest"
+  chown deploy:deploy "$dest"
+done
+chmod +x "$VOL/api/kong-entrypoint.sh" 2>/dev/null || true
+
+echo "== symlink website/volumes -> docker/supabase/volumes =="
+# Compose v2 resolves `./volumes/...` in the supabase compose against the
+# CURRENT WORKING DIRECTORY at compose-time, not the compose file's own dir.
+# We run compose from $ROOT/website/, so `./volumes/api/kong.yml` becomes
+# $ROOT/website/volumes/api/kong.yml. The actual files are at
+# $ROOT/website/docker/supabase/volumes/. Symlinking makes both paths work.
+if [ ! -e "$ROOT/website/volumes" ]; then
+  ln -s docker/supabase/volumes "$ROOT/website/volumes"
+fi
+
 if [[ "$PHASE" != "--bring-up" ]]; then
   cat <<'NOTE'
 
@@ -73,8 +114,13 @@ done
 
 echo "== bring up supabase fleet (no web/admin yet — those need a built image) =="
 cd "$ROOT/website"
+# compose.boot.yml MUST be in the file list even though we're only starting
+# supabase services, because compose validates the entire merged config and
+# `fetcher` (in compose.yml) has `depends_on: admin` which is defined in
+# compose.boot.yml.
 docker compose --env-file "$ROOT/env/supabase.env" \
-  -f compose.yml -f docker/supabase/docker-compose.yml -f compose.prod.yml \
+  -f compose.yml -f docker/supabase/docker-compose.yml \
+  -f compose.prod.yml -f compose.boot.yml \
   up -d db kong auth rest meta studio
 
 echo "== wait for kong healthy =="
