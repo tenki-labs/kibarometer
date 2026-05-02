@@ -10,3 +10,10 @@ paths = [
   # protocol example nonces (base64) that gitleaks flags as generic-api-key.
   '''docker/supabase/tests/.*''',
 ]
+# Empty env-file stubs in heredoc templates (deploy.sh, generate-secrets.sh).
+# The variable names B2_APPLICATION_KEY / B2_APPLICATION_KEY_ID with empty
+# values match the generic-api-key rule by their own entropy. Real B2 keys
+# (random hex, ~25 chars) never contain the literal string here.
+regexes = [
+  '''B2_APPLICATION_KEY(_ID)?=''',
+]
