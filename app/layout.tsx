@@ -1,10 +1,64 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+
+const TITLE = "Kibarometeret — norsk arbeidsmarked, daglig oppdatert";
+const DESCRIPTION =
+  "Uavhengig dashbord som sporer AI-relaterte stillinger i norsk arbeidsmarked. Daglig oppdaterte tall fra NAVs stillingsfeed, åpen metode.";
+
 export const metadata: Metadata = {
-  title: "kibarometer",
-  description:
-    "Kibarometeret — uavhengig analyse av norsk arbeidsmarked basert på data fra NAV.",
+  metadataBase: new URL(SITE_URL),
+  title: { default: TITLE, template: "%s | Kibarometeret" },
+  description: DESCRIPTION,
+  applicationName: "Kibarometeret",
+  authors: [{ name: "Oscar Gangstad Westbye", url: "https://tenki.no" }],
+  creator: "Tenki Labs",
+  publisher: "Tenki Labs",
+  category: "data journalism",
+  keywords: [
+    "arbeidsmarked",
+    "AI",
+    "kunstig intelligens",
+    "NAV",
+    "stillinger",
+    "Norge",
+    "datajournalistikk",
+    "labour market",
+    "Norway",
+    "AI hiring",
+  ],
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    locale: "nb_NO",
+    url: "/",
+    siteName: "Kibarometeret",
+    title: TITLE,
+    description: DESCRIPTION,
+    images: ["/opengraph-image"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: TITLE,
+    description: DESCRIPTION,
+    images: ["/opengraph-image"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#1a4dff",
+  colorScheme: "light",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
