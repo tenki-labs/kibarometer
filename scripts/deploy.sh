@@ -79,12 +79,20 @@ do \$\$ begin
   end if;
 end \$\$;" >/dev/null
 
-echo "== compose up (web + admin + fetcher only — supabase fleet stays running) =="
+echo "== compose up (kiba-web + kiba-admin + kiba-fetcher only — supabase fleet stays running) =="
 cd "$WEBSITE"
 docker compose --env-file /opt/kibarometer/env/supabase.env \
   -f compose.yml -f docker/supabase/docker-compose.yml \
   -f compose.prod.yml -f compose.boot.yml \
-  up -d --force-recreate --remove-orphans web admin fetcher
+  up -d --force-recreate --remove-orphans kiba-web kiba-admin kiba-fetcher
+
+# Recreate kong too — the alias override lives in compose.boot.yml. Without
+# this, an old kong container with the default `kong` alias keeps running
+# and tenki's `kong` lookups still bleed to us.
+docker compose --env-file /opt/kibarometer/env/supabase.env \
+  -f compose.yml -f docker/supabase/docker-compose.yml \
+  -f compose.prod.yml -f compose.boot.yml \
+  up -d --force-recreate --no-deps kong
 
 echo "== healthcheck =="
 for i in $(seq 1 24); do
