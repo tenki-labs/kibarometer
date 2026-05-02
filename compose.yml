@@ -1,9 +1,16 @@
 # compose.yml — base composition for the production stack on the VPS.
 # Layered with docker/supabase/docker-compose.yml + compose.boot.yml
 # (+ compose.prod.yml for memory caps) at deploy time. See scripts/deploy.sh
-# (Phase 8) for the canonical bring-up command.
+# for the canonical bring-up command.
 #
 # Backup service intentionally absent — added in Phase 10.
+#
+# Service-name conventions: every service we own is `kiba-<name>` to avoid
+# Docker network alias collisions with tenki on the shared edge network.
+# Tenki's caddy fragment looks up bare names like `web`, `admin`, `kong`,
+# and edge-caddy-1 is on multiple networks (edge_net + tenki + kiba), so an
+# unprefixed service name on our side would shadow tenki's. See PR #11 for
+# the post-mortem.
 
 name: kibarometer
 
@@ -15,14 +22,12 @@ networks:
     # creates the network; compose just attaches.
     name: kiba
     external: true
-  edge_net:
-    external: true
 
 volumes:
   redis_data:
 
 services:
-  web:
+  kiba-web:
     container_name: kiba-web
     build:
       context: .
@@ -32,8 +37,12 @@ services:
       - /opt/kibarometer/env/.env.production
     depends_on:
       kong: { condition: service_healthy }
-      redis: { condition: service_started }
-    networks: [default, edge_net]
+      kiba-redis: { condition: service_started }
+    # ONLY on the kiba network. Edge-caddy reaches us via `docker network
+    # connect kiba edge-caddy-1` (deploy.sh). NOT on edge_net — joining
+    # edge_net would register `kiba-web` on the same network as tenki-web
+    # and risk alias bleed.
+    networks: [default]
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/healthz"]
       interval: 30s
@@ -41,7 +50,7 @@ services:
       retries: 3
     mem_limit: 384m
 
-  redis:
+  kiba-redis:
     container_name: kiba-redis
     image: redis:7-alpine
     restart: unless-stopped
@@ -50,18 +59,18 @@ services:
       - redis_data:/data
     mem_limit: 64m
 
-  fetcher:
+  kiba-fetcher:
     container_name: kiba-fetcher
     image: alpine:3.20
     restart: unless-stopped
     env_file:
       - /opt/kibarometer/env/fetcher.env
     volumes:
-      # deploy.sh (Phase 8) places these alongside server.js + sections/ + nav/
-      # at /opt/kibarometer/admin/. Single-source-of-truth = the repo's scripts/.
+      # deploy.sh places these alongside server.js + sections/ + nav/ at
+      # /opt/kibarometer/admin/. Single-source-of-truth = the repo's scripts/.
       - /opt/kibarometer/admin/fetcher-entrypoint.sh:/entrypoint.sh:ro
       - /opt/kibarometer/admin/fetcher-crontab:/etc/cron-template:ro
     depends_on:
-      admin: { condition: service_healthy }
+      kiba-admin: { condition: service_healthy }
     entrypoint: ["/bin/sh", "/entrypoint.sh"]
     mem_limit: 32m

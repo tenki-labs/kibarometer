@@ -1,11 +1,12 @@
 # compose.boot.yml — runtime overrides for the deployed stack.
 #   - admin Node service (zero npm deps)
-#   - web overrides for production tagged image
+#   - kiba-web override for production tagged image
+#   - supabase kong override (port + alias)
 #
 # Layered AFTER compose.yml + docker/supabase/docker-compose.yml.
 
 services:
-  admin:
+  kiba-admin:
     container_name: kiba-admin
     image: node:22-alpine
     working_dir: /app
@@ -20,7 +21,8 @@ services:
       #   nav/client.js
       #   fetcher-entrypoint.sh, fetcher-crontab  (consumed by kiba-fetcher)
       - /opt/kibarometer/admin:/app:ro
-    networks: [default, edge_net]
+    # ONLY on the kiba network. NOT on edge_net — see compose.yml header.
+    networks: [default]
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/admin/health"]
       interval: 20s
@@ -29,7 +31,7 @@ services:
     restart: unless-stopped
     mem_limit: 128m
 
-  web:
+  kiba-web:
     image: kiba-web:latest
     build: !reset null
     environment:
@@ -38,13 +40,25 @@ services:
       PORT: "3000"
       HOSTNAME: "0.0.0.0"
     depends_on: !override
-      admin: { condition: service_healthy }
+      kiba-admin: { condition: service_healthy }
     command: !override ["node", "server.js"]
 
-  # Drop kong's host port bindings. The shared Tenki VPS already runs an
-  # unforked supabase-kong that owns 8000/8443 (tenki forgot to fork their
-  # supabase compose). We only need kong inside the kiba network — the
-  # shared edge Caddy reaches it via `kiba-supabase-kong:8000` over docker
-  # DNS, no host port required.
+  # Two overrides on the supabase kong service:
+  #
+  # 1. Drop host port bindings. The shared Tenki VPS already runs an unforked
+  #    `supabase-kong` (tenki forgot to fork their supabase compose) that owns
+  #    host ports 8000/8443. We don't need kong on a host port — the shared
+  #    edge Caddy reaches it via `kiba-supabase-kong:8000` over docker DNS.
+  #
+  # 2. Override network aliases to ONLY include `kiba-supabase-kong`.
+  #    Default Compose behaviour adds the service name (`kong`) as a network
+  #    alias; that collides with tenki's `kong` service when edge-caddy joins
+  #    the kiba network, breaking tenki's `/supabase/*` routing. Specifying
+  #    `aliases:` replaces the default. This is the same trick PR #11 applies
+  #    to kiba-web and kiba-admin via service-rename.
   kong:
     ports: !reset null
+    networks:
+      default:
+        aliases:
+          - kiba-supabase-kong
