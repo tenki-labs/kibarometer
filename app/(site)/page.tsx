@@ -12,6 +12,8 @@
 // Snapshots are pre-computed by 0008's refresh_all_snapshots() job at 04:00
 // daily; this page is just six PostgREST reads behind a 60s ISR.
 
+import Link from "next/link";
+
 import {
   HBarList,
   LOW_SAMPLE_THRESHOLD,
@@ -173,7 +175,7 @@ export default async function HomePage({
               {asOf && (
                 <>
                   Historisk øyeblikksbilde for {fmtDate(headline.computed_for)}.{" "}
-                  <a href="/">Vis siste</a>.
+                  <Link href="/">Vis siste</Link>.
                 </>
               )}
             </div>
