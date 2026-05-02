@@ -6,6 +6,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { URL } from "node:url";
 import { btn, esc, parseFlash, flashQs } from "./sections/shared.js";
 import * as Jobs from "./sections/jobs.js";
+import * as Keywords from "./sections/keywords.js";
 
 const PORT = Number(process.env.PORT || 4000);
 const SUPABASE_URL = process.env.SUPABASE_INTERNAL_URL;
@@ -161,6 +162,7 @@ th { font: 500 .68rem/1 "DM Mono", monospace; text-transform: uppercase; letter-
 const NAV = [
   ["/admin", "Oversikt"],
   ["/admin/jobs", "Jobber"],
+  ["/admin/keywords", "Nøkkelord"],
 ];
 
 async function layout(path, claims, inner, flash) {
@@ -262,10 +264,17 @@ const server = createServer(async (req, res) => {
       return res.end(JSON.stringify({ ok: true }));
     }
 
-    // Bearer-authed cron endpoint. No cookie auth, no PRG — returns JSON.
-    // Caddy routes /admin/* to this server, so this path is reachable
-    // externally; FETCHER_TOKEN is the only thing protecting it.
-    if (path === "/admin/api/jobs/fetch-nav" && req.method === "POST") {
+    // Bearer-authed cron endpoints. No cookie auth, no PRG — return JSON.
+    // Caddy routes /admin/* to this server, so these paths are reachable
+    // externally; FETCHER_TOKEN is the only thing protecting them.
+    const BEARER_HANDLERS = {
+      "/admin/api/jobs/fetch-nav":         Jobs.fetchNav,
+      "/admin/api/jobs/backfill-nav":      Jobs.backfillNav,
+      "/admin/api/jobs/enrich-nav":        Jobs.enrichNav,
+      "/admin/api/jobs/reprocess":         Jobs.reprocessNavPostings,
+      "/admin/api/jobs/refresh-snapshots": Jobs.refreshSnapshots,
+    };
+    if (BEARER_HANDLERS[path] && req.method === "POST") {
       const auth = req.headers.authorization || "";
       const presented = auth.startsWith("Bearer ") ? auth.slice(7) : "";
       const a = Buffer.from(presented), b = Buffer.from(FETCHER_TOKEN);
@@ -273,7 +282,7 @@ const server = createServer(async (req, res) => {
         res.writeHead(401, { "Content-Type": "application/json" });
         return res.end(JSON.stringify({ error: "unauthorized" }));
       }
-      const result = await Jobs.fetchNav({ sb: sbFetch, trigger: "cron" });
+      const result = await BEARER_HANDLERS[path]({ sb: sbFetch, trigger: "cron" });
       res.writeHead(200, { "Content-Type": "application/json" });
       return res.end(JSON.stringify(result));
     }
@@ -304,6 +313,84 @@ const server = createServer(async (req, res) => {
         return redirect(`/admin/jobs${flashQs({ ok: `Hentet ${result.rows_processed} stillinger` })}`);
       } catch (err) {
         return redirect(`/admin/jobs${flashQs({ error: `Henting feilet: ${err.message}` })}`);
+      }
+    }
+    if (path === "/admin/jobs/backfill" && req.method === "POST") {
+      try {
+        const result = await Jobs.backfillNav({ sb: sbFetch, trigger: "manual" });
+        const msg = result.status === "noop"
+          ? "Backfill er allerede ferdig."
+          : `Backfill-batch: ${result.pages} sider, ${result.items} stillinger${result.completed ? " — ferdig!" : ""}`;
+        return redirect(`/admin/jobs${flashQs({ ok: msg })}`);
+      } catch (err) {
+        return redirect(`/admin/jobs${flashQs({ error: `Backfill feilet: ${err.message}` })}`);
+      }
+    }
+    if (path === "/admin/jobs/enrich" && req.method === "POST") {
+      try {
+        const result = await Jobs.enrichNav({ sb: sbFetch, trigger: "manual" });
+        const msg = result.status === "noop"
+          ? "Ingen ACTIVE stillinger å berike."
+          : `Beriket ${result.enriched}, hoppet over ${result.inactive} (INACTIVE), feilet ${result.failed} av ${result.candidates} kandidater.`;
+        return redirect(`/admin/jobs${flashQs({ ok: msg })}`);
+      } catch (err) {
+        return redirect(`/admin/jobs${flashQs({ error: `Berikelse feilet: ${err.message}` })}`);
+      }
+    }
+    if (path === "/admin/jobs/reprocess" && req.method === "POST") {
+      try {
+        const result = await Jobs.reprocessNavPostings({ sb: sbFetch, trigger: "manual" });
+        return redirect(`/admin/keywords${flashQs({ ok: `Re-tagget ${result.updated} av ${result.scanned} stillinger.` })}`);
+      } catch (err) {
+        return redirect(`/admin/keywords${flashQs({ error: `Re-tagging feilet: ${err.message}` })}`);
+      }
+    }
+    if (path === "/admin/jobs/refresh-snapshots" && req.method === "POST") {
+      try {
+        const result = await Jobs.refreshSnapshots({ sb: sbFetch, trigger: "manual" });
+        const hl = result.headline;
+        const msg = hl
+          ? `Snapshots oppdatert. AI-stillinger 7d: ${hl.ai_count_7d}, 30d: ${hl.ai_count_30d}.`
+          : "Snapshots oppdatert.";
+        return redirect(`/admin/jobs${flashQs({ ok: msg })}`);
+      } catch (err) {
+        return redirect(`/admin/jobs${flashQs({ error: `Snapshot-refresh feilet: ${err.message}` })}`);
+      }
+    }
+
+    // Keywords section
+    if (path === "/admin/keywords" && req.method === "GET")
+      return sendPage(await Keywords.listInner({ sb: sbFetch }));
+    if (path === "/admin/keywords/create" && req.method === "POST") {
+      const body = await readBody(req);
+      try {
+        const row = await Keywords.create({ sb: sbFetch, body });
+        return redirect(`/admin/keywords${flashQs({ ok: `La til "${row.term}"` })}`);
+      } catch (err) {
+        return redirect(`/admin/keywords${flashQs({ error: err.message })}`);
+      }
+    }
+    const kwMatch = path.match(/^\/admin\/keywords\/([0-9a-f-]{36})(?:\/(update|toggle))?$/);
+    if (kwMatch) {
+      const [, id, action] = kwMatch;
+      if (!action && req.method === "GET")
+        return sendPage(await Keywords.detailInner({ sb: sbFetch, id }));
+      if (action === "update" && req.method === "POST") {
+        const body = await readBody(req);
+        try {
+          await Keywords.update({ sb: sbFetch, id, body });
+          return redirect(`/admin/keywords${flashQs({ ok: "Lagret" })}`);
+        } catch (err) {
+          return redirect(`/admin/keywords/${id}${flashQs({ error: err.message })}`);
+        }
+      }
+      if (action === "toggle" && req.method === "POST") {
+        try {
+          const row = await Keywords.toggle({ sb: sbFetch, id });
+          return redirect(`/admin/keywords${flashQs({ ok: row.is_active ? "Aktivert" : "Deaktivert" })}`);
+        } catch (err) {
+          return redirect(`/admin/keywords${flashQs({ error: err.message })}`);
+        }
       }
     }
 

@@ -5,3 +5,18 @@
 #
 # Schedule: hourly at :07 (off-the-hour to spread load).
 7 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 60 ${ADMIN_URL}/admin/api/jobs/fetch-nav > /var/log/last-fetch.log 2>&1 || logger -s "kiba-fetcher: fetch-nav failed at $(date -Iseconds)"
+# Historical backfill: walks NAV's stillingsfeed forward from 2023-06 toward
+# present, one ≤50-page / ≤60s batch per tick. Catches up over a few days
+# then becomes a no-op once metadata.completed=true. -m 90 gives the batch's
+# 60s wall budget some slack for HTTP + final DB write.
+*/15 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 90 ${ADMIN_URL}/admin/api/jobs/backfill-nav > /var/log/last-backfill.log 2>&1 || logger -s "kiba-fetcher: backfill-nav failed at $(date -Iseconds)"
+# Enrichment: per-posting GET /api/v1/feedentry/{uuid} for ACTIVE postings
+# missing detail. ≤200 fetches or 60 s wall per batch. Runs on the :05 offset
+# to stay clear of the :00/:15/:30/:45 backfill ticks. No-op when the queue
+# is empty. -m 90 gives slack on top of the 60s wall budget.
+5,20,35,50 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 90 ${ADMIN_URL}/admin/api/jobs/enrich-nav > /var/log/last-enrich.log 2>&1 || logger -s "kiba-fetcher: enrich-nav failed at $(date -Iseconds)"
+# Snapshot refresh: recomputes the six dashboard tables in one transaction.
+# 04:00 server time (after the 03:00 backup, before morning traffic). One
+# run per day is enough — the dashboard reads pre-computed rows; the tag-time
+# is shown as "Sist oppdatert" so users see the freshness.
+0 4 * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 120 ${ADMIN_URL}/admin/api/jobs/refresh-snapshots > /var/log/last-snapshots.log 2>&1 || logger -s "kiba-fetcher: refresh-snapshots failed at $(date -Iseconds)"
