@@ -12,22 +12,23 @@ for journalists.
 
 ## 2. Hard rules (do not negotiate)
 
-1. **Zero npm dependencies in the admin.** Node 22 builtins only
-   (`node:http`, `node:crypto`, `node:url`, `node:fs/promises`, native `fetch`).
-   The marketing Next.js side may have npm deps.
-2. **Idempotent migrations.** Numbered `00NN_name.sql`. `create table if not
+1. **Idempotent migrations.** Numbered `00NN_name.sql`. `create table if not
    exists`, `drop policy if exists` before `create policy`, `on conflict do
    nothing` on inserts. Never rewrite an applied migration — add a new one.
-3. **Server-rendered HTML in admin.** Tagged-template literals (`` html`…` ``,
-   `` rawHtml`…` ``). No React, no JSX in the admin Node server.
-4. **PRG (POST-Redirect-GET) on every form.** POST handlers redirect on
-   success. Never return HTML from a POST.
-5. **Conventional Commits.** `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`,
+2. **PRG (POST-Redirect-GET) on every form.** Server actions / POST handlers
+   redirect on success. Never return HTML from a POST.
+3. **Conventional Commits.** `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`,
    `style:`, `test:`. Sign Claude-authored commits with
    `Co-Authored-By: Claude <noreply@anthropic.com>`.
-6. **Never `--no-verify`, never force-push to `main`, never push without PR.**
-7. **Forward motion over confirmation loops.** When direction is approved,
+4. **Never `--no-verify`, never force-push to `main`, never push without PR.**
+5. **Forward motion over confirmation loops.** When direction is approved,
    make sensible defaults and announce them.
+
+> Two earlier rules were retired in the Phase F redesign (PR landing Next 16
+> + shadcn/ui): *zero npm dependencies in the admin* and *server-rendered
+> HTML in admin via tagged-template literals*. The admin is being moved into
+> `/admin/*` inside the kiba-web Next.js app (PR 4). Until that lands, the
+> zero-dep `scripts/admin-server.js` is still the running admin in prod.
 
 ## 3. Current state
 
@@ -83,15 +84,20 @@ for journalists.
 
 ## 5. Code conventions
 
-- **Zero npm deps in admin.** Node 22 builtins only.
+> The bullets below describe the **legacy zero-dep Node admin** still running
+> in prod. The replacement Next.js admin (PR 4 of the Phase F redesign) uses
+> shadcn/ui + server actions; its conventions will be documented here when
+> it lands.
+
+- **Zero npm deps in admin.** Node 22 builtins only. *(Legacy admin only.)*
 - **ES modules.** Imports use `.js` extension.
 - **Server-rendered HTML.** `` html`…` `` auto-escapes; `` rawHtml`…` ``
-  doesn't. Never concatenate user input into HTML.
+  doesn't. Never concatenate user input into HTML. *(Legacy admin only.)*
 - **PRG on every form.** POSTs redirect on success; never return HTML from
   a POST.
 - **`sbFetch(path, { token, service, method, body, prefer })`** is the only
   PostgREST client. No `@supabase/supabase-js` in admin.
-- **`btn()` for every CTA** — see [scripts/admin-sections/shared.js](scripts/admin-sections/shared.js).
+- **`btn()` for every CTA** — see [scripts/admin-sections/shared.js](scripts/admin-sections/shared.js). *(Legacy admin only.)*
 - **Conventional Commits.** Sign Claude-authored commits with
   `Co-Authored-By: Claude <noreply@anthropic.com>`.
 
