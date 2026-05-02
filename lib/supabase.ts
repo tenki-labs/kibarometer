@@ -19,6 +19,15 @@ type Init = Omit<RequestInit, "body"> & {
 };
 
 export async function sb<T = unknown>(path: string, init: Init = {}): Promise<T> {
+  // CI/build-time short-circuit: `next build` prerenders every route, which
+  // would call this fn with placeholder env where SUPABASE_INTERNAL_URL is
+  // unreachable (ECONNREFUSED). Return empty so prerender succeeds; the
+  // first real request after deploy hits the real Kong and ISR fills the
+  // cache. Every consumer in this app expects an array shape, so [] is
+  // type-compatible across the board.
+  if (process.env.NEXT_PHASE === "phase-production-build") {
+    return [] as unknown as T;
+  }
   const { revalidate = 60, body, headers, ...rest } = init;
   const res = await fetch(`${env.SUPABASE_INTERNAL_URL}/rest/v1${path}`, {
     ...rest,
