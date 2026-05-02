@@ -94,6 +94,17 @@ docker compose --env-file /opt/kibarometer/env/supabase.env \
   -f compose.prod.yml -f compose.boot.yml \
   up -d --force-recreate --no-deps kong
 
+# Strip the default `kong` network alias. Compose's `aliases:` override is
+# ADDITIVE — even with `aliases: [kiba-supabase-kong]` in compose.boot.yml,
+# the container still gets `kong` as an alias from its service name, and
+# edge-caddy-1 (multi-network) resolves bare `kong` to whichever network
+# answers first, breaking tenki's /supabase/* routing. Disconnect/reconnect
+# with explicit --alias is the only way to drop the default. Verified
+# empirically post-PR#11: without this step the alias was
+# `kong api-gw kiba-supabase-kong`; with it, just `kiba-supabase-kong`.
+docker network disconnect kiba kiba-supabase-kong 2>/dev/null || true
+docker network connect --alias kiba-supabase-kong kiba kiba-supabase-kong
+
 echo "== healthcheck =="
 for i in $(seq 1 24); do
   if docker exec kiba-web wget -qO- http://127.0.0.1:3000/healthz >/dev/null 2>&1; then
