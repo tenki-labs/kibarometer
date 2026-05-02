@@ -16,6 +16,24 @@ docker ps --format '{{.Names}}' | grep -q '^kiba-supabase-db$' || {
   echo "kiba-supabase-db not running — run bootstrap.sh --bring-up first"; exit 1;
 }
 
+# Phase 9 backfill: kiba-backup's env_file: requires backup.env to exist
+# (compose v2 errors out otherwise). generate-secrets.sh creates it on
+# fresh installs; this branch handles the existing VPS where bootstrap
+# predates Phase 9. The container will keep restarting until the user
+# fills in real B2 creds — that's intentional and benign.
+if [[ ! -f /opt/kibarometer/env/backup.env ]]; then
+  echo "== first-deploy backfill: create empty backup.env stub =="
+  sudo tee /opt/kibarometer/env/backup.env >/dev/null <<'EOF'
+# Fill these in after creating bucket + key in the Backblaze B2 console.
+B2_APPLICATION_KEY_ID=
+B2_APPLICATION_KEY=
+B2_BUCKET=kibarometer-backups
+# UPTIME_KUMA_HEARTBEAT_URL=
+EOF
+  sudo chown deploy:deploy /opt/kibarometer/env/backup.env
+  sudo chmod 600 /opt/kibarometer/env/backup.env
+fi
+
 cd "$INCOMING"
 
 echo "== stage .env.production for the Next.js build =="
@@ -36,12 +54,15 @@ echo "== sync admin sources =="
 #   $ADMIN/sections/{shared,jobs}.js
 #   $ADMIN/nav/client.js
 #   $ADMIN/fetcher-entrypoint.sh, fetcher-crontab  (consumed by kiba-fetcher)
+#   $ADMIN/backup.sh                                (consumed by kiba-backup)
 sudo install -d -o deploy -g deploy "$ADMIN" "$ADMIN/sections" "$ADMIN/nav"
 sudo cp "$INCOMING/scripts/admin-server.js"          "$ADMIN/server.js"
 sudo cp -r "$INCOMING/scripts/admin-sections/."      "$ADMIN/sections/"
 sudo cp -r "$INCOMING/scripts/nav/."                 "$ADMIN/nav/"
 sudo cp "$INCOMING/scripts/fetcher-entrypoint.sh"    "$ADMIN/fetcher-entrypoint.sh"
 sudo cp "$INCOMING/scripts/fetcher-crontab"          "$ADMIN/fetcher-crontab"
+sudo cp "$INCOMING/scripts/backup.sh"                "$ADMIN/backup.sh"
+sudo chmod +x "$ADMIN/backup.sh"
 sudo chown -R deploy:deploy "$ADMIN"
 
 echo "== update website compose files =="
@@ -79,12 +100,12 @@ do \$\$ begin
   end if;
 end \$\$;" >/dev/null
 
-echo "== compose up (kiba-web + kiba-admin + kiba-fetcher only — supabase fleet stays running) =="
+echo "== compose up (kiba-web + kiba-admin + kiba-fetcher + kiba-backup — supabase fleet stays running) =="
 cd "$WEBSITE"
 docker compose --env-file /opt/kibarometer/env/supabase.env \
   -f compose.yml -f docker/supabase/docker-compose.yml \
   -f compose.prod.yml -f compose.boot.yml \
-  up -d --force-recreate --remove-orphans kiba-web kiba-admin kiba-fetcher
+  up -d --force-recreate --remove-orphans kiba-web kiba-admin kiba-fetcher kiba-backup
 
 # Recreate kong too — the alias override lives in compose.boot.yml. Without
 # this, an old kong container with the default `kong` alias keeps running

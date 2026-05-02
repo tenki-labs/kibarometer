@@ -15,7 +15,7 @@ ENV_DIR=/opt/kibarometer/env
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 
 # Refuse to clobber any existing env file.
-for f in supabase.env admin.env fetcher.env .env.production; do
+for f in supabase.env admin.env fetcher.env backup.env .env.production; do
   if [[ -f "$ENV_DIR/$f" ]]; then
     echo "$ENV_DIR/$f already exists — refusing to overwrite. Move it aside first if you really want to regenerate."
     exit 1
@@ -75,6 +75,21 @@ echo "== write fetcher.env =="
 install -m 600 -o deploy -g deploy /dev/stdin "$ENV_DIR/fetcher.env" <<EOF
 FETCHER_TOKEN=$FETCHER_TOKEN
 ADMIN_URL=http://kiba-admin:4000
+EOF
+
+echo "== write backup.env stub =="
+# B2 creds are NOT generated — they have to come from the Backblaze console.
+# The kiba-backup container will keep restarting until these are filled in,
+# then the next 03:00 cron tick takes over. UPTIME_KUMA_HEARTBEAT_URL is
+# optional; leave commented out to skip the heartbeat ping.
+install -m 600 -o deploy -g deploy /dev/stdin "$ENV_DIR/backup.env" <<EOF
+# Fill these in after creating the bucket + application key at
+# https://secure.backblaze.com/user_signin.htm
+# Suggested bucket name: kibarometer-backups (private)
+B2_APPLICATION_KEY_ID=
+B2_APPLICATION_KEY=
+B2_BUCKET=kibarometer-backups
+# UPTIME_KUMA_HEARTBEAT_URL=
 EOF
 
 echo "== write .env.production =="

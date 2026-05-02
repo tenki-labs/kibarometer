@@ -74,3 +74,30 @@ services:
       kiba-admin: { condition: service_healthy }
     entrypoint: ["/bin/sh", "/entrypoint.sh"]
     mem_limit: 32m
+
+  # Phase 9 — nightly backups to Backblaze B2 via rclone.
+  # Cron at 03:00 inside the container. The script uses `docker exec` against
+  # kiba-supabase-db via the host socket (matches tenki's pattern). Same
+  # apk-add-on-boot trick as kiba-fetcher to keep image size at the alpine
+  # baseline. backup.env (B2 creds) is generated as a stub by
+  # generate-secrets.sh — the user fills in the B2 application key after
+  # creating the bucket in the Backblaze console.
+  kiba-backup:
+    container_name: kiba-backup
+    image: alpine:3.20
+    restart: unless-stopped
+    env_file:
+      - /opt/kibarometer/env/backup.env
+    volumes:
+      # deploy.sh copies scripts/backup.sh into /opt/kibarometer/admin/.
+      - /opt/kibarometer/admin/backup.sh:/backup.sh:ro
+      # Read-only socket is misleading (the API still does writes through
+      # the daemon) but matches tenki's convention. Needed for `docker exec`
+      # against kiba-supabase-db.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "apk add --no-cache docker-cli rclone tzdata curl &&
+       echo '0 3 * * * /backup.sh' | crontab - &&
+       crond -f -l 2"
+    mem_limit: 64m
