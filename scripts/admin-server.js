@@ -268,7 +268,6 @@ const server = createServer(async (req, res) => {
     // Caddy routes /admin/* to this server, so these paths are reachable
     // externally; FETCHER_TOKEN is the only thing protecting them.
     const BEARER_HANDLERS = {
-      "/admin/api/jobs/fetch-nav":         Jobs.fetchNav,
       "/admin/api/jobs/backfill-nav":      Jobs.backfillNav,
       "/admin/api/jobs/enrich-nav":        Jobs.enrichNav,
       "/admin/api/jobs/reprocess":         Jobs.reprocessNavPostings,
@@ -307,23 +306,15 @@ const server = createServer(async (req, res) => {
 
     if (path === "/admin/jobs" && req.method === "GET")
       return sendPage(await Jobs.listInner({ sb: sbFetch }));
-    if (path === "/admin/jobs/fetch" && req.method === "POST") {
-      try {
-        const result = await Jobs.fetchNav({ sb: sbFetch, trigger: "manual" });
-        return redirect(`/admin/jobs${flashQs({ ok: `Hentet ${result.rows_processed} stillinger` })}`);
-      } catch (err) {
-        return redirect(`/admin/jobs${flashQs({ error: `Henting feilet: ${err.message}` })}`);
-      }
-    }
     if (path === "/admin/jobs/backfill" && req.method === "POST") {
       try {
         const result = await Jobs.backfillNav({ sb: sbFetch, trigger: "manual" });
-        const msg = result.status === "noop"
-          ? "Backfill er allerede ferdig."
-          : `Backfill-batch: ${result.pages} sider, ${result.items} stillinger${result.completed ? " — ferdig!" : ""}`;
+        const msg = result.caught_up
+          ? `Innhentet hodet — ${result.pages} sider, ${result.items} stillinger denne batchen. Poller nå hodesiden for nye hendelser.`
+          : `Batch: ${result.pages} sider, ${result.items} stillinger.`;
         return redirect(`/admin/jobs${flashQs({ ok: msg })}`);
       } catch (err) {
-        return redirect(`/admin/jobs${flashQs({ error: `Backfill feilet: ${err.message}` })}`);
+        return redirect(`/admin/jobs${flashQs({ error: `Innhenting feilet: ${err.message}` })}`);
       }
     }
     if (path === "/admin/jobs/enrich" && req.method === "POST") {

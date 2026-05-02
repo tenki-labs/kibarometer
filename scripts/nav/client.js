@@ -101,6 +101,12 @@ export async function fetchStillingsfeedBatch({
   let lastEventAt = null;
   let completed = false;
   let nextCursor = current;
+  // Each NAV response carries `id`, the immutable id of the page we just
+  // fetched. We track it so callers can remember the head page's id and
+  // re-poll it later for new events (NAV appends to existing pages until
+  // they fill, then chains a new page — re-fetching the head is the
+  // documented way to discover both kinds of update).
+  let lastPageId = null;
 
   while (pagesFetched < maxPages && Date.now() - start < maxWallMs) {
     const result = await fetchStillingsfeed({ cursor: current });
@@ -109,6 +115,7 @@ export async function fetchStillingsfeedBatch({
     }
     await onPage(result);
     pagesFetched += 1;
+    lastPageId = result.payload?.id ?? lastPageId;
 
     const items = Array.isArray(result.payload?.items) ? result.payload.items : [];
     itemsFetched += items.length;
@@ -125,5 +132,5 @@ export async function fetchStillingsfeedBatch({
     current = nextCursor;
   }
 
-  return { pagesFetched, itemsFetched, lastCursor: current, nextCursor, completed, lastEventAt };
+  return { pagesFetched, itemsFetched, lastCursor: current, nextCursor, completed, lastEventAt, lastPageId };
 }
