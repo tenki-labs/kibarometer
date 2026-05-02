@@ -124,17 +124,20 @@ admin user is inserted directly via SQL:
 ```bash
 PGPW=$(grep '^POSTGRES_PASSWORD=' /opt/kibarometer/env/supabase.env | cut -d= -f2)
 docker exec -i -e PGPASSWORD="$PGPW" kiba-supabase-db psql -U postgres -d postgres <<'SQL'
+-- One-shot insert. NO `on conflict (email)` — auth.users.email has a partial
+-- unique index (where deleted_at is null), not a true unique constraint, so
+-- ON CONFLICT (email) is rejected. If you re-run this on an existing email,
+-- it errors loudly — which is fine for a bootstrap-once flow.
 insert into auth.users (instance_id, id, email, encrypted_password, role, aud, email_confirmed_at,
                         raw_user_meta_data)
 values ('00000000-0000-0000-0000-000000000000', gen_random_uuid(),
         'oscar@winsights.no',
         crypt('REPLACE_ME', gen_salt('bf')),
         'authenticated', 'authenticated', now(),
-        '{"full_name": "Oscar", "role": "super_admin"}'::jsonb)
-on conflict (email) do nothing;
--- Backfill the public.profiles row for the user we just inserted (the
--- on_auth_user_created trigger only fires on INSERT, so re-running this
--- block after the user already exists wouldn't update profiles).
+        '{"full_name": "Oscar", "role": "super_admin"}'::jsonb);
+-- Backfill public.profiles. The on_auth_user_created trigger fires above
+-- and inserts the profile row, so this insert is usually a no-op (caught by
+-- on conflict (id)). Kept defensive in case the trigger is ever disabled.
 insert into public.profiles (id, full_name, role)
 select id,
        coalesce(raw_user_meta_data->>'full_name', email),

@@ -40,3 +40,11 @@ services:
     depends_on: !override
       admin: { condition: service_healthy }
     command: !override ["node", "server.js"]
+
+  # Drop kong's host port bindings. The shared Tenki VPS already runs an
+  # unforked supabase-kong that owns 8000/8443 (tenki forgot to fork their
+  # supabase compose). We only need kong inside the kiba network — the
+  # shared edge Caddy reaches it via `kiba-supabase-kong:8000` over docker
+  # DNS, no host port required.
+  kong:
+    ports: !reset null
