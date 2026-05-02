@@ -100,12 +100,15 @@ do \$\$ begin
   end if;
 end \$\$;" >/dev/null
 
-echo "== compose up (kiba-web + kiba-admin + kiba-fetcher + kiba-backup — supabase fleet stays running) =="
+echo "== compose up (kiba-web + kiba-admin + kiba-fetcher + kiba-backup + kiba-redis — supabase fleet stays running) =="
 cd "$WEBSITE"
+# kiba-redis must be in the explicit list. compose's depends_on cascade is
+# unreliable here — Phase 10 verification caught that the very first deploy
+# never created the redis container despite kiba-web depending on it.
 docker compose --env-file /opt/kibarometer/env/supabase.env \
   -f compose.yml -f docker/supabase/docker-compose.yml \
   -f compose.prod.yml -f compose.boot.yml \
-  up -d --force-recreate --remove-orphans kiba-web kiba-admin kiba-fetcher kiba-backup
+  up -d --force-recreate --remove-orphans kiba-web kiba-admin kiba-fetcher kiba-backup kiba-redis
 
 # Recreate kong too — the alias override lives in compose.boot.yml. Without
 # this, an old kong container with the default `kong` alias keeps running
