@@ -20,6 +20,23 @@ const SNAPSHOT_JOB = "refresh_nav_snapshots";
 
 const FEEDENTRY_BASE = "https://pam-stilling-feed.nav.no";
 
+// Sweep threshold: any `jobs` row with status='running' older than this is
+// treated as an orphan (the admin process died before reaching its terminal
+// PATCH). 30 min is comfortably longer than any realistic batch — backfill
+// ≤90 s, enrich ≤90 s, snapshot refresh <60 s, reprocess up to ~10 min on
+// the largest foreseeable dataset — so legitimate concurrent runs are never
+// killed by a sibling's sweep.
+const STALE_RUNNING_MS = 30 * 60 * 1000;
+
+// Allowlist of job names eligible for the sweep. New orchestrators must opt
+// in explicitly so a new long-running job isn't false-failed by default.
+const SWEEPABLE_JOB_NAMES = [
+  BACKFILL_JOB,
+  ENRICH_JOB,
+  REPROCESS_JOB,
+  SNAPSHOT_JOB,
+];
+
 const STATUS_LABEL = { running: "Kjører", success: "OK", failed: "Feilet" };
 const TRIGGER_LABEL = { manual: "manuell", cron: "cron" };
 
@@ -45,6 +62,33 @@ function backfillStateLine(meta) {
   const cursor = meta.next_cursor ? `<code>${esc(String(meta.next_cursor).slice(0, 8))}…</code>` : "<em>start</em>";
   const last = meta.last_event_at ? ` Siste hendelse: ${esc(fmtDateTime(meta.last_event_at))}.` : "";
   return `Pågår. Neste markør: ${cursor}.${last}`;
+}
+
+// Mark abandoned jobs as failed so /admin/jobs doesn't keep showing dead
+// "Kjører" entries. Best-effort: a sweep failure must not block the real
+// work. Called at the top of every orchestrator and rides the existing cron
+// schedule — no separate cron tick needed. Worst-case orphan visibility is
+// one cron interval (15 min for backfill, 4×/h for enrich, daily for refresh).
+//
+// Three filters keep the PATCH precise: status='running' (only orphans),
+// started_at older than STALE_RUNNING_MS (never our own freshly-created row),
+// and name ∈ SWEEPABLE_JOB_NAMES (never accidentally sweep a future job that
+// hasn't opted in). All three together also satisfy pg_safeupdate.
+async function sweepStaleRunningJobs(sb) {
+  const cutoff = new Date(Date.now() - STALE_RUNNING_MS).toISOString();
+  const allowlist = SWEEPABLE_JOB_NAMES.map(encodeURIComponent).join(",");
+  await sb(
+    `/jobs?status=eq.running&started_at=lt.${encodeURIComponent(cutoff)}&name=in.(${allowlist})`,
+    {
+      service: true,
+      method: "PATCH",
+      body: {
+        status: "failed",
+        finished_at: new Date().toISOString(),
+        error: "swept (process died before recording terminal state)",
+      },
+    }
+  );
 }
 
 export async function listInner({ sb }) {
@@ -199,6 +243,9 @@ export async function fetchNav({ sb, trigger = "manual" }) {
 // from the last persisted cursor — nav_raw is append-only with no unique
 // constraint, so duplicate page rows from a mid-batch crash are harmless.
 export async function backfillNav({ sb, trigger = "manual" }) {
+  await sweepStaleRunningJobs(sb).catch((e) =>
+    console.error("sweepStaleRunningJobs failed (non-fatal):", e.message)
+  );
   const prev = await sb(
     `/jobs?name=eq.${BACKFILL_JOB}&order=started_at.desc&limit=1&select=metadata`,
     { service: true }
@@ -299,6 +346,9 @@ export async function backfillNav({ sb, trigger = "manual" }) {
 // Tagging input is title + description: when the enrichment job has populated
 // description, retag picks up the richer recall automatically.
 export async function reprocessNavPostings({ sb, trigger = "manual" }) {
+  await sweepStaleRunningJobs(sb).catch((e) =>
+    console.error("sweepStaleRunningJobs failed (non-fatal):", e.message)
+  );
   const matchers = compileMatchers(await loadActiveKeywords(sb));
   const [job] = await sb(`/jobs`, {
     service: true,
@@ -377,6 +427,9 @@ export async function reprocessNavPostings({ sb, trigger = "manual" }) {
 // Re-tags each enriched row against the richer text (title + description) so
 // AI postings hidden in body copy finally get classified.
 export async function enrichNav({ sb, trigger = "manual" }) {
+  await sweepStaleRunningJobs(sb).catch((e) =>
+    console.error("sweepStaleRunningJobs failed (non-fatal):", e.message)
+  );
   const MAX_FETCHES = 200;
   const MAX_WALL_MS = 60_000;
 
@@ -502,6 +555,9 @@ export async function enrichNav({ sb, trigger = "manual" }) {
 // PostgREST exposes SECURITY DEFINER functions at /rpc/<name>. The function
 // itself does the work; this wrapper just records timing + status in `jobs`.
 export async function refreshSnapshots({ sb, trigger = "manual" }) {
+  await sweepStaleRunningJobs(sb).catch((e) =>
+    console.error("sweepStaleRunningJobs failed (non-fatal):", e.message)
+  );
   const [job] = await sb(`/jobs`, {
     service: true,
     method: "POST",
