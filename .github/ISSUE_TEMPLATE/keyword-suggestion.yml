@@ -1,0 +1,71 @@
+name: Foreslå et nøkkelord
+description: Forslå et nytt begrep til inkluderingslisten — eller flagg et som gir falske positive.
+title: "[nøkkelord] "
+labels: ["keyword-suggestion"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Takk for at du tar deg tid! Inkluderingslisten avgjør hva som regnes som
+        AI-relatert i Kibarometeret. Strukturerte forslag er enklere å vurdere
+        enn fri tekst — fyll inn så mye du kan.
+  - type: input
+    id: term
+    attributes:
+      label: Begrep
+      description: Selve ordet eller frasen du foreslår.
+      placeholder: f.eks. "RLHF" eller "Maskinlæringsingeniør"
+    validations:
+      required: true
+  - type: dropdown
+    id: language
+    attributes:
+      label: Språk
+      options:
+        - Norsk (no)
+        - Engelsk (en)
+        - Språknøytralt (any) — typisk verktøysnavn
+    validations:
+      required: true
+  - type: dropdown
+    id: category
+    attributes:
+      label: Kategori
+      options:
+        - Verktøy (tool)
+        - Rolle (role)
+        - Konsept (concept)
+    validations:
+      required: true
+  - type: dropdown
+    id: match_type
+    attributes:
+      label: Matche-type
+      description: Word-boundary er tryggere mot falske positive; substring er bredere.
+      options:
+        - Word-boundary (anbefalt)
+        - Substring
+    validations:
+      required: true
+  - type: input
+    id: example_url
+    attributes:
+      label: Eksempel-stilling
+      description: Lenke til en relevant utlysning på arbeidsplassen.nav.no eller andre kilder.
+      placeholder: https://arbeidsplassen.nav.no/stillinger/stilling/...
+  - type: textarea
+    id: reasoning
+    attributes:
+      label: Begrunnelse
+      description: |
+        Hvorfor mener du dette bør være med? Hvis det er for å fjerne falske
+        positive, beskriv hvilke utlysninger som matcher feilaktig.
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Bekreft
+      options:
+        - label: Jeg har sjekket den eksisterende listen på /metode og forslaget er ikke duplikat.
+          required: true
