@@ -26,7 +26,8 @@ async function getToken() {
 
 // Fetch one page from the Stillingsfeed.
 // Pass `cursor` (a `next_id` from a previous response) to advance through the
-// feed; omit to fetch the latest page.
+// feed; omit to fetch the oldest page (the feed is append-only, walked
+// forward from 2023-06 toward present — bare /api/v1/feed = page 1).
 export async function fetchStillingsfeed({ cursor } = {}) {
   const token = await getToken();
   const path = cursor ? `/api/v1/feed/${encodeURIComponent(cursor)}` : "/api/v1/feed";
@@ -49,4 +50,80 @@ export async function fetchStillingsfeed({ cursor } = {}) {
     http_status: res.status,
     duration_ms: Date.now() - t0,
   };
+}
+
+// Self-documenting alias: the bare /api/v1/feed IS the first (oldest) page.
+// Backfill starts here and walks forward via next_id until null.
+export async function fetchStillingsfeedFirst() {
+  return fetchStillingsfeed();
+}
+
+// Fetch one posting's detail. ACTIVE postings return a `json` field with the
+// full ad (description, employer, locations, occupation categories etc.).
+// INACTIVE postings return only {uuid, status, sistEndret} — caller must
+// check `status` before extracting detail fields.
+export async function fetchFeedentry(uuid) {
+  const token = await getToken();
+  const url = `${baseUrl()}/api/v1/feedentry/${encodeURIComponent(uuid)}`;
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+      "User-Agent": "kibarometer/1.0 (+https://kibarometer.no)",
+    },
+  });
+  const text = await res.text();
+  let detail = null;
+  try { detail = JSON.parse(text); } catch { detail = null; }
+  return { http_status: res.status, detail };
+}
+
+// Walk pages forward from `cursor`, calling `onPage(result)` for each. Stops on
+// any of: budget exhausted (`maxPages` or `maxWallMs`), `next_id` becomes null
+// (caught up to live head), or `onPage` throws (propagates after recording the
+// last successful cursor).
+//
+// `cursor=null` starts from the oldest page (2023-06). On success, the caller
+// should persist `nextCursor` (or null if `completed`) so the next batch
+// resumes where this one stopped. Pages are streamed one at a time so callers
+// can write incrementally without buffering the whole batch in memory.
+export async function fetchStillingsfeedBatch({
+  cursor = null,
+  maxPages = 50,
+  maxWallMs = 60_000,
+  onPage,
+} = {}) {
+  if (typeof onPage !== "function") throw new Error("fetchStillingsfeedBatch: onPage is required");
+  const start = Date.now();
+  let current = cursor;
+  let pagesFetched = 0;
+  let itemsFetched = 0;
+  let lastEventAt = null;
+  let completed = false;
+  let nextCursor = current;
+
+  while (pagesFetched < maxPages && Date.now() - start < maxWallMs) {
+    const result = await fetchStillingsfeed({ cursor: current });
+    if (result.http_status < 200 || result.http_status >= 300) {
+      throw new Error(`NAV feed HTTP ${result.http_status} at cursor=${current ?? "(first)"}`);
+    }
+    await onPage(result);
+    pagesFetched += 1;
+
+    const items = Array.isArray(result.payload?.items) ? result.payload.items : [];
+    itemsFetched += items.length;
+    for (const it of items) {
+      const t = it?.date_modified || it?._feed_entry?.sistEndret;
+      if (t && (!lastEventAt || t > lastEventAt)) lastEventAt = t;
+    }
+
+    nextCursor = result.payload?.next_id ?? null;
+    if (!nextCursor || nextCursor === current) {
+      completed = true;
+      break;
+    }
+    current = nextCursor;
+  }
+
+  return { pagesFetched, itemsFetched, lastCursor: current, nextCursor, completed, lastEventAt };
 }
