@@ -24,17 +24,20 @@ import { StatusBadge } from "@/app/admin/_components/status-badge";
 import { sbFetch } from "@/lib/admin/sb";
 import { fmtDateTime } from "@/lib/admin/flash";
 import {
-  backfillAction,
   enrichAction,
+  fastForwardAction,
   fetchAction,
   refreshSnapshotsAction,
+  toggleCronPausedAction,
 } from "./actions";
+import { pastFFThreshold } from "@/lib/admin/legacy/fast-forward.js";
 import { AutoRefresh } from "@/app/admin/_components/auto-refresh";
 
 const BACKFILL_JOB = "backfill_nav_stillingsfeed";
 const TRIGGER_LABEL: Record<string, string> = {
   manual: "manuell",
   cron: "cron",
+  "fast-forward": "drain",
 };
 
 type JobRow = {
@@ -57,7 +60,13 @@ type BackfillMeta = {
   last_event_at?: string | null;
 };
 
-type LatestBackfill = { metadata: BackfillMeta | null };
+type LatestBackfill = {
+  metadata: BackfillMeta | null;
+  status: string;
+  started_at: string;
+};
+
+type AppSettings = { cron_paused: boolean; updated_at: string };
 
 type SnapshotHeadline = {
   computed_for: string;
@@ -86,12 +95,15 @@ function backfillStateLine(meta: BackfillMeta | null): string {
     const head = meta.tail_cursor
       ? `${String(meta.tail_cursor).slice(0, 8)}…`
       : "?";
-    return `Innhentet til live head — overvåker for nye hendelser. Head: ${head}.${last}`;
+    return `Innhentet til live head — daglig polling kl. 06:00 UTC. Head: ${head}.${last}`;
   }
   const cursor = meta.next_cursor
     ? `${String(meta.next_cursor).slice(0, 8)}…`
     : "start";
-  return `Pågår. Neste markør: ${cursor}.${last}`;
+  if (!pastFFThreshold(meta.last_event_at)) {
+    return `Hopper over pre-2024 (markør: ${cursor}).${last}`;
+  }
+  return `Innhenter (markør: ${cursor}).${last}`;
 }
 
 type TriggerCardProps = {
@@ -100,6 +112,7 @@ type TriggerCardProps = {
   status?: React.ReactNode;
   buttonLabel: string;
   action: () => Promise<void>;
+  disabled?: boolean;
 };
 
 function TriggerCard({
@@ -108,6 +121,7 @@ function TriggerCard({
   status,
   buttonLabel,
   action,
+  disabled,
 }: TriggerCardProps) {
   return (
     <Card className="gap-3">
@@ -120,7 +134,12 @@ function TriggerCard({
       <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex-1 text-sm text-muted-foreground">{status}</div>
         <form action={action}>
-          <SubmitButton variant="outline" size="sm" pendingLabel="Kjører…">
+          <SubmitButton
+            variant="outline"
+            size="sm"
+            pendingLabel="Kjører…"
+            disabled={disabled}
+          >
             {buttonLabel}
           </SubmitButton>
         </form>
@@ -136,8 +155,8 @@ type Props = {
 export default async function JobsPage({ searchParams }: Props) {
   const params = await searchParams;
 
-  const [rows, latestBackfill, enrichQueue, latestHeadline] = await Promise.all(
-    [
+  const [rows, latestBackfill, enrichQueue, latestHeadline, appSettings] =
+    await Promise.all([
       sbFetch<JobRow[]>(
         `/jobs?select=id,name,trigger,status,started_at,finished_at,rows_processed,error,progress_pct,current_step&order=started_at.desc&limit=50`,
         { service: true },
@@ -154,12 +173,18 @@ export default async function JobsPage({ searchParams }: Props) {
         `/snapshot_headline?order=computed_for.desc&limit=1&select=computed_for,computed_at,ai_count_7d,ai_count_30d,ai_share_30d`,
         { service: true },
       ).catch(() => [] as SnapshotHeadline[]),
-    ],
-  );
+      sbFetch<AppSettings[]>(
+        `/app_settings?id=eq.1&select=cron_paused,updated_at`,
+        { service: true },
+      ).catch(() => [] as AppSettings[]),
+    ]);
 
   const backfillMeta = latestBackfill[0]?.metadata ?? null;
+  const backfillRunning = latestBackfill[0]?.status === "running";
   const enrichQueueHas = enrichQueue.length > 0;
   const headline = latestHeadline[0] ?? null;
+  const cronPaused = appSettings[0]?.cron_paused ?? false;
+  const cronUpdatedAt = appSettings[0]?.updated_at ?? null;
 
   // Aggregate stats for the top row.
   const successCount = rows.filter((r) => r.status === "success").length;
@@ -229,11 +254,23 @@ export default async function JobsPage({ searchParams }: Props) {
           action={fetchAction}
         />
         <TriggerCard
-          title="NAV historisk backfill"
-          description="Går gjennom hele feeden fra start (≈ 2023-06) framover, én batch per kjøring (maks 50 sider eller 60 s). Cron hvert 15. min — no-op når ferdig."
+          title="NAV backfill"
+          description="Drainer hele feeden i én kjøring: hopper over alt før 2024-01-01 (NAV migrasjons-burst, ingen ingest), så full innhenting fra 2024-01-01 til live head. Tar ~3 timer."
           status={backfillStateLine(backfillMeta)}
-          buttonLabel="Kjør backfill-batch"
-          action={backfillAction}
+          buttonLabel={backfillRunning ? "Kjører…" : "BACKFILL"}
+          action={fastForwardAction}
+          disabled={backfillRunning}
+        />
+        <TriggerCard
+          title="Periodisk henting"
+          description="Daglig poll av live head kl. 06:00 UTC for å fange nye stillinger NAV publiserer. Pause hvis du trenger å fryse ingestion (f.eks. NAV-utfall, debugging) — soft pause via app_settings.cron_paused."
+          status={
+            cronPaused
+              ? `Pauset${cronUpdatedAt ? ` siden ${fmtDateTime(cronUpdatedAt)}` : ""}.`
+              : `Aktiv${cronUpdatedAt ? `. Sist endret: ${fmtDateTime(cronUpdatedAt)}` : "."}`
+          }
+          buttonLabel={cronPaused ? "Aktiver daglig henting" : "Pause daglig henting"}
+          action={toggleCronPausedAction}
         />
         <TriggerCard
           title="Berikelse av aktive stillinger"

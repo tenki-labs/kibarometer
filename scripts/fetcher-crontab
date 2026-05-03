@@ -3,11 +3,15 @@
 # The expanded crontab calls the admin's bearer-authed endpoints which do
 # the actual NAV fetch + DB writes.
 
-# NAV ingest. Single path: walks the feed forward from 2023-06 during
-# catch-up, then auto-switches to polling the live head page for new
-# events. ≤50 pages / ≤60 s per tick. -m 90 gives slack on top of the 60 s
+# NAV ingest. Once-daily steady-state poll of the live head page for new
+# events (post-launch labour-market traffic is light — daily is plenty).
+# The historical catch-up is a button-driven one-shot via the BACKFILL
+# button on /admin/jobs (fastForwardAction → fastForwardNav + backfillNav
+# loop). The route handler also short-circuits if app_settings.cron_paused
+# is true (operator can toggle from the same admin page) or if a
+# button-driven drain is in flight. -m 90 gives slack on top of the 60 s
 # wall budget for HTTP + final DB write.
-*/15 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 90 ${ADMIN_URL}/admin/api/jobs/backfill-nav > /var/log/last-backfill.log 2>&1 || logger -s "kiba-fetcher: backfill-nav failed at $(date -Iseconds)"
+0 6 * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 90 ${ADMIN_URL}/admin/api/jobs/backfill-nav > /var/log/last-backfill.log 2>&1 || logger -s "kiba-fetcher: backfill-nav failed at $(date -Iseconds)"
 # Enrichment: per-posting GET /api/v1/feedentry/{uuid} for ACTIVE postings
 # missing detail. ≤200 fetches or 60 s wall per batch. Runs on the :05 offset
 # to stay clear of the :00/:15/:30/:45 backfill ticks. No-op when the queue
