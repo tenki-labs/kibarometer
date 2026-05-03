@@ -56,7 +56,7 @@ export default async function AdminOverviewPage({ searchParams }: Props) {
       { service: true },
     ).catch(() => [] as RecentJob[]),
     sbFetch<KeywordCount[] | { count: number }>(
-      "/keywords?is_active=eq.true&select=count",
+      "/keywords?status=eq.canonical&select=count",
       { service: true, headers: { Prefer: "count=exact" } },
     ).catch(() => [] as KeywordCount[]),
   ]);

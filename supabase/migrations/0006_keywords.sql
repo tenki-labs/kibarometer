@@ -40,9 +40,23 @@ alter table public.keywords enable row level security;
 
 -- Public read of active keywords so the marketing site (anon role) can
 -- render the methodology page directly from the database.
-drop policy if exists keywords_public_read on public.keywords;
-create policy keywords_public_read on public.keywords
-  for select using (is_active = true);
+--
+-- Wrapped in a DO block so this re-runs cleanly after 0015 has dropped
+-- is_active in favour of status. When is_active is gone, 0015's status-based
+-- policy is the authoritative one and we leave it alone.
+do $public_read$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'keywords'
+      and column_name = 'is_active'
+  ) then
+    drop policy if exists keywords_public_read on public.keywords;
+    execute 'create policy keywords_public_read on public.keywords for select using (is_active = true)';
+  end if;
+end
+$public_read$;
 
 -- Staff see soft-deleted entries too.
 drop policy if exists keywords_staff_read on public.keywords;

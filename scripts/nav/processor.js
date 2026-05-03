@@ -134,8 +134,10 @@ export async function processPayload({ sb, navRawRow, matchers }) {
 // ---- Helper: load active keywords once per batch -----------------------
 
 export async function loadActiveKeywords(sb) {
+  // status=in.(canonical,trial) — trial keywords (PR 6) tag too; only canonical
+  // counts publicly. Replaces the legacy is_active=eq.true filter (0015).
   return sb(
-    "/keywords?is_active=eq.true&select=term,language,category,match_type",
+    "/keywords?status=in.(canonical,trial)&select=term,language,category,match_type",
     { service: true }
   );
 }

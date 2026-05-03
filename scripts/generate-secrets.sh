@@ -80,6 +80,12 @@ UMAMI_USERNAME=
 UMAMI_PASSWORD=
 UMAMI_WEBSITE_ID=
 NEXT_PUBLIC_UMAMI_WEBSITE_ID=
+# LLM analytics — token must be provisioned manually at tenki.no's
+# /admin/api-tokens/new and pasted into MLX_API_KEY below. Until it is,
+# Tier 1/Tier 2 cron handlers return {skipped: 'no_api_key'} and the
+# /admin/llm page shows "not configured".
+MLX_BASE_URL=https://mlx.tenki.no/v1
+MLX_API_KEY=
 EOF
 
 echo "== write fetcher.env =="

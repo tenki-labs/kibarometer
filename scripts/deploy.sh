@@ -65,6 +65,18 @@ for KV in "UMAMI_INTERNAL_URL=http://kiba-umami:3000" "UMAMI_USERNAME=" "UMAMI_P
   fi
 done
 
+# LLM analytics backfill: idempotently append MLX_* placeholders to admin.env
+# on existing VPSes so the merge loop below picks them up. MLX_API_KEY is
+# blank by default — operator pastes the tnk_… token from tenki.no's
+# /admin/api-tokens/new. Until then, /admin/llm renders "not configured".
+for KV in "MLX_BASE_URL=https://mlx.tenki.no/v1" "MLX_API_KEY="; do
+  KEY=${KV%%=*}
+  if ! sudo grep -q "^${KEY}=" "$ADMIN_ENV_PRE"; then
+    echo "  appending $KEY to admin.env"
+    echo "$KV" | sudo tee -a "$ADMIN_ENV_PRE" >/dev/null
+  fi
+done
+
 cd "$INCOMING"
 
 echo "== merge admin secrets into .env.production (Phase F PR 4) =="
@@ -94,6 +106,18 @@ done
 # setup (port-forwarded UI). Once they are filled in, every subsequent deploy
 # needs to pick up the new values, hence sed-replace + append fallback.
 for KEY in UMAMI_INTERNAL_URL UMAMI_USERNAME UMAMI_PASSWORD UMAMI_WEBSITE_ID NEXT_PUBLIC_UMAMI_WEBSITE_ID; do
+  VAL=$(sudo grep "^${KEY}=" "$ADMIN_ENV" 2>/dev/null | cut -d= -f2- || echo "")
+  if sudo grep -q "^${KEY}=" "$PROD_ENV"; then
+    sudo sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$PROD_ENV"
+  else
+    echo "${KEY}=${VAL}" | sudo tee -a "$PROD_ENV" >/dev/null
+  fi
+done
+
+# Mutable MLX config — same upsert pattern as UMAMI. MLX_API_KEY starts blank
+# until the operator provisions a tnk_… token at tenki.no's
+# /admin/api-tokens/new. Once filled in, subsequent deploys propagate it.
+for KEY in MLX_BASE_URL MLX_API_KEY; do
   VAL=$(sudo grep "^${KEY}=" "$ADMIN_ENV" 2>/dev/null | cut -d= -f2- || echo "")
   if sudo grep -q "^${KEY}=" "$PROD_ENV"; then
     sudo sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$PROD_ENV"
@@ -143,7 +167,7 @@ sudo cp "$INCOMING/docker/supabase/docker-compose.yml"     "$WEBSITE/docker/supa
 echo "== apply idempotent migrations =="
 # Add new filenames here as you write them. They MUST be idempotent.
 PGPW=$(grep '^POSTGRES_PASSWORD=' /opt/kibarometer/env/supabase.env | cut -d= -f2)
-for migration in 0001_baseline.sql 0002_nav_raw.sql 0005_jobs.sql 0006_keywords.sql 0006a_jobs_metadata.sql 0007_nav_postings.sql 0008_nav_snapshots.sql 0009_umami_db.sql 0010_admin_diag.sql 0011_site_content.sql 0012_jobs_progress.sql 0013_admin_list_columns.sql; do
+for migration in 0001_baseline.sql 0002_nav_raw.sql 0005_jobs.sql 0006_keywords.sql 0006a_jobs_metadata.sql 0007_nav_postings.sql 0008_nav_snapshots.sql 0009_umami_db.sql 0010_admin_diag.sql 0011_site_content.sql 0012_jobs_progress.sql 0013_admin_list_columns.sql 0014_nav_postings_llm_columns.sql 0015_keyword_status.sql 0020_mlx_health.sql; do
   if [[ -f "$INCOMING/supabase/migrations/$migration" ]]; then
     echo "  applying $migration"
     if ! docker exec -i -e PGPASSWORD="$PGPW" kiba-supabase-db \

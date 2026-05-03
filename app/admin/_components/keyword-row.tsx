@@ -29,7 +29,7 @@ type KeywordRowData = {
   term: string;
   language: "any" | "no" | "en" | string;
   match_type: "word" | "substring" | string;
-  is_active: boolean;
+  status: "canonical" | "trial" | "rejected" | string;
   notes: string | null;
   updated_at: string;
 };
@@ -46,12 +46,14 @@ function langBadge(l: string) {
 
 export function KeywordRow({ kw }: { kw: KeywordRowData }) {
   const toggle = toggleAction.bind(null, kw.id);
+  // canonical or trial both match in tagging; only canonical counts publicly.
+  const matchesInTagging = kw.status === "canonical" || kw.status === "trial";
   // Dim only the term/notes — keep badges + actions readable so the
   // recovery affordance ("Aktiver") stays visible on inactive rows.
   return (
     <TableRow>
       <TableCell>
-        <div className={cn("font-medium", !kw.is_active && "text-muted-foreground")}>
+        <div className={cn("font-medium", !matchesInTagging && "text-muted-foreground")}>
           {kw.term}
         </div>
         {kw.notes ? (
@@ -65,7 +67,7 @@ export function KeywordRow({ kw }: { kw: KeywordRowData }) {
         </Badge>
       </TableCell>
       <TableCell>
-        {kw.is_active ? (
+        {matchesInTagging ? (
           <>
             <Check className="size-4 text-emerald-600" aria-hidden />
             <span className="sr-only">Aktiv</span>
@@ -87,7 +89,7 @@ export function KeywordRow({ kw }: { kw: KeywordRowData }) {
           </Button>
           <form action={toggle}>
             <SubmitButton variant="ghost" size="sm">
-              {kw.is_active ? "Skjul" : "Aktiver"}
+              {matchesInTagging ? "Skjul" : "Aktiver"}
             </SubmitButton>
           </form>
         </div>
