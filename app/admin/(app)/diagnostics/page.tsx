@@ -18,10 +18,9 @@ import {
 import { Flash } from "@/app/admin/_components/flash";
 import { PageHeader } from "@/app/admin/_components/page-header";
 import { StatCard } from "@/app/admin/_components/stat-card";
+import { AutoRefresh } from "@/app/admin/_components/auto-refresh";
 import { sbFetch } from "@/lib/admin/sb";
 
-// Server component: pulls every metric on render. Auto-refresh at the
-// page level (meta refresh) keeps the UI live without any client JS.
 export const dynamic = "force-dynamic";
 
 type TableSizeRow = {
@@ -82,8 +81,11 @@ export default async function DiagnosticsPage({ searchParams }: Props) {
   const uptimeSec = process.uptime();
 
   const totalBytes = tableSizes.reduce((sum, r) => sum + (r.total_bytes ?? 0), 0);
+  // pg_class.reltuples is -1 for tables that have never been ANALYZE'd
+  // (mostly empty auth/storage/supabase tables). Clamp negatives to 0
+  // so they don't drag the total down.
   const totalRows = tableSizes.reduce(
-    (sum, r) => sum + (r.row_estimate ?? 0),
+    (sum, r) => sum + Math.max(0, r.row_estimate ?? 0),
     0,
   );
 
@@ -95,8 +97,7 @@ export default async function DiagnosticsPage({ searchParams }: Props) {
 
   return (
     <>
-      {/* Auto-refresh every 30s — server component re-renders, no JS shipped. */}
-      <meta httpEquiv="refresh" content="30" />
+      <AutoRefresh enabled intervalMs={30000} />
       <Flash searchParams={params} />
       <PageHeader
         eyebrow="Innsikt"
@@ -207,7 +208,8 @@ export default async function DiagnosticsPage({ searchParams }: Props) {
             <code className="font-mono text-xs">pg_total_relation_size</code>).
             Rad-estimat er fra{" "}
             <code className="font-mono text-xs">pg_class.reltuples</code>{" "}
-            (oppdateres ved ANALYZE — kan være litt utdatert).
+            (oppdateres ved ANALYZE — kan være litt utdatert). Tabeller som
+            aldri har vært ANALYZE'd vises som <code className="font-mono text-xs">—</code>.
           </CardDescription>
         </CardHeader>
         <div className="overflow-x-auto">
@@ -242,8 +244,17 @@ export default async function DiagnosticsPage({ searchParams }: Props) {
                     <TableCell className="text-right tabular-nums">
                       {formatBytes(r.total_bytes)}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">
-                      {r.row_estimate.toLocaleString("nb-NO")}
+                    <TableCell
+                      className="text-right tabular-nums text-muted-foreground"
+                      title={
+                        r.row_estimate < 0
+                          ? "Tabellen har aldri vært ANALYZE'd — Postgres vet ikke radantallet."
+                          : undefined
+                      }
+                    >
+                      {r.row_estimate < 0
+                        ? "—"
+                        : r.row_estimate.toLocaleString("nb-NO")}
                     </TableCell>
                   </TableRow>
                 ))
