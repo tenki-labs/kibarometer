@@ -167,7 +167,7 @@ sudo cp "$INCOMING/docker/supabase/docker-compose.yml"     "$WEBSITE/docker/supa
 echo "== apply idempotent migrations =="
 # Add new filenames here as you write them. They MUST be idempotent.
 PGPW=$(grep '^POSTGRES_PASSWORD=' /opt/kibarometer/env/supabase.env | cut -d= -f2)
-for migration in 0001_baseline.sql 0002_nav_raw.sql 0005_jobs.sql 0006_keywords.sql 0006a_jobs_metadata.sql 0007_nav_postings.sql 0008_nav_snapshots.sql 0009_umami_db.sql 0010_admin_diag.sql 0011_site_content.sql 0012_jobs_progress.sql 0013_admin_list_columns.sql 0014_nav_postings_llm_columns.sql 0015_keyword_status.sql 0017_taxonomy.sql 0018_llm_prompts.sql 0020_mlx_health.sql; do
+for migration in 0001_baseline.sql 0002_nav_raw.sql 0005_jobs.sql 0006_keywords.sql 0006a_jobs_metadata.sql 0007_nav_postings.sql 0008_nav_snapshots.sql 0009_umami_db.sql 0010_admin_diag.sql 0011_site_content.sql 0012_jobs_progress.sql 0013_admin_list_columns.sql 0014_nav_postings_llm_columns.sql 0015_keyword_status.sql 0016_keyword_candidates.sql 0017_taxonomy.sql 0018_llm_prompts.sql 0020_mlx_health.sql; do
   if [[ -f "$INCOMING/supabase/migrations/$migration" ]]; then
     echo "  applying $migration"
     if ! docker exec -i -e PGPASSWORD="$PGPW" kiba-supabase-db \
