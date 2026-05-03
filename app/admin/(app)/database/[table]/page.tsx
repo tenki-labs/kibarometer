@@ -29,7 +29,16 @@ const PAGE_SIZE = 100;
 // it, so this list is the only thing standing between the URL bar and the
 // data.
 const NAME_GUARD = /^[a-z][a-z0-9_]*$/;
+const COL_NAME_GUARD = /^[a-z_][a-z0-9_]*$/;
 const DENY_KEYWORDS = ["token", "secret", "password"];
+
+// jsonb / json columns can carry multi-MB payloads (notably nav_raw.payload).
+// `select=*&limit=100` on those tables 502s at Kong because the upstream
+// response exceeds its window. Project them away by default; the viewer is
+// for spotting shape and recent rows, not for inspecting full JSON.
+const JSON_TYPES = new Set(["json", "jsonb"]);
+
+type ColumnInfo = { column_name: string; data_type: string };
 
 type Props = {
   params: Promise<{ table: string }>;
@@ -48,13 +57,31 @@ export default async function DataTablePage({ params, searchParams }: Props) {
     return errorCard(table, "Tabellnavnet er blokkert eller ugyldig.");
   }
 
+  const columnsMeta = await sbFetch<ColumnInfo[]>(
+    "/rpc/admin_list_table_columns",
+    { service: true, method: "POST", body: { p_table: table } },
+  ).catch(() => [] as ColumnInfo[]);
+
+  const visibleCols = columnsMeta.filter(
+    (c) =>
+      COL_NAME_GUARD.test(c.column_name) && !JSON_TYPES.has(c.data_type),
+  );
+  const hiddenCount = columnsMeta.length - visibleCols.length;
+  // If the RPC is missing (pre-migration) or the table genuinely has no
+  // columns, fall back to `*` so we don't render an empty page; this keeps
+  // the diagnostic value of "did the route work at all" intact.
+  const selectClause =
+    visibleCols.length > 0
+      ? visibleCols.map((c) => c.column_name).join(",")
+      : "*";
+
   let rows: Record<string, unknown>[] = [];
   let errorMsg: string | null = null;
 
   try {
     const orderQs = orderParam ? `&order=${encodeURIComponent(orderParam)}` : "";
     rows = await sbFetch<Record<string, unknown>[]>(
-      `/${encodeURIComponent(table)}?select=*&limit=${PAGE_SIZE}&offset=${offset}${orderQs}`,
+      `/${encodeURIComponent(table)}?select=${selectClause}&limit=${PAGE_SIZE}&offset=${offset}${orderQs}`,
       { service: true },
     );
   } catch (err) {
@@ -65,7 +92,12 @@ export default async function DataTablePage({ params, searchParams }: Props) {
     return errorCard(table, errorMsg);
   }
 
-  const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
+  const columns =
+    visibleCols.length > 0
+      ? visibleCols.map((c) => c.column_name)
+      : rows.length > 0
+        ? Object.keys(rows[0])
+        : [];
 
   const prevOffset = Math.max(0, offset - PAGE_SIZE);
   const nextOffset = offset + PAGE_SIZE;
@@ -100,6 +132,14 @@ export default async function DataTablePage({ params, searchParams }: Props) {
           <CardDescription className="mt-1">
             Skrivebeskyttet. For å sortere: legg til{" "}
             <code className="font-mono text-xs">?order=col.desc</code> i URL-en.
+            {hiddenCount > 0 ? (
+              <>
+                {" "}
+                {hiddenCount}{" "}
+                {hiddenCount === 1 ? "JSON-kolonne" : "JSON-kolonner"} skjult
+                for å unngå tunge svar.
+              </>
+            ) : null}
           </CardDescription>
         </CardHeader>
         <div className="overflow-x-auto">
