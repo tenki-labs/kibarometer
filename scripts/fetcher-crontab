@@ -18,3 +18,9 @@
 # run per day is enough — the dashboard reads pre-computed rows; the tag-time
 # is shown as "Sist oppdatert" so users see the freshness.
 0 4 * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 120 ${ADMIN_URL}/admin/api/jobs/refresh-snapshots > /var/log/last-snapshots.log 2>&1 || logger -s "kiba-fetcher: refresh-snapshots failed at $(date -Iseconds)"
+# LLM Tier 1 (discovery): verbatim AI-skill phrase extraction on every new
+# posting. K=15 rows per tick, ~3 s/call on Gemma 3 4B-IT 4-bit ≈ 45 s/tick.
+# -m 90 gives slack above the 60 s wall budget. Offset from backfill
+# (:00,:15,:30,:45) and enrich (:05,:20,:35,:50) so calls don't pile up on
+# the Mac. No-op when MLX_API_KEY is unset or a previous tick still active.
+8,23,38,53 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 90 ${ADMIN_URL}/admin/api/jobs/llm-discover > /var/log/last-llm-discover.log 2>&1 || logger -s "kiba-fetcher: llm-discover failed at $(date -Iseconds)"
