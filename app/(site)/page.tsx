@@ -17,6 +17,7 @@ import Link from "next/link";
 import {
   HBarList,
   LOW_SAMPLE_THRESHOLD,
+  SkillCategoriesList,
   Sparkline,
   TrendChart,
 } from "@/app/_components/charts";
@@ -28,6 +29,8 @@ import {
   type SnapshotHeadline,
   type SnapshotKeyword,
   type SnapshotMonthly,
+  type SnapshotSkillCategory,
+  type TaxonomyCategory,
 } from "@/lib/supabase";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
@@ -131,7 +134,16 @@ export default async function HomePage({
   const today = new Date().toISOString().slice(0, 10);
   const headlineCutoff = asOf ?? today;
 
-  const [headlineRows, monthly, daily, keywords, geography, category] = await Promise.all([
+  const [
+    headlineRows,
+    monthly,
+    daily,
+    keywords,
+    geography,
+    category,
+    skillLatest,
+    taxonomy,
+  ] = await Promise.all([
     // Pinned date or fall back to most recent ≤ cutoff.
     sb<SnapshotHeadline[]>(
       `/snapshot_headline?computed_for=lte.${headlineCutoff}&order=computed_for.desc&limit=1`,
@@ -145,7 +157,23 @@ export default async function HomePage({
     ),
     sb<SnapshotGeography[]>("/snapshot_geography?order=ai_count_30d.desc"),
     sb<SnapshotCategory[]>("/snapshot_category?order=ai_count_30d.desc&limit=10"),
+    // Pick the latest computed_for in one query, then fetch its rows. Two
+    // round-trips, but each is cheap (PK index lookup). The first query
+    // returns at most one row regardless of slug count.
+    sb<{ computed_for: string }[]>(
+      "/snapshot_skill_categories?select=computed_for&order=computed_for.desc&limit=1",
+    ),
+    sb<TaxonomyCategory[]>(
+      "/taxonomy_categories?select=slug,title,definition_md,sort_order&order=sort_order.asc",
+    ),
   ]);
+
+  const skillLatestDate = skillLatest[0]?.computed_for;
+  const skillCategories = skillLatestDate
+    ? await sb<SnapshotSkillCategory[]>(
+        `/snapshot_skill_categories?computed_for=eq.${skillLatestDate}`,
+      )
+    : [];
 
   const headline = headlineRows[0];
 
@@ -265,6 +293,18 @@ export default async function HomePage({
             </tbody>
           </table>
         )}
+      </section>
+
+      {/* ---------- AI-FERDIGHETSKATEGORIER ---------- */}
+      <section className="section" aria-labelledby="skill-cat-h">
+        <div className="section-head">
+          <h2 id="skill-cat-h">AI-ferdighetskategorier, siste 30 dager</h2>
+        </div>
+        <SkillCategoriesList rows={skillCategories} taxonomy={taxonomy} />
+        <p className="meta" style={{ marginTop: "0.75rem" }}>
+          Klassifisert av en språkmodell — én stilling kan tilhøre flere
+          kategorier. <a href="/metode#taksonomi">Se taksonomien og metoden</a>.
+        </p>
       </section>
 
       {/* ---------- YRKESKATEGORI + GEOGRAFI ---------- */}

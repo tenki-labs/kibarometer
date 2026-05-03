@@ -91,6 +91,26 @@ export type SnapshotCategory = {
   total_count_30d: number;
 };
 
+// AI-skill category snapshot (LLM Tier 2 classification rolled up per slug).
+// See 0021_skill_snapshot.sql. The home page reads the rows for the latest
+// `computed_for` and joins with taxonomy_categories on slug to pick up the
+// human-readable title.
+export type SnapshotSkillCategory = {
+  computed_for: string;     // YYYY-MM-DD
+  slug: string;
+  ai_count_30d: number;
+  ai_count_7d: number;
+  share_pct: number | null;
+};
+
+// Public taxonomy row used by /metode and the home-page skill chart.
+export type TaxonomyCategory = {
+  slug: string;
+  title: string;
+  definition_md: string;
+  sort_order: number;
+};
+
 // Public keyword (used by /metode methodology page).
 export type Keyword = {
   id: string;
