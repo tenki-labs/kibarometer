@@ -1,10 +1,13 @@
 // scripts/admin-sections/jobs.js
-// Admin section: list job runs + manual fetch trigger.
-// fetchNav() is shared by:
-//   POST /admin/jobs/fetch          (cookie-authed button on this page)
-//   POST /admin/api/jobs/fetch-nav  (bearer-authed cron entry point)
+// Admin section: list job runs + manual triggers for backfill, enrich,
+// reprocess, snapshot refresh.
+//
+// backfillNav is the single ingest path: walks NAV's stillingsfeed forward
+// from 2023-06; once it hits the live head (next_id=null) it stops walking
+// and starts polling that head page on each cron tick to pick up new events
+// as NAV appends them.
 import { esc, rawHtml, fmtDateTime, btn, pageHead } from "./shared.js";
-import { fetchFeedentry, fetchStillingsfeed, fetchStillingsfeedBatch } from "../nav/client.js";
+import { fetchFeedentry, fetchStillingsfeedBatch } from "../nav/client.js";
 import {
   applyTags,
   compileMatchers,
@@ -55,12 +58,14 @@ function durationLabel(started, finished) {
 
 function backfillStateLine(meta) {
   if (!meta) return "Ikke startet ennå.";
-  if (meta.completed) {
-    const last = meta.last_event_at ? ` Siste hendelse: ${esc(fmtDateTime(meta.last_event_at))}.` : "";
-    return `Ferdig — har innhentet hele feeden.${last}`;
-  }
-  const cursor = meta.next_cursor ? `<code>${esc(String(meta.next_cursor).slice(0, 8))}…</code>` : "<em>start</em>";
   const last = meta.last_event_at ? ` Siste hendelse: ${esc(fmtDateTime(meta.last_event_at))}.` : "";
+  // tail_cursor set = caught up to live head, polling for new events.
+  if (meta.tail_cursor) {
+    const head = `<code>${esc(String(meta.tail_cursor).slice(0, 8))}…</code>`;
+    return `Innhentet — poller hodesiden ${head} for nye hendelser.${last}`;
+  }
+  // Catch-up phase, walking forward.
+  const cursor = meta.next_cursor ? `<code>${esc(String(meta.next_cursor).slice(0, 8))}…</code>` : "<em>start</em>";
   return `Pågår. Neste markør: ${cursor}.${last}`;
 }
 
@@ -127,21 +132,12 @@ export async function listInner({ sb }) {
     ${pageHead("admin", "Jobber")}
     <div class="card" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
       <div style="flex:1;min-width:200px">
-        <div class="eyebrow" style="margin-bottom:.3rem">NAV Stillingsfeed</div>
-        <div style="color:var(--muted);font-size:.92rem">Henter siste side fra <code>pam-stilling-feed.nav.no/api/v1/feed</code> og lagrer rå-payload i <code>nav_raw</code>.</div>
-      </div>
-      <form method="post" action="/admin/jobs/fetch">
-        ${btn({ label: "Hent NAV nå" })}
-      </form>
-    </div>
-    <div class="card" style="margin-top:1rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
-      <div style="flex:1;min-width:200px">
-        <div class="eyebrow" style="margin-bottom:.3rem">NAV historisk backfill</div>
-        <div style="color:var(--muted);font-size:.92rem">Går gjennom hele feeden fra start (≈ 2023-06) framover, én batch per kjøring (maks 50 sider eller 60 s). Cron kjører hvert 15. min — no-op når ferdig.</div>
+        <div class="eyebrow" style="margin-bottom:.3rem">NAV-innhenting</div>
+        <div style="color:var(--muted);font-size:.92rem">Går gjennom feeden fra start (≈ 2023-06) framover. Når den når dagens hodeside, poller den samme side hvert 15. min for nye hendelser. Maks 50 sider eller 60 s per kjøring.</div>
         <div style="margin-top:.4rem;font-size:.92rem">${backfillStateLine(backfillMeta)}</div>
       </div>
       <form method="post" action="/admin/jobs/backfill">
-        ${btn({ label: "Kjør backfill-batch" })}
+        ${btn({ label: "Kjør batch nå" })}
       </form>
     </div>
     <div class="card" style="margin-top:1rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
@@ -177,70 +173,19 @@ export async function listInner({ sb }) {
   `;
 }
 
-// Run a NAV fetch end-to-end. Idempotent in the "data" sense (each run inserts
-// a new nav_raw + jobs row) but never mutates earlier rows.
-export async function fetchNav({ sb, trigger = "manual" }) {
-  const [job] = await sb(`/jobs`, {
-    service: true,
-    method: "POST",
-    body: { name: "fetch_nav_stillingsfeed", trigger },
-    prefer: "return=representation",
-  });
-
-  try {
-    const result = await fetchStillingsfeed();
-    const ok = result.http_status >= 200 && result.http_status < 300;
-    if (!ok) throw new Error(`NAV feed returned HTTP ${result.http_status}`);
-
-    const [navRawRow] = await sb(`/nav_raw`, {
-      service: true,
-      method: "POST",
-      body: {
-        endpoint: result.endpoint,
-        params: result.params,
-        payload: result.payload,
-        http_status: result.http_status,
-        duration_ms: result.duration_ms,
-      },
-      prefer: "return=representation",
-    });
-
-    const matchers = compileMatchers(await loadActiveKeywords(sb));
-    const upserted = await processPayload({ sb, navRawRow: { id: navRawRow.id, payload: result.payload }, matchers });
-
-    await sb(`/jobs?id=eq.${job.id}`, {
-      service: true,
-      method: "PATCH",
-      body: {
-        finished_at: new Date().toISOString(),
-        status: "success",
-        rows_processed: upserted,
-      },
-    });
-
-    return { id: job.id, status: "success", rows_processed: upserted, http_status: result.http_status };
-  } catch (err) {
-    await sb(`/jobs?id=eq.${job.id}`, {
-      service: true,
-      method: "PATCH",
-      body: {
-        finished_at: new Date().toISOString(),
-        status: "failed",
-        error: String(err.message || err).slice(0, 1000),
-      },
-    });
-    throw err;
-  }
-}
-
-// Run one batch of the historical backfill. Resumes from the most recent
-// successful backfill_nav_stillingsfeed job's metadata.next_cursor, walks up
-// to 50 pages or 60 s wall time, writes each page to nav_raw, and persists
-// the new cursor. Once the feed reports next_id=null, sets metadata.completed
-// so subsequent cron ticks short-circuit.
+// Single ingest path. Two phases, one orchestrator:
+//   1. Catch-up: walk the feed forward from metadata.next_cursor (or page 1
+//      on first run). Each batch processes up to 50 pages or 60 s wall time
+//      and persists the next cursor for the following tick to resume.
+//   2. Tail-poll: once we hit next_id=null (the live head), persist the
+//      current page's id as `tail_cursor`. Subsequent ticks re-fetch that
+//      cursor — NAV's docs document that the head's `next_id` becomes
+//      non-null when new events arrive, at which point we naturally walk
+//      forward and discover them. Either way, re-fetching is idempotent
+//      (nav_postings upserts on uuid).
 //
-// Idempotent in the sense that re-running on a partial failure simply re-fetches
-// from the last persisted cursor — nav_raw is append-only with no unique
+// Crash-safe at any point: if a batch dies mid-write, the next tick resumes
+// from the last persisted cursor. nav_raw is append-only with no unique
 // constraint, so duplicate page rows from a mid-batch crash are harmless.
 export async function backfillNav({ sb, trigger = "manual" }) {
   await sweepStaleRunningJobs(sb).catch((e) =>
@@ -252,11 +197,9 @@ export async function backfillNav({ sb, trigger = "manual" }) {
   );
   const prevMeta = prev[0]?.metadata || null;
 
-  if (prevMeta?.completed) {
-    return { status: "noop", reason: "completed", pages: 0, items: 0 };
-  }
-
-  const startCursor = prevMeta?.next_cursor || null;
+  // Resume order: in-flight catch-up cursor first, then tail-poll cursor,
+  // then null (= start from page 1, first-run only).
+  const startCursor = prevMeta?.next_cursor || prevMeta?.tail_cursor || null;
 
   const [job] = await sb(`/jobs`, {
     service: true,
@@ -264,7 +207,7 @@ export async function backfillNav({ sb, trigger = "manual" }) {
     body: {
       name: BACKFILL_JOB,
       trigger,
-      metadata: { start_cursor: startCursor, next_cursor: startCursor, completed: false },
+      metadata: { start_cursor: startCursor },
     },
     prefer: "return=representation",
   });
@@ -300,6 +243,25 @@ export async function backfillNav({ sb, trigger = "manual" }) {
       },
     });
 
+    // Caught-up = next_id was null on the last page → keep the head's id as
+    // the tail cursor for the next tick to re-poll. Otherwise we still have
+    // pages ahead → save next_cursor.
+    const newMeta = summary.completed
+      ? {
+          start_cursor: startCursor,
+          next_cursor: null,
+          tail_cursor: summary.lastPageId,
+          pages_fetched: summary.pagesFetched,
+          last_event_at: summary.lastEventAt,
+        }
+      : {
+          start_cursor: startCursor,
+          next_cursor: summary.nextCursor,
+          tail_cursor: null,
+          pages_fetched: summary.pagesFetched,
+          last_event_at: summary.lastEventAt,
+        };
+
     await sb(`/jobs?id=eq.${job.id}`, {
       service: true,
       method: "PATCH",
@@ -307,13 +269,7 @@ export async function backfillNav({ sb, trigger = "manual" }) {
         finished_at: new Date().toISOString(),
         status: "success",
         rows_processed: summary.itemsFetched,
-        metadata: {
-          start_cursor: startCursor,
-          next_cursor: summary.completed ? null : summary.nextCursor,
-          completed: summary.completed,
-          pages_fetched: summary.pagesFetched,
-          last_event_at: summary.lastEventAt,
-        },
+        metadata: newMeta,
       },
     });
 
@@ -322,8 +278,9 @@ export async function backfillNav({ sb, trigger = "manual" }) {
       status: "success",
       pages: summary.pagesFetched,
       items: summary.itemsFetched,
-      completed: summary.completed,
+      caught_up: summary.completed,
       next_cursor: summary.nextCursor,
+      tail_cursor: summary.completed ? summary.lastPageId : null,
     };
   } catch (err) {
     await sb(`/jobs?id=eq.${job.id}`, {
