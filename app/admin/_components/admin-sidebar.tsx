@@ -3,20 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Activity,
-  BarChart3,
-  Bot,
-  Database,
-  FileText,
-  FolderTree,
-  Gauge,
-  Hammer,
-  LayoutDashboard,
-  MessageSquareCode,
-  Sparkles,
-  Tag,
-} from "lucide-react";
+import { Activity } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -32,52 +19,20 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 
-type NavItem = {
-  href: string;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-};
-
-const SECTIONS: { label: string; items: NavItem[] }[] = [
-  {
-    label: "Drift",
-    items: [
-      { href: "/admin", label: "Oversikt", icon: LayoutDashboard },
-      { href: "/admin/jobs", label: "Jobber", icon: Hammer },
-      { href: "/admin/llm", label: "AI-analyse", icon: Bot },
-    ],
-  },
-  {
-    label: "Taksonomi",
-    items: [
-      { href: "/admin/keywords", label: "Nøkkelord", icon: Tag },
-      {
-        href: "/admin/keywords/candidates",
-        label: "Kandidater",
-        icon: Sparkles,
-      },
-      { href: "/admin/categories", label: "Kategorier", icon: FolderTree },
-      {
-        href: "/admin/llm-prompts",
-        label: "Systemprompt",
-        icon: MessageSquareCode,
-      },
-    ],
-  },
-  {
-    label: "Innsikt",
-    items: [
-      { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
-      { href: "/admin/diagnostics", label: "Diagnostikk", icon: Gauge },
-      { href: "/admin/content", label: "Innhold", icon: FileText },
-      { href: "/admin/database", label: "Data", icon: Database },
-    ],
-  },
-];
+import { ADMIN_NAV, ADMIN_NAV_HREFS } from "./admin-nav";
 
 function isActive(pathname: string, href: string): boolean {
   if (href === "/admin") return pathname === "/admin";
-  return pathname === href || pathname.startsWith(`${href}/`);
+  const matches = pathname === href || pathname.startsWith(`${href}/`);
+  if (!matches) return false;
+  // Parent suppression: if a more specific registered href also matches,
+  // let that one win so we don't highlight both rows on nested routes.
+  return !ADMIN_NAV_HREFS.some(
+    (other) =>
+      other !== href &&
+      other.startsWith(`${href}/`) &&
+      (pathname === other || pathname.startsWith(`${other}/`)),
+  );
 }
 
 function initials(value: string): string {
@@ -124,7 +79,7 @@ export function AdminSidebar({ name, email, role }: Props) {
       </SidebarHeader>
 
       <SidebarContent>
-        {SECTIONS.map((section) => (
+        {ADMIN_NAV.map((section) => (
           <SidebarGroup key={section.label}>
             <SidebarGroupLabel className="font-mono text-[0.6rem] uppercase tracking-[0.2em]">
               {section.label}
