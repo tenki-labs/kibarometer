@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import {
   backfillNav,
   enrichNav,
@@ -11,9 +12,12 @@ import {
 import { sbFetch } from "@/lib/admin/sb";
 import { flashQs } from "@/lib/admin/flash";
 
-// Each action mirrors the legacy POST handlers in
-// scripts/admin-server.js:308-359 — call the orchestrator, redirect with a
-// query-string flash. Identical messages so visual diff against legacy works.
+// fetchNav is a single-page poll — finishes in a few seconds, so we still
+// await it and report rows_processed in the flash. The other orchestrators
+// can run for up to 60 s, which exceeds the implicit server-action timeout
+// behind Caddy/Next 16; we defer them with `after()` so the action returns
+// immediately and the orchestrator finishes in-process. Each orchestrator
+// already writes its own success/failure PATCH to the jobs row.
 
 export async function fetchAction() {
   try {
@@ -30,68 +34,55 @@ export async function fetchAction() {
 }
 
 export async function backfillAction() {
-  try {
-    const result = await backfillNav({ sb: sbFetch, trigger: "manual" });
-    const ok =
-      result.status === "noop"
-        ? "Backfill er allerede ferdig."
-        : `Backfill-batch: ${result.pages} sider, ${result.items} stillinger${result.completed ? " — ferdig!" : ""}`;
-    redirect(`/admin/jobs${flashQs({ ok })}`);
-  } catch (err) {
-    if (isRedirect(err)) throw err;
-    redirect(
-      `/admin/jobs${flashQs({ error: `Backfill feilet: ${msg(err)}` })}`,
-    );
-  }
+  after(async () => {
+    try {
+      await backfillNav({ sb: sbFetch, trigger: "manual" });
+    } catch {
+      // backfillNav writes its own failure PATCH to the jobs row.
+    }
+  });
+  redirect(
+    `/admin/jobs${flashQs({ ok: "Backfill startet — se status nedenfor." })}`,
+  );
 }
 
 export async function enrichAction() {
-  try {
-    const result = await enrichNav({ sb: sbFetch, trigger: "manual" });
-    const ok =
-      result.status === "noop"
-        ? "Ingen ACTIVE stillinger å berike."
-        : `Beriket ${result.enriched}, hoppet over ${result.inactive} (INACTIVE), feilet ${result.failed} av ${result.candidates} kandidater.`;
-    redirect(`/admin/jobs${flashQs({ ok })}`);
-  } catch (err) {
-    if (isRedirect(err)) throw err;
-    redirect(
-      `/admin/jobs${flashQs({ error: `Berikelse feilet: ${msg(err)}` })}`,
-    );
-  }
+  after(async () => {
+    try {
+      await enrichNav({ sb: sbFetch, trigger: "manual" });
+    } catch {
+      // enrichNav writes its own failure PATCH to the jobs row.
+    }
+  });
+  redirect(
+    `/admin/jobs${flashQs({ ok: "Berikelse startet — se status nedenfor." })}`,
+  );
 }
 
 export async function reprocessAction() {
-  try {
-    const result = await reprocessNavPostings({
-      sb: sbFetch,
-      trigger: "manual",
-    });
-    redirect(
-      `/admin/keywords${flashQs({ ok: `Re-tagget ${result.updated} av ${result.scanned} stillinger.` })}`,
-    );
-  } catch (err) {
-    if (isRedirect(err)) throw err;
-    redirect(
-      `/admin/keywords${flashQs({ error: `Re-tagging feilet: ${msg(err)}` })}`,
-    );
-  }
+  after(async () => {
+    try {
+      await reprocessNavPostings({ sb: sbFetch, trigger: "manual" });
+    } catch {
+      // reprocessNavPostings writes its own failure PATCH to the jobs row.
+    }
+  });
+  redirect(
+    `/admin/keywords${flashQs({ ok: "Re-tagging startet — se /admin/jobs for status." })}`,
+  );
 }
 
 export async function refreshSnapshotsAction() {
-  try {
-    const result = await refreshSnapshots({ sb: sbFetch, trigger: "manual" });
-    const hl = result.headline;
-    const ok = hl
-      ? `Snapshots oppdatert. AI-stillinger 7d: ${hl.ai_count_7d}, 30d: ${hl.ai_count_30d}.`
-      : "Snapshots oppdatert.";
-    redirect(`/admin/jobs${flashQs({ ok })}`);
-  } catch (err) {
-    if (isRedirect(err)) throw err;
-    redirect(
-      `/admin/jobs${flashQs({ error: `Snapshot-refresh feilet: ${msg(err)}` })}`,
-    );
-  }
+  after(async () => {
+    try {
+      await refreshSnapshots({ sb: sbFetch, trigger: "manual" });
+    } catch {
+      // refreshSnapshots writes its own failure PATCH to the jobs row.
+    }
+  });
+  redirect(
+    `/admin/jobs${flashQs({ ok: "Snapshot-refresh startet — se status nedenfor." })}`,
+  );
 }
 
 // Next's `redirect()` throws a special error with `digest === "NEXT_REDIRECT"`
