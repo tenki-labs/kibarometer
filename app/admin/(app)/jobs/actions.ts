@@ -10,6 +10,7 @@ import {
   reprocessNavPostings,
 } from "@/lib/admin/legacy/jobs.js";
 import {
+  drainProgressPct,
   fastForwardNav,
   pastFFThreshold,
 } from "@/lib/admin/legacy/fast-forward.js";
@@ -90,12 +91,33 @@ export async function reprocessAction() {
 //      historical postings we don't ingest (per product decision).
 //   2. Catch-up (full ingestion via backfillNav) once past the
 //      threshold. Stops when metadata.completed becomes true.
+//
+// The drain is owned by a single coordinator job row
+// (`name='backfill_drain'`) inserted SYNCHRONOUSLY here before the
+// redirect — that closes the dead window where the page would
+// otherwise re-render with no `running` row visible. The coordinator
+// stays `running` for the whole drain (~3 h, ~200 batches) so the UI
+// banner + AutoRefresh stay anchored across batch transitions.
+//
+// Per-batch `backfill_nav_stillingsfeed` rows still get inserted by
+// each orchestrator call below and own the cursor metadata that the
+// next batch's prev lookup inherits.
+//
 // Cron during drain is short-circuited by the route handler (see
 // /admin/api/jobs/backfill-nav/route.ts) so the two paths can't race.
+type DrainCoordinator = {
+  id: string;
+  metadata: Record<string, unknown> | null;
+};
+
+type BatchSummary = {
+  last_event_at?: string | null;
+};
+
 export async function fastForwardAction() {
+  // Re-entrancy guard at the coordinator level — one drain at a time.
   const running = await sbFetch<{ id: string }[]>(
-    `/jobs?name=eq.backfill_nav_stillingsfeed&status=eq.running` +
-      `&trigger=eq.fast-forward&select=id&limit=1`,
+    `/jobs?name=eq.backfill_drain&status=eq.running&select=id&limit=1`,
     { service: true },
   );
   if (running.length > 0) {
@@ -104,9 +126,37 @@ export async function fastForwardAction() {
     );
   }
 
+  // Insert coordinator BEFORE redirect so the post-redirect page render
+  // already sees a running row. Closes the dead window.
+  const coordinatorRows = await sbFetch<DrainCoordinator[]>(`/jobs`, {
+    service: true,
+    method: "POST",
+    body: {
+      name: "backfill_drain",
+      trigger: "manual",
+      status: "running",
+      metadata: {
+        phase: "starting",
+        drain_started_at: new Date().toISOString(),
+        batches_completed: 0,
+      },
+    },
+    prefer: "return=representation",
+  });
+  const coordinator = coordinatorRows[0];
+
   after(async () => {
+    let batches = 0;
+    let lastBatchSummary: BatchSummary | null = null;
     try {
       while (true) {
+        // Honor STOP button: bail if the coordinator was cancelled.
+        const me = await sbFetch<{ status: string }[]>(
+          `/jobs?id=eq.${coordinator.id}&select=status`,
+          { service: true },
+        );
+        if (me[0]?.status !== "running") return;
+
         const prev = await sbFetch<{ metadata: BackfillMeta | null }[]>(
           `/jobs?name=eq.backfill_nav_stillingsfeed&status=eq.success` +
             `&order=started_at.desc&limit=1&select=metadata`,
@@ -115,21 +165,106 @@ export async function fastForwardAction() {
         const meta = prev[0]?.metadata ?? null;
         if (meta?.completed) break;
 
-        if (pastFFThreshold(meta?.last_event_at)) {
-          await backfillNav({ sb: sbFetch, trigger: "fast-forward" });
-        } else {
-          await fastForwardNav({ sb: sbFetch, trigger: "fast-forward" });
-        }
+        const phase = pastFFThreshold(meta?.last_event_at)
+          ? "catch-up"
+          : "fast-forward";
+
+        // Heartbeat the coordinator before the batch starts so the UI
+        // shows current phase/progress while the batch wall-time runs.
+        await sbFetch(`/jobs?id=eq.${coordinator.id}`, {
+          service: true,
+          method: "PATCH",
+          body: {
+            last_heartbeat: new Date().toISOString(),
+            current_step: `${phase} batch ${batches + 1} (last event: ${meta?.last_event_at ?? "—"})`,
+            progress_pct: drainProgressPct(meta?.last_event_at ?? null),
+            metadata: {
+              phase,
+              drain_started_at:
+                (coordinator.metadata?.drain_started_at as string | undefined) ??
+                new Date().toISOString(),
+              batches_completed: batches,
+              last_event_at: meta?.last_event_at ?? null,
+            },
+          },
+        });
+
+        lastBatchSummary =
+          phase === "catch-up"
+            ? ((await backfillNav({
+                sb: sbFetch,
+                trigger: "fast-forward",
+              })) as BatchSummary)
+            : ((await fastForwardNav({
+                sb: sbFetch,
+                trigger: "fast-forward",
+              })) as BatchSummary);
+        batches += 1;
       }
-    } catch {
-      // Each orchestrator PATCHes its own job row to status='failed' on
-      // throw. The loop dies; user clicks BACKFILL again to resume from
-      // the latest successful cursor (Bug 2 fix at jobs.js:186-189).
+
+      // Caught up to live head. Terminate coordinator success.
+      await sbFetch(`/jobs?id=eq.${coordinator.id}`, {
+        service: true,
+        method: "PATCH",
+        body: {
+          status: "success",
+          finished_at: new Date().toISOString(),
+          progress_pct: 100,
+          current_step: "drain completed",
+          metadata: {
+            phase: "completed",
+            drain_started_at:
+              (coordinator.metadata?.drain_started_at as string | undefined) ??
+              null,
+            batches_completed: batches,
+            last_event_at: lastBatchSummary?.last_event_at ?? null,
+          },
+        },
+      });
+    } catch (err) {
+      await sbFetch(`/jobs?id=eq.${coordinator.id}`, {
+        service: true,
+        method: "PATCH",
+        body: {
+          status: "failed",
+          finished_at: new Date().toISOString(),
+          error: String(err instanceof Error ? err.message : err).slice(0, 1000),
+        },
+      });
     }
   });
+
   redirect(
     `/admin/jobs${flashQs({ ok: "Backfill startet — se status nedenfor." })}`,
   );
+}
+
+// STOP DRAIN button — flips the coordinator row to failed. The loop's
+// pre-batch status check (above) sees status != 'running' on its next
+// iteration and returns. The in-flight per-batch row finishes its
+// current wall budget (≤60 s) and writes its own terminal PATCH, then
+// the loop exits. We deliberately don't touch the per-batch row to
+// avoid racing with the orchestrator's own write.
+export async function stopDrainAction() {
+  try {
+    await sbFetch(`/jobs?name=eq.backfill_drain&status=eq.running`, {
+      service: true,
+      method: "PATCH",
+      body: {
+        status: "failed",
+        finished_at: new Date().toISOString(),
+        error: "stopped by user",
+      },
+    });
+    redirect(
+      `/admin/jobs${flashQs({
+        ok: "Backfill stoppet. Pågående batch fullfører før loopen slutter.",
+      })}`,
+    );
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    redirect(`/admin/jobs${flashQs({ error: `Stopp feilet: ${msg(err)}` })}`);
+  }
 }
 
 // Cron toggle on /admin/jobs. Flips app_settings.cron_paused. The

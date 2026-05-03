@@ -19,16 +19,16 @@ export async function POST(req: Request) {
     return Response.json({ status: "noop", reason: "cron_paused" });
   }
 
-  // Don't compete with an in-flight button-driven drain. The drain
-  // (fastForwardAction) loops continuously inserting trigger=
-  // 'fast-forward' rows; a concurrent cron-triggered run would inherit
-  // the same start cursor and waste a batch of duplicate work.
-  const running = await sbFetch<{ id: string }[]>(
-    `/jobs?name=eq.backfill_nav_stillingsfeed&status=eq.running` +
-      `&trigger=eq.fast-forward&select=id&limit=1`,
+  // Don't compete with an in-flight button-driven drain. Check the
+  // coordinator row (`backfill_drain`) — it stays `running` across the
+  // whole drain even between batch transitions, so this short-circuit
+  // works during the dead window between batches too. The previous
+  // per-batch check missed ticks that landed in those gaps.
+  const drainRunning = await sbFetch<{ id: string }[]>(
+    `/jobs?name=eq.backfill_drain&status=eq.running&select=id&limit=1`,
     { service: true },
   );
-  if (running.length > 0) {
+  if (drainRunning.length > 0) {
     return Response.json({ status: "noop", reason: "drain_in_progress" });
   }
 
