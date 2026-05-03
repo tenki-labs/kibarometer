@@ -13,6 +13,7 @@ import {
   Gauge,
   Hammer,
   LayoutDashboard,
+  MessageSquareCode,
   Sparkles,
   Tag,
 } from "lucide-react";
@@ -56,6 +57,11 @@ const SECTIONS: { label: string; items: NavItem[] }[] = [
         icon: Sparkles,
       },
       { href: "/admin/categories", label: "Kategorier", icon: FolderTree },
+      {
+        href: "/admin/llm-prompts",
+        label: "Systemprompt",
+        icon: MessageSquareCode,
+      },
     ],
   },
   {
