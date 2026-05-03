@@ -96,6 +96,12 @@ services:
     restart: unless-stopped
     env_file:
       - /opt/kibarometer/env/umami.env
+    # Bind to VPS-localhost only, NOT 0.0.0.0. The Umami admin UI is never
+    # exposed publicly — only reachable via SSH tunnel:
+    #   ssh -L 3001:127.0.0.1:3001 deploy@193.200.238.120
+    # Same security model as Supabase Studio: admin-only, SSH-gated.
+    ports:
+      - "127.0.0.1:3001:3000"
     networks: [default]
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/heartbeat"]
