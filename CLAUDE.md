@@ -27,10 +27,9 @@ for journalists.
 > Two earlier rules were retired in the Phase F redesign: *zero npm
 > dependencies in the admin* and *server-rendered HTML in admin via
 > tagged-template literals*. PR 4 ported the admin into `/admin/*` inside
-> kiba-web (Next.js, shadcn/ui, server actions). The legacy
-> `scripts/admin-server.js` and the `kiba-admin` container are kept on the
-> VPS for one cycle so a `docker rm -f kiba-admin` rollback is possible;
-> PR 5 deletes them.
+> kiba-web (Next.js, shadcn/ui, server actions); the follow-up retirement
+> deleted the legacy `scripts/admin-server.js` + `scripts/admin-sections/`
+> + `scripts/nav/` and the `kiba-admin` container.
 
 ## 3. Current state
 
@@ -43,8 +42,6 @@ for journalists.
   from [docker/web.Dockerfile](docker/web.Dockerfile)). Phase F PR 4 moved
   the admin (login, sidebar, jobs/keywords pages, server actions, and the
   bearer-authed `/admin/api/jobs/*` cron handlers) into this container.
-- `kiba-admin` — *deprecated*, kept for one cycle for rollback. Removed in
-  PR 5 along with [scripts/admin-server.js](scripts/admin-server.js).
 - `kiba-supabase-{db,kong,auth,rest,meta,studio}` — 6 services, forked from
   upstream supabase/docker via [scripts/fork-supabase-compose.sh](scripts/fork-supabase-compose.sh).
   **Storage + imgproxy intentionally stripped** (Phase 0.5; CI guards via
@@ -191,10 +188,10 @@ at 03:00 server time. Sundays also write a weekly snapshot. See
 ## 10. Local dev
 
 ```bash
-./local-dev/setup.sh         # up (supabase fleet + redis + legacy admin)
+./local-dev/setup.sh         # up (supabase fleet + redis)
 ./local-dev/setup.sh down    # stop, keep data
 ./local-dev/setup.sh wipe    # reset
-pnpm dev                     # the new admin lives inside kiba-web
+pnpm dev                     # the admin lives inside kiba-web
 ```
 
 New admin at `http://localhost:3000/admin/login` (`me@local.test` /
@@ -203,19 +200,16 @@ New admin at `http://localhost:3000/admin/login` (`me@local.test` /
 `FETCHER_TOKEN`) into `.env.local` so `pnpm dev` picks them up; restart it
 after the first `setup.sh` run.
 
-The legacy admin at `http://localhost:4000` still boots (compose service
-kept for one cycle) — handy for diffing behaviour. Removed in PR 5.
-
 ## 11. Secrets
 
 VPS only, mode 600 deploy:deploy:
 ```
 /opt/kibarometer/env/supabase.env       # Postgres + GoTrue + JWT + dashboard
-/opt/kibarometer/env/admin.env          # admin Node — JWT secret, anon/service keys, fetcher token, UMAMI_*
-/opt/kibarometer/env/fetcher.env        # fetcher cron — admin URL + fetcher token
+/opt/kibarometer/env/admin.env          # source of truth for JWT secret, anon/service keys, fetcher token, UMAMI_*, MLX_*
+/opt/kibarometer/env/fetcher.env        # fetcher cron — admin URL + fetcher token (must match admin.env)
 /opt/kibarometer/env/backup.env         # B2 creds, bucket, optional Kuma URL
 /opt/kibarometer/env/umami.env          # Umami Postgres URL + HASH_SALT + APP_SECRET
-/opt/kibarometer/env/.env.production    # marketing Next.js — public anon key, supabase URL, NEXT_PUBLIC_UMAMI_WEBSITE_ID
+/opt/kibarometer/env/.env.production    # kiba-web runtime env — propagated from admin.env by deploy.sh (FETCHER_TOKEN, SUPABASE_JWT_SECRET, UMAMI_*, MLX_*) plus marketing-only NEXT_PUBLIC_*
 ```
 
 [scripts/generate-secrets.sh](scripts/generate-secrets.sh) mints all six on
