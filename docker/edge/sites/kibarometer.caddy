@@ -17,18 +17,25 @@ kibarometer.no {
     # Optional: kibarometer-specific ACME contact
     # tls ops@kibarometer.no
 
-    # Admin Node — auth-gated. /admin/api/jobs/fetch-nav is protected by
-    # FETCHER_TOKEN bearer (the admin enforces); this route only forwards.
-    @admin_paths path /admin /admin/*
-    handle @admin_paths {
-        reverse_proxy kiba-admin:4000
-    }
+    # /admin/* lives inside kiba-web post Phase F PR 4 (server actions for
+    # the UI, /admin/api/jobs/* route handlers for the cron sidecar — both
+    # bearer-authed and cookie-authed paths now share one container). The
+    # default `handle` block below already forwards to kiba-web:3000.
 
     # Supabase REST + Auth via Kong. NO aggressive cache header here — these
     # are dynamic API responses (PostgREST queries, GoTrue tokens). Any
     # caching belongs at the Next.js route handler level, not at this edge.
     handle_path /supabase/* {
         reverse_proxy kiba-supabase-kong:8000
+    }
+
+    # Umami tracker script + collect endpoint. The public site loads
+    # /_umami/script.js with a website-id; that script POSTs pageviews to
+    # /_umami/api/send. The Umami admin UI (login, dashboards) is NOT routed
+    # here — it's only reachable from inside the Docker network or via SSH
+    # port-forward, which keeps the dashboard off the public internet.
+    handle_path /_umami/* {
+        reverse_proxy kiba-umami:3000
     }
 
     # Everything else → Next.js marketing site

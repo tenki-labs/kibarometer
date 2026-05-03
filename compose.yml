@@ -73,9 +73,36 @@ services:
       - /opt/kibarometer/admin/fetcher-entrypoint.sh:/entrypoint.sh:ro
       - /opt/kibarometer/admin/fetcher-crontab:/etc/cron-template:ro
     depends_on:
-      kiba-admin: { condition: service_healthy }
+      # Phase F PR 4: cron URLs (/admin/api/jobs/*) moved into kiba-web.
+      # The crontab itself is unchanged.
+      kiba-web: { condition: service_healthy }
     entrypoint: ["/bin/sh", "/entrypoint.sh"]
     mem_limit: 32m
+
+  # Phase G — self-hosted Umami for visitor analytics. Reads its own database
+  # `umami` inside kiba-supabase-db (provisioned by 0009_umami_db.sql; Umami
+  # runs its own Prisma migrations on first boot). Reachable from kiba-web
+  # at kiba-umami:3000 for the /admin/analytics API calls; the public tracker
+  # script + collect endpoint are exposed via the edge as /_umami/* (see
+  # docker/edge/sites/kibarometer.caddy). The admin UI itself is NOT routed
+  # publicly — first-time setup is via SSH port-forward.
+  kiba-umami:
+    container_name: kiba-umami
+    # Track latest Umami. Self-hosted has no API-keys UI in any version
+    # (cloud-only feature) — lib/admin/umami.ts authenticates by POSTing
+    # username/password to /api/auth/login and caching the returned JWT,
+    # which is the same flow Umami's own dashboard uses internally.
+    image: ghcr.io/umami-software/umami:postgresql-latest
+    restart: unless-stopped
+    env_file:
+      - /opt/kibarometer/env/umami.env
+    networks: [default]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/heartbeat"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    mem_limit: 256m
 
   # Phase 9 — nightly backups to Backblaze B2 via rclone.
   # Cron at 03:00 inside the container. The script uses `docker exec` against

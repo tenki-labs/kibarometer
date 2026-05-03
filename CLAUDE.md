@@ -24,11 +24,13 @@ for journalists.
 5. **Forward motion over confirmation loops.** When direction is approved,
    make sensible defaults and announce them.
 
-> Two earlier rules were retired in the Phase F redesign (PR landing Next 16
-> + shadcn/ui): *zero npm dependencies in the admin* and *server-rendered
-> HTML in admin via tagged-template literals*. The admin is being moved into
-> `/admin/*` inside the kiba-web Next.js app (PR 4). Until that lands, the
-> zero-dep `scripts/admin-server.js` is still the running admin in prod.
+> Two earlier rules were retired in the Phase F redesign: *zero npm
+> dependencies in the admin* and *server-rendered HTML in admin via
+> tagged-template literals*. PR 4 ported the admin into `/admin/*` inside
+> kiba-web (Next.js, shadcn/ui, server actions). The legacy
+> `scripts/admin-server.js` and the `kiba-admin` container are kept on the
+> VPS for one cycle so a `docker rm -f kiba-admin` rollback is possible;
+> PR 5 deletes them.
 
 ## 3. Current state
 
@@ -37,15 +39,26 @@ for journalists.
 **Cert:** Let's Encrypt, issued by the shared edge Caddy.
 
 **Containers we own (all on the `kiba` Docker network):**
-- `kiba-web` — Next.js 15 standalone (built from [docker/web.Dockerfile](docker/web.Dockerfile))
-- `kiba-admin` — Node 22, zero npm deps ([scripts/admin-server.js](scripts/admin-server.js))
+- `kiba-web` — Next.js 16 standalone, serves marketing + `/admin/*` (built
+  from [docker/web.Dockerfile](docker/web.Dockerfile)). Phase F PR 4 moved
+  the admin (login, sidebar, jobs/keywords pages, server actions, and the
+  bearer-authed `/admin/api/jobs/*` cron handlers) into this container.
+- `kiba-admin` — *deprecated*, kept for one cycle for rollback. Removed in
+  PR 5 along with [scripts/admin-server.js](scripts/admin-server.js).
 - `kiba-supabase-{db,kong,auth,rest,meta,studio}` — 6 services, forked from
   upstream supabase/docker via [scripts/fork-supabase-compose.sh](scripts/fork-supabase-compose.sh).
   **Storage + imgproxy intentionally stripped** (Phase 0.5; CI guards via
   [.github/workflows/ci.yml](.github/workflows/ci.yml)).
 - `kiba-redis` — cache / rate-limit (declared but unused until a feature wires it)
-- `kiba-fetcher` — alpine cron sidecar, hits `kiba-admin`'s `/admin/api/jobs/*`
+- `kiba-fetcher` — alpine cron sidecar, hits `kiba-web`'s `/admin/api/jobs/*`
 - `kiba-backup` — alpine cron sidecar, nightly Postgres dump → Backblaze B2
+- `kiba-umami` — self-hosted visitor analytics (Phase G). Reads its own
+  `umami` database inside `kiba-supabase-db` (provisioned by
+  [0009_umami_db.sql](supabase/migrations/0009_umami_db.sql)). Tracker script
+  exposed publicly via `/_umami/*` at the edge; admin UI is *not* routed
+  publicly — first-time setup over `ssh -L 3001:kiba-umami:3000`. The
+  /admin/analytics page reads its REST API server-side via
+  [lib/admin/umami.ts](lib/admin/umami.ts).
 
 **Shared on the VPS (NOT ours):**
 - `edge-caddy-1` at `/opt/edge/` — read-only from our side, except we write
@@ -62,9 +75,13 @@ for journalists.
   [docker/edge/sites/kibarometer.caddy](docker/edge/sites/kibarometer.caddy)
   on every deploy. We never touch `/opt/edge/Caddyfile`,
   `/opt/edge/compose.yml`, or `/opt/edge/data/`.
-- **Admin Node:** zero-deps [scripts/admin-server.js](scripts/admin-server.js)
-  + [scripts/admin-sections/*.js](scripts/admin-sections/). Server-rendered
-  HTML via `` html`…` ``. JWT verified locally (HS256, no SDK round-trip).
+- **Admin (Next.js):** [app/admin/](app/admin/) — server components, server
+  actions for forms, shadcn/ui Sidebar/Card/Table/etc. Auth gate is
+  [middleware.ts](middleware.ts) (HS256 cookie verify, `runtime: "nodejs"`).
+  Service-role PostgREST calls go through [lib/admin/sb.ts](lib/admin/sb.ts).
+  Orchestration logic (NAV fetch / backfill / enrich / re-tag / snapshot
+  refresh) is reused from the legacy admin via copies under
+  [lib/admin/legacy/](lib/admin/legacy/) — same exports, same semantics.
 - **Marketing Next.js:** [app/](app/) (server components by default),
   [lib/env.ts](lib/env.ts) (zod-validated env).
 - **Networks:** our containers are on the `kiba` network only. Edge-caddy
@@ -84,20 +101,24 @@ for journalists.
 
 ## 5. Code conventions
 
-> The bullets below describe the **legacy zero-dep Node admin** still running
-> in prod. The replacement Next.js admin (PR 4 of the Phase F redesign) uses
-> shadcn/ui + server actions; its conventions will be documented here when
-> it lands.
-
-- **Zero npm deps in admin.** Node 22 builtins only. *(Legacy admin only.)*
-- **ES modules.** Imports use `.js` extension.
-- **Server-rendered HTML.** `` html`…` `` auto-escapes; `` rawHtml`…` ``
-  doesn't. Never concatenate user input into HTML. *(Legacy admin only.)*
-- **PRG on every form.** POSTs redirect on success; never return HTML from
-  a POST.
-- **`sbFetch(path, { token, service, method, body, prefer })`** is the only
-  PostgREST client. No `@supabase/supabase-js` in admin.
-- **`btn()` for every CTA** — see [scripts/admin-sections/shared.js](scripts/admin-sections/shared.js). *(Legacy admin only.)*
+- **Server components by default.** Add `"use client"` only when you need
+  interactivity (`usePathname`, `useState`, etc.). Forms call server
+  actions (`<form action={action}>`); never client fetch handlers.
+- **PRG on every form.** Server actions redirect on success with a
+  `?flash_ok=…` / `?flash_error=…` query string; the page renders that as a
+  shadcn `Alert` via [`<Flash>`](app/admin/_components/flash.tsx). No
+  client toast / sonner — keeps everything no-JS-friendly.
+- **`sbFetch` from [lib/admin/sb.ts](lib/admin/sb.ts)** is the only
+  PostgREST client in admin code. No `@supabase/supabase-js`. Pass
+  `{ service: true }` for service-role.
+- **shadcn/ui in [components/ui/](components/ui/)**. Add new primitives
+  via the registry; don't hand-roll.
+- **Auth in [middleware.ts](middleware.ts) + [lib/admin/auth.ts](lib/admin/auth.ts).**
+  `runtime: "nodejs"` is required (Edge has no `node:crypto`). Server
+  components/actions read claims via `getStaffClaims()`.
+- **Cron handlers** under [app/admin/api/jobs/](app/admin/api/jobs/) —
+  each declares `export const runtime = "nodejs"` and bearer-checks via
+  `requireBearer` from [lib/admin/bearer.ts](lib/admin/bearer.ts).
 - **Conventional Commits.** Sign Claude-authored commits with
   `Co-Authored-By: Claude <noreply@anthropic.com>`.
 
@@ -106,12 +127,18 @@ for journalists.
 1. Migration: `supabase/migrations/00NN_<name>.sql` (idempotent;
    `create table if not exists`, RLS, policies).
 2. Add filename to the migration loop in [scripts/deploy.sh](scripts/deploy.sh).
-3. Section file: `scripts/admin-sections/<name>.js` exporting `listInner`,
-   `detailInner`, `create`, `update`, `delete`.
-4. Import in [scripts/admin-server.js](scripts/admin-server.js) and add routes.
-5. Add nav entry to the `NAV` constant in
-   [scripts/admin-server.js](scripts/admin-server.js).
-6. Test locally (`./local-dev/setup.sh`), commit, push.
+3. Page: `app/admin/(app)/<name>/page.tsx` (server component, awaits
+   `searchParams`, renders shadcn primitives).
+4. Server actions: `app/admin/(app)/<name>/actions.ts` (`"use server"`,
+   each action calls `sbFetch` and `redirect()` with a flash QS).
+5. Add nav entry to `SECTIONS` in [app/admin/_components/admin-sidebar.tsx](app/admin/_components/admin-sidebar.tsx) — pick "Drift", "Taksonomi", or "Innsikt", or add a new section.
+6. Test locally (`./local-dev/setup.sh` + `pnpm dev`), commit, push.
+
+**Editable static copy**: `/om` and `/metode` prose lives in
+[`public.site_content`](supabase/migrations/0011_site_content.sql) (Phase G),
+edited via `/admin/content/<slug>`. Code-driven sections (the keyword
+catalogue, API/embed snippets) stay in JSX — `site_content` is for
+prose only.
 
 ## 7. Migrations
 
@@ -164,27 +191,39 @@ at 03:00 server time. Sundays also write a weekly snapshot. See
 ## 10. Local dev
 
 ```bash
-./local-dev/setup.sh         # up
+./local-dev/setup.sh         # up (supabase fleet + redis + legacy admin)
 ./local-dev/setup.sh down    # stop, keep data
 ./local-dev/setup.sh wipe    # reset
+pnpm dev                     # the new admin lives inside kiba-web
 ```
 
-Admin at `http://localhost:4000/admin/login` (`me@local.test` / `localdev123`).
+New admin at `http://localhost:3000/admin/login` (`me@local.test` /
+`localdev123`). `setup.sh` writes the four admin secrets
+(`SUPABASE_INTERNAL_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`,
+`FETCHER_TOKEN`) into `.env.local` so `pnpm dev` picks them up; restart it
+after the first `setup.sh` run.
+
+The legacy admin at `http://localhost:4000` still boots (compose service
+kept for one cycle) — handy for diffing behaviour. Removed in PR 5.
 
 ## 11. Secrets
 
 VPS only, mode 600 deploy:deploy:
 ```
 /opt/kibarometer/env/supabase.env       # Postgres + GoTrue + JWT + dashboard
-/opt/kibarometer/env/admin.env          # admin Node — JWT secret, anon/service keys, fetcher token
+/opt/kibarometer/env/admin.env          # admin Node — JWT secret, anon/service keys, fetcher token, UMAMI_*
 /opt/kibarometer/env/fetcher.env        # fetcher cron — admin URL + fetcher token
 /opt/kibarometer/env/backup.env         # B2 creds, bucket, optional Kuma URL
-/opt/kibarometer/env/.env.production    # marketing Next.js — public anon key, supabase URL
+/opt/kibarometer/env/umami.env          # Umami Postgres URL + HASH_SALT + APP_SECRET
+/opt/kibarometer/env/.env.production    # marketing Next.js — public anon key, supabase URL, NEXT_PUBLIC_UMAMI_WEBSITE_ID
 ```
 
-[scripts/generate-secrets.sh](scripts/generate-secrets.sh) mints all five on
+[scripts/generate-secrets.sh](scripts/generate-secrets.sh) mints all six on
 a fresh VPS, refusing to clobber any existing file. Real B2 creds are NOT
-generated — they come from the Backblaze console.
+generated — they come from the Backblaze console. Real Umami API key +
+website ID are NOT generated either — they come from a one-time setup via
+SSH-tunnel to the Umami container; see the `/admin/analytics` empty-state
+card for the runbook.
 
 ## 12. Out of scope
 

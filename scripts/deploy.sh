@@ -34,7 +34,73 @@ EOF
   sudo chmod 600 /opt/kibarometer/env/backup.env
 fi
 
+# Phase G backfill: kiba-umami's env_file: requires umami.env to exist.
+# Same pattern as the backup.env block above. POSTGRES_PASSWORD is read from
+# the existing supabase.env so Umami can connect to the `umami` database
+# inside kiba-supabase-db (provisioned by 0009_umami_db.sql).
+if [[ ! -f /opt/kibarometer/env/umami.env ]]; then
+  echo "== first-deploy backfill: mint umami.env =="
+  PGPW=$(sudo grep '^POSTGRES_PASSWORD=' /opt/kibarometer/env/supabase.env | cut -d= -f2)
+  HASH_SALT=$(openssl rand -hex 32)
+  APP_SECRET=$(openssl rand -hex 32)
+  sudo tee /opt/kibarometer/env/umami.env >/dev/null <<EOF
+DATABASE_TYPE=postgresql
+DATABASE_URL=postgresql://postgres:${PGPW}@kiba-supabase-db:5432/umami
+HASH_SALT=${HASH_SALT}
+APP_SECRET=${APP_SECRET}
+EOF
+  sudo chown deploy:deploy /opt/kibarometer/env/umami.env
+  sudo chmod 600 /opt/kibarometer/env/umami.env
+fi
+
+# Phase G backfill: idempotently append UMAMI_* placeholders to admin.env on
+# existing VPSes so the merge loop below has something to find. Operator
+# fills the real values in after first-time Umami setup (see analytics page).
+ADMIN_ENV_PRE=/opt/kibarometer/env/admin.env
+for KV in "UMAMI_INTERNAL_URL=http://kiba-umami:3000" "UMAMI_USERNAME=" "UMAMI_PASSWORD=" "UMAMI_WEBSITE_ID=" "NEXT_PUBLIC_UMAMI_WEBSITE_ID="; do
+  KEY=${KV%%=*}
+  if ! sudo grep -q "^${KEY}=" "$ADMIN_ENV_PRE"; then
+    echo "  appending $KEY to admin.env"
+    echo "$KV" | sudo tee -a "$ADMIN_ENV_PRE" >/dev/null
+  fi
+done
+
 cd "$INCOMING"
+
+echo "== merge admin secrets into .env.production (Phase F PR 4) =="
+# kiba-web now serves /admin/* (UI + cron route handlers). Two secrets that
+# used to live only in admin.env are required at kiba-web startup:
+#   SUPABASE_JWT_SECRET — verifies the sb_access_token cookie (HS256)
+#   FETCHER_TOKEN       — bearer for /admin/api/jobs/*
+# Idempotent: skip if already present so a re-deploy doesn't duplicate lines.
+PROD_ENV=/opt/kibarometer/env/.env.production
+ADMIN_ENV=/opt/kibarometer/env/admin.env
+# Static secrets — append once, never replace. Re-running with the same admin
+# secret is a no-op; replacing them would risk breaking sessions / cron.
+for KEY in SUPABASE_JWT_SECRET FETCHER_TOKEN; do
+  if ! sudo grep -q "^${KEY}=" "$PROD_ENV"; then
+    VAL=$(sudo grep "^${KEY}=" "$ADMIN_ENV" | cut -d= -f2-)
+    if [[ -n "$VAL" ]]; then
+      echo "${KEY}=${VAL}" | sudo tee -a "$PROD_ENV" >/dev/null
+      echo "  appended $KEY"
+    else
+      echo "  WARN: $KEY missing from $ADMIN_ENV — kiba-web admin will fail to start"
+    fi
+  fi
+done
+
+# Mutable Umami config — upsert every deploy. UMAMI_USERNAME/PASSWORD/WEBSITE_ID
+# start blank and only get filled in after the operator does first-time Umami
+# setup (port-forwarded UI). Once they are filled in, every subsequent deploy
+# needs to pick up the new values, hence sed-replace + append fallback.
+for KEY in UMAMI_INTERNAL_URL UMAMI_USERNAME UMAMI_PASSWORD UMAMI_WEBSITE_ID NEXT_PUBLIC_UMAMI_WEBSITE_ID; do
+  VAL=$(sudo grep "^${KEY}=" "$ADMIN_ENV" 2>/dev/null | cut -d= -f2- || echo "")
+  if sudo grep -q "^${KEY}=" "$PROD_ENV"; then
+    sudo sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$PROD_ENV"
+  else
+    echo "${KEY}=${VAL}" | sudo tee -a "$PROD_ENV" >/dev/null
+  fi
+done
 
 echo "== stage .env.production for the Next.js build =="
 sudo cp /opt/kibarometer/env/.env.production "$INCOMING/.env.production"
@@ -77,7 +143,7 @@ sudo cp "$INCOMING/docker/supabase/docker-compose.yml"     "$WEBSITE/docker/supa
 echo "== apply idempotent migrations =="
 # Add new filenames here as you write them. They MUST be idempotent.
 PGPW=$(grep '^POSTGRES_PASSWORD=' /opt/kibarometer/env/supabase.env | cut -d= -f2)
-for migration in 0001_baseline.sql 0002_nav_raw.sql 0005_jobs.sql 0006_keywords.sql 0006a_jobs_metadata.sql 0007_nav_postings.sql 0008_nav_snapshots.sql; do
+for migration in 0001_baseline.sql 0002_nav_raw.sql 0005_jobs.sql 0006_keywords.sql 0006a_jobs_metadata.sql 0007_nav_postings.sql 0008_nav_snapshots.sql 0009_umami_db.sql 0010_admin_diag.sql 0011_site_content.sql 0012_jobs_progress.sql; do
   if [[ -f "$INCOMING/supabase/migrations/$migration" ]]; then
     echo "  applying $migration"
     if ! docker exec -i -e PGPASSWORD="$PGPW" kiba-supabase-db \
@@ -100,15 +166,20 @@ do \$\$ begin
   end if;
 end \$\$;" >/dev/null
 
-echo "== compose up (kiba-web + kiba-admin + kiba-fetcher + kiba-backup + kiba-redis — supabase fleet stays running) =="
+echo "== compose up (kiba-web + kiba-fetcher + kiba-backup + kiba-redis — supabase fleet stays running) =="
 cd "$WEBSITE"
 # kiba-redis must be in the explicit list. compose's depends_on cascade is
 # unreliable here — Phase 10 verification caught that the very first deploy
 # never created the redis container despite kiba-web depending on it.
+#
+# Phase F PR 4: kiba-admin dropped from the recreate list (admin lives in
+# kiba-web now). The container itself is left running on the VPS for one
+# cycle so an operator can `docker rm -f kiba-admin` once the cutover smoke
+# passes; PR 5 will remove the kiba-admin block from compose.boot.yml.
 docker compose --env-file /opt/kibarometer/env/supabase.env \
   -f compose.yml -f docker/supabase/docker-compose.yml \
   -f compose.prod.yml -f compose.boot.yml \
-  up -d --force-recreate --remove-orphans kiba-web kiba-admin kiba-fetcher kiba-backup kiba-redis
+  up -d --force-recreate --remove-orphans kiba-web kiba-fetcher kiba-backup kiba-redis kiba-umami
 
 # Recreate kong too — the alias override lives in compose.boot.yml. Without
 # this, an old kong container with the default `kong` alias keeps running
@@ -159,6 +230,16 @@ smoke() {
 }
 smoke https://kibarometer.no/healthz
 smoke https://kibarometer.no/admin/login
+
+# Sanity check the bearer-authed cron route landed on kiba-web. No bearer →
+# 401 from lib/admin/bearer.ts; this catches the routing being wrong (would
+# 404 if the route handler is missing) or the env var being absent (500).
+echo "  testing /admin/api/jobs/refresh-snapshots returns 401 without bearer"
+status=$(curl -sS -o /dev/null -w "%{http_code}" -X POST https://kibarometer.no/admin/api/jobs/refresh-snapshots || echo "000")
+if [[ "$status" != "401" ]]; then
+  echo "  FAIL: expected 401, got $status"; exit 1
+fi
+echo "  OK"
 
 echo "== cleanup old images (keep 3 most-recent kiba-web tags) =="
 docker images "kiba-web" --format "{{.Tag}}" | grep '^gh-' | sort -r | tail -n +4 | while read -r t; do
