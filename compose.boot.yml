@@ -6,28 +6,6 @@
 # Layered AFTER compose.yml + docker/supabase/docker-compose.yml.
 
 services:
-  # DEPRECATED — Phase F PR 4 ported the admin into kiba-web. Block kept for
-  # one deploy cycle so an operator can `docker rm -f kiba-admin` after the
-  # cutover smoke passes. PR 5 deletes this block plus the source-sync in
-  # deploy.sh and the legacy scripts/admin-server.js.
-  kiba-admin:
-    container_name: kiba-admin
-    image: node:22-alpine
-    working_dir: /app
-    command: ["node", "server.js"]
-    env_file:
-      - /opt/kibarometer/env/admin.env
-    volumes:
-      - /opt/kibarometer/admin:/app:ro
-    networks: [default]
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/admin/health"]
-      interval: 20s
-      timeout: 3s
-      retries: 3
-    restart: unless-stopped
-    mem_limit: 128m
-
   kiba-web:
     image: kiba-web:latest
     build: !reset null

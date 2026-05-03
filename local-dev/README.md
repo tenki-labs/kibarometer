@@ -21,9 +21,8 @@ there.
 - `local-dev/data/postgres/` — Postgres PGDATA
 - `docker/supabase/volumes/` — fetched from upstream supabase repo on first run
 
-**Re-deploy admin code without restarting the pod:**
-```bash
-docker restart kiba-admin
-```
-(Bind-mounts pick up edits to `scripts/admin-server.js` immediately; only the
-running process needs a kick.)
+**Re-deploy admin code:**
+The admin lives inside `kiba-web` (Next.js). In local dev, run it via
+`pnpm dev` from the repo root — Next.js's HMR picks up edits without
+restart. The supabase fleet started by this script provides Postgres /
+GoTrue / PostgREST that `pnpm dev` connects to via `.env.local`.

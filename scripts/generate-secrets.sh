@@ -91,7 +91,7 @@ EOF
 echo "== write fetcher.env =="
 install -m 600 -o deploy -g deploy /dev/stdin "$ENV_DIR/fetcher.env" <<EOF
 FETCHER_TOKEN=$FETCHER_TOKEN
-ADMIN_URL=http://kiba-admin:4000
+ADMIN_URL=http://kiba-web:3000
 EOF
 
 echo "== write umami.env =="

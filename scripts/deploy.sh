@@ -79,25 +79,27 @@ done
 
 cd "$INCOMING"
 
-echo "== merge admin secrets into .env.production (Phase F PR 4) =="
-# kiba-web now serves /admin/* (UI + cron route handlers). Two secrets that
-# used to live only in admin.env are required at kiba-web startup:
+echo "== merge admin secrets into .env.production =="
+# kiba-web reads .env.production at startup. admin.env is the source of
+# truth — we propagate two values that kiba-web's admin needs:
 #   SUPABASE_JWT_SECRET — verifies the sb_access_token cookie (HS256)
 #   FETCHER_TOKEN       — bearer for /admin/api/jobs/*
-# Idempotent: skip if already present so a re-deploy doesn't duplicate lines.
+# Upserted on every deploy. The earlier append-once design silently blocked
+# token rotation: rotating in admin.env left the stale value in
+# .env.production, and every cron tick 401'd until someone hand-edited it.
+# Same upsert pattern as UMAMI/MLX below.
 PROD_ENV=/opt/kibarometer/env/.env.production
 ADMIN_ENV=/opt/kibarometer/env/admin.env
-# Static secrets — append once, never replace. Re-running with the same admin
-# secret is a no-op; replacing them would risk breaking sessions / cron.
 for KEY in SUPABASE_JWT_SECRET FETCHER_TOKEN; do
-  if ! sudo grep -q "^${KEY}=" "$PROD_ENV"; then
-    VAL=$(sudo grep "^${KEY}=" "$ADMIN_ENV" | cut -d= -f2-)
-    if [[ -n "$VAL" ]]; then
-      echo "${KEY}=${VAL}" | sudo tee -a "$PROD_ENV" >/dev/null
-      echo "  appended $KEY"
-    else
-      echo "  WARN: $KEY missing from $ADMIN_ENV — kiba-web admin will fail to start"
-    fi
+  VAL=$(sudo grep "^${KEY}=" "$ADMIN_ENV" | cut -d= -f2-)
+  if [[ -z "$VAL" ]]; then
+    echo "  WARN: $KEY missing from $ADMIN_ENV — kiba-web admin will fail to start"
+    continue
+  fi
+  if sudo grep -q "^${KEY}=" "$PROD_ENV"; then
+    sudo sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$PROD_ENV"
+  else
+    echo "${KEY}=${VAL}" | sudo tee -a "$PROD_ENV" >/dev/null
   fi
 done
 
@@ -136,19 +138,12 @@ docker build \
   -f docker/web.Dockerfile -t "$TAG" .
 rm -f "$INCOMING/.env.production"
 
-echo "== sync admin sources =="
-# Single bind-mount /opt/kibarometer/admin:/app:ro means everything the admin
-# imports has to land directly under $ADMIN/. Layout (matches imports in
-# scripts/admin-server.js):
-#   $ADMIN/server.js
-#   $ADMIN/sections/{shared,jobs}.js
-#   $ADMIN/nav/client.js
-#   $ADMIN/fetcher-entrypoint.sh, fetcher-crontab  (consumed by kiba-fetcher)
-#   $ADMIN/backup.sh                                (consumed by kiba-backup)
-sudo install -d -o deploy -g deploy "$ADMIN" "$ADMIN/sections" "$ADMIN/nav"
-sudo cp "$INCOMING/scripts/admin-server.js"          "$ADMIN/server.js"
-sudo cp -r "$INCOMING/scripts/admin-sections/."      "$ADMIN/sections/"
-sudo cp -r "$INCOMING/scripts/nav/."                 "$ADMIN/nav/"
+echo "== sync sidecar sources =="
+# kiba-fetcher and kiba-backup still bind-mount specific files from
+# /opt/kibarometer/admin/ (see compose.yml). The legacy admin-server.js +
+# admin-sections/ + scripts/nav/ that used to live here were retired with
+# kiba-admin — admin behaviour now lives entirely inside kiba-web.
+sudo install -d -o deploy -g deploy "$ADMIN"
 sudo cp "$INCOMING/scripts/fetcher-entrypoint.sh"    "$ADMIN/fetcher-entrypoint.sh"
 sudo cp "$INCOMING/scripts/fetcher-crontab"          "$ADMIN/fetcher-crontab"
 sudo cp "$INCOMING/scripts/backup.sh"                "$ADMIN/backup.sh"
