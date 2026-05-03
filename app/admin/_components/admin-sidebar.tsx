@@ -12,6 +12,7 @@ import {
   Gauge,
   Hammer,
   LayoutDashboard,
+  Sparkles,
   Tag,
 } from "lucide-react";
 
@@ -46,7 +47,14 @@ const SECTIONS: { label: string; items: NavItem[] }[] = [
   },
   {
     label: "Taksonomi",
-    items: [{ href: "/admin/keywords", label: "Nøkkelord", icon: Tag }],
+    items: [
+      { href: "/admin/keywords", label: "Nøkkelord", icon: Tag },
+      {
+        href: "/admin/keywords/candidates",
+        label: "Kandidater",
+        icon: Sparkles,
+      },
+    ],
   },
   {
     label: "Innsikt",
