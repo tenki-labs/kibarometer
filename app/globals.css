@@ -370,6 +370,25 @@
   color: var(--muted-foreground);
   margin-top: 0.2rem;
 }
+.taxonomy-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin: 1rem 0 0;
+}
+.taxonomy-list > div {
+  scroll-margin-top: 80px;
+}
+.taxonomy-list dt {
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+}
+.taxonomy-list dd {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
 
 .embed-wrap {
   padding: 1rem;

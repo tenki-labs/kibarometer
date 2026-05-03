@@ -3,7 +3,11 @@
 // If/when interactive tooltips become necessary, swap to uplot (~40KB) — for
 // v1 the SSR'd SVGs do everything we need including embeddability via iframe.
 
-import type { SnapshotMonthly } from "@/lib/supabase";
+import type {
+  SnapshotMonthly,
+  SnapshotSkillCategory,
+  TaxonomyCategory,
+} from "@/lib/supabase";
 
 // Threshold below which row counts are considered too small to publish a
 // percentage off. Lives here as the single source of truth — UI components
@@ -234,6 +238,46 @@ type HBarListProps = {
    *  Defaults to LOW_SAMPLE_THRESHOLD; pass null to disable. */
   lowSampleThreshold?: number | null;
 };
+
+// ---- Skill-categories list (LLM Tier 2 taxonomy rollup) ----------------
+
+// Renders the snapshot_skill_categories rows for the latest computed_for
+// joined with the live taxonomy (so retired slugs drop out and titles stay
+// human-readable). Sorted by 30d count desc; uses HBarList with share_pct
+// as a badge so the chart shows e.g. "84 · 38.2%". The percentage is the
+// share of *classified* AI postings that touch the slug — a posting can
+// belong to up to 3 categories, so the bars don't sum to 100%.
+type SkillCategoriesListProps = {
+  rows: SnapshotSkillCategory[];
+  taxonomy: TaxonomyCategory[];
+};
+
+export function SkillCategoriesList({ rows, taxonomy }: SkillCategoriesListProps) {
+  if (rows.length === 0 || taxonomy.length === 0) {
+    return (
+      <div className="chart-empty">
+        Ingen klassifiserte stillinger ennå — Tier 2-pipelinen samler data.
+      </div>
+    );
+  }
+  const titleBySlug = new Map(taxonomy.map((c) => [c.slug, c.title]));
+  const ordered = [...rows]
+    .filter((r) => titleBySlug.has(r.slug))
+    .sort((a, b) => b.ai_count_30d - a.ai_count_30d);
+  return (
+    <HBarList
+      rows={ordered.map((r) => ({
+        label: titleBySlug.get(r.slug) ?? r.slug,
+        value: r.ai_count_30d,
+        href: `/metode#cat-${encodeURIComponent(r.slug)}`,
+        badge:
+          r.share_pct !== null
+            ? `${r.share_pct.toFixed(1).replace(".", ",")} %`
+            : undefined,
+      }))}
+    />
+  );
+}
 
 export function HBarList({
   rows,

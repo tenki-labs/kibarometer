@@ -4,7 +4,7 @@
 // from public.site_content. The keyword catalogue + API/embed snippets
 // stay JSX so they reflect live data, not editorial copy.
 
-import { sb, type Keyword } from "@/lib/supabase";
+import { sb, type Keyword, type TaxonomyCategory } from "@/lib/supabase";
 import { renderMarkdown } from "@/lib/admin/markdown";
 
 type SiteContent = {
@@ -50,13 +50,16 @@ const CATEGORY_LABEL: Record<Keyword["category"], string> = {
 const CATEGORY_ORDER: Keyword["category"][] = ["tool", "role", "concept"];
 
 export default async function MetodePage() {
-  const [keywords, contentRows] = await Promise.all([
+  const [keywords, contentRows, taxonomy] = await Promise.all([
     sb<Keyword[]>(
       "/keywords?select=id,term,language,category,match_type,notes&order=category.asc,term.asc",
     ),
     sb<SiteContent[]>(
       "/site_content?slug=eq.metode&select=slug,title,body_md",
     ).catch(() => [] as SiteContent[]),
+    sb<TaxonomyCategory[]>(
+      "/taxonomy_categories?select=slug,title,definition_md,sort_order&order=sort_order.asc",
+    ).catch(() => [] as TaxonomyCategory[]),
   ]);
 
   const content = contentRows[0];
@@ -80,6 +83,30 @@ export default async function MetodePage() {
       {/* Editable prose. Keyword count interpolation has been removed —
           operators can mention the count manually if they want. */}
       {renderMarkdown(body)}
+
+      {/* AI-skill taxonomy used by Tier 2 LLM classification. Read live from
+          public.taxonomy_categories so retiring or editing a definition in
+          /admin/categories shows up here without redeploy. Falls back to
+          silence if the migration hasn't run yet (catch in the fetch). */}
+      {taxonomy.length > 0 && (
+        <>
+          <h2 id="taksonomi">AI-ferdighetskategorier</h2>
+          <p>
+            For AI-relaterte stillinger forsøker vi i tillegg å klassifisere{" "}
+            <em>hvilken type</em> AI-ferdighet som etterspørres. Klassifiseringen
+            gjøres av en lokal språkmodell (Gemma 3) — én stilling kan tilhøre
+            flere kategorier samtidig.
+          </p>
+          <dl className="taxonomy-list">
+            {taxonomy.map((c) => (
+              <div key={c.slug} id={`cat-${encodeURIComponent(c.slug)}`}>
+                <dt>{c.title}</dt>
+                <dd>{c.definition_md}</dd>
+              </div>
+            ))}
+          </dl>
+        </>
+      )}
 
       {/* Static technical sections: API, embeds, keyword catalogue. These
           mirror live state (keyword list comes from the DB) and aren't
