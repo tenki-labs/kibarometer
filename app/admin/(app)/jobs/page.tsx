@@ -29,6 +29,7 @@ import {
   fetchAction,
   refreshSnapshotsAction,
 } from "./actions";
+import { AutoRefresh } from "./_components/auto-refresh";
 
 const BACKFILL_JOB = "backfill_nav_stillingsfeed";
 const TRIGGER_LABEL: Record<string, string> = {
@@ -167,12 +168,7 @@ export default async function JobsPage({ searchParams }: Props) {
 
   return (
     <>
-      {/* Auto-refresh while at least one job is running so the inline
-          progress bars tick. Off when nothing is running to avoid pointless
-          re-renders. */}
-      {runningCount > 0 ? (
-        <meta httpEquiv="refresh" content="5" />
-      ) : null}
+      <AutoRefresh enabled={runningCount > 0} />
       <Flash searchParams={params} />
       <PageHeader
         eyebrow="Drift"

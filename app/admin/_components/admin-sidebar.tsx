@@ -52,7 +52,7 @@ const SECTIONS: { label: string; items: NavItem[] }[] = [
       { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
       { href: "/admin/diagnostics", label: "Diagnostikk", icon: Gauge },
       { href: "/admin/content", label: "Innhold", icon: FileText },
-      { href: "/admin/data", label: "Data", icon: Database },
+      { href: "/admin/database", label: "Data", icon: Database },
     ],
   },
 ];
