@@ -15,7 +15,7 @@ ENV_DIR=/opt/kibarometer/env
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 
 # Refuse to clobber any existing env file.
-for f in supabase.env admin.env fetcher.env backup.env .env.production; do
+for f in supabase.env admin.env fetcher.env backup.env umami.env .env.production; do
   if [[ -f "$ENV_DIR/$f" ]]; then
     echo "$ENV_DIR/$f already exists — refusing to overwrite. Move it aside first if you really want to regenerate."
     exit 1
@@ -30,6 +30,8 @@ SECRET_KEY_BASE=$(openssl rand -hex 32)
 VAULT_ENC_KEY=$(openssl rand -hex 16)
 PG_META_CRYPTO_KEY=$(openssl rand -hex 16)
 FETCHER_TOKEN=$(openssl rand -hex 32)
+UMAMI_HASH_SALT=$(openssl rand -hex 32)
+UMAMI_APP_SECRET=$(openssl rand -hex 32)
 
 ANON_KEY=$(JWT_SECRET="$JWT_SECRET" node "$SCRIPT_DIR/mint-jwt.mjs" anon)
 SERVICE_ROLE_KEY=$(JWT_SECRET="$JWT_SECRET" node "$SCRIPT_DIR/mint-jwt.mjs" service_role)
@@ -58,6 +60,10 @@ q
 EOF
 
 echo "== write admin.env =="
+# UMAMI_USERNAME / UMAMI_PASSWORD / UMAMI_WEBSITE_ID / NEXT_PUBLIC_UMAMI_WEBSITE_ID
+# are blank until the operator does the one-time Umami setup (see
+# /admin/analytics instructions). Until they're filled in, the analytics page
+# renders a "not configured" card and the public site omits the tracker script.
 install -m 600 -o deploy -g deploy /dev/stdin "$ENV_DIR/admin.env" <<EOF
 PORT=4000
 NODE_ENV=production
@@ -69,12 +75,28 @@ SUPABASE_EXTERNAL_URL=https://kibarometer.no/supabase
 PUBLIC_BASE_URL=https://kibarometer.no
 REDIS_URL=redis://kiba-redis:6379
 FETCHER_TOKEN=$FETCHER_TOKEN
+UMAMI_INTERNAL_URL=http://kiba-umami:3000
+UMAMI_USERNAME=
+UMAMI_PASSWORD=
+UMAMI_WEBSITE_ID=
+NEXT_PUBLIC_UMAMI_WEBSITE_ID=
 EOF
 
 echo "== write fetcher.env =="
 install -m 600 -o deploy -g deploy /dev/stdin "$ENV_DIR/fetcher.env" <<EOF
 FETCHER_TOKEN=$FETCHER_TOKEN
 ADMIN_URL=http://kiba-admin:4000
+EOF
+
+echo "== write umami.env =="
+# Umami v2 reads its config from these env vars. DATABASE_URL points at the
+# `umami` database inside kiba-supabase-db (provisioned by 0009_umami_db.sql).
+# Umami runs its own Prisma migrations on first boot.
+install -m 600 -o deploy -g deploy /dev/stdin "$ENV_DIR/umami.env" <<EOF
+DATABASE_TYPE=postgresql
+DATABASE_URL=postgresql://postgres:$POSTGRES_PASSWORD@kiba-supabase-db:5432/umami
+HASH_SALT=$UMAMI_HASH_SALT
+APP_SECRET=$UMAMI_APP_SECRET
 EOF
 
 echo "== write backup.env stub =="
@@ -95,6 +117,9 @@ EOF
 echo "== write .env.production =="
 # Marketing Next.js env. The home page is static today (Phase 5); these
 # are needed by lib/env.ts as soon as Phase 8 wires PostgREST reads.
+# NEXT_PUBLIC_UMAMI_WEBSITE_ID is omitted here on purpose — deploy.sh's merge
+# step pulls it across from admin.env each deploy so it can be filled in
+# without re-running this script.
 install -m 600 -o deploy -g deploy /dev/stdin "$ENV_DIR/.env.production" <<EOF
 NEXT_PUBLIC_SITE_URL=https://kibarometer.no
 NEXT_PUBLIC_SUPABASE_URL=https://kibarometer.no/supabase

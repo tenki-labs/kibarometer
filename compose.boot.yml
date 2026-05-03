@@ -6,6 +6,10 @@
 # Layered AFTER compose.yml + docker/supabase/docker-compose.yml.
 
 services:
+  # DEPRECATED — Phase F PR 4 ported the admin into kiba-web. Block kept for
+  # one deploy cycle so an operator can `docker rm -f kiba-admin` after the
+  # cutover smoke passes. PR 5 deletes this block plus the source-sync in
+  # deploy.sh and the legacy scripts/admin-server.js.
   kiba-admin:
     container_name: kiba-admin
     image: node:22-alpine
@@ -14,14 +18,7 @@ services:
     env_file:
       - /opt/kibarometer/env/admin.env
     volumes:
-      # Single directory mount. deploy.sh populates /opt/kibarometer/admin/
-      # with this layout:
-      #   server.js
-      #   sections/{shared,jobs}.js
-      #   nav/client.js
-      #   fetcher-entrypoint.sh, fetcher-crontab  (consumed by kiba-fetcher)
       - /opt/kibarometer/admin:/app:ro
-    # ONLY on the kiba network. NOT on edge_net — see compose.yml header.
     networks: [default]
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/admin/health"]
@@ -39,8 +36,6 @@ services:
       NODE_ENV: production
       PORT: "3000"
       HOSTNAME: "0.0.0.0"
-    depends_on: !override
-      kiba-admin: { condition: service_healthy }
     command: !override ["node", "server.js"]
 
   # Two overrides on the supabase kong service:

@@ -1,8 +1,10 @@
 # Local-dev override. Pairs with docker/supabase/docker-compose.yml.
 #
-# Stack: db + kong + auth + rest + meta + studio + redis + admin.
+# Stack: db + kong + auth + rest + meta + studio + redis.
 # (storage / imgproxy / realtime / functions / vector / supavisor were stripped
 #  in Phase 0.5 — they don't exist in our forked supabase compose at all.)
+# Phase F PR 4: legacy `admin` (zero-deps Node, port 4000) and `fetcher`
+# services were removed — the new admin runs inside `pnpm dev` on :3000.
 #
 # All persistent data lives under local-dev/data/ — gitignored, host-owned.
 #
@@ -29,48 +31,26 @@ services:
     command: ["redis-server", "--save", "60", "1", "--appendonly", "no"]
     mem_limit: 64m
 
-  admin:
-    image: node:22-alpine
-    container_name: kiba-admin
-    working_dir: /app
-    command: ["node", "server.js"]
-    env_file:
-      - ${KIBA_REPO_ROOT}/local-dev/env/admin.env
-    volumes:
-      # ro,z: read-only + shared SELinux relabel so the container can read
-      # the host's source files on Fedora-style SELinux-enforcing hosts.
-      - ${KIBA_REPO_ROOT}/scripts/admin-server.js:/app/server.js:ro,z
-      - ${KIBA_REPO_ROOT}/scripts/admin-sections:/app/sections:ro,z
-      - ${KIBA_REPO_ROOT}/scripts/nav:/app/nav:ro,z
-    ports:
-      - "4000:4000"
+  # Phase G — local Umami. Exposed on host port 3001 so the operator can hit
+  # the dashboard directly (no edge proxy in local dev). The `umami` database
+  # is provisioned by migration 0009 on first apply; Umami runs its own
+  # Prisma migrations on first boot. Local /admin/analytics will show
+  # "not configured" until UMAMI_API_KEY + UMAMI_WEBSITE_ID are set in
+  # .env.local.
+  umami:
+    image: ghcr.io/umami-software/umami:postgresql-latest
+    container_name: kiba-umami
+    restart: unless-stopped
     depends_on:
       db: { condition: service_healthy }
-      kong: { condition: service_healthy }
-      redis: { condition: service_started }
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/admin/health"]
-      interval: 20s
-      timeout: 3s
-      retries: 3
-    restart: unless-stopped
-    networks:
-      default:
-        aliases: [kiba-admin]
-
-  fetcher:
-    image: alpine:3.20
-    container_name: kiba-fetcher
-    restart: unless-stopped
-    env_file:
-      - ${KIBA_REPO_ROOT}/local-dev/env/fetcher.env
-    volumes:
-      - ${KIBA_REPO_ROOT}/scripts/fetcher-entrypoint.sh:/entrypoint.sh:ro,z
-      - ${KIBA_REPO_ROOT}/scripts/fetcher-crontab:/etc/cron-template:ro,z
-    depends_on:
-      admin: { condition: service_healthy }
-    entrypoint: ["/bin/sh", "/entrypoint.sh"]
-    mem_limit: 32m
+    environment:
+      DATABASE_TYPE: postgresql
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/umami
+      HASH_SALT: local-dev-hash-salt-change-me
+      APP_SECRET: local-dev-app-secret-change-me
+    ports:
+      - "3001:3000"
+    mem_limit: 256m
 
   # Redirect db's bind-mount paths into local-dev/data/ so /opt/kibarometer is
   # never touched. Init-script paths reference the upstream supabase compose's

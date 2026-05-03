@@ -9,6 +9,23 @@ const schema = z.object({
   // Server-only — never expose to the browser.
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   SUPABASE_INTERNAL_URL: z.string().url(),
+  // Admin-only (Phase F PR 4): JWT signature secret + cron bearer token.
+  // Read directly from process.env in lib/admin/{auth,bearer}.ts. Marked
+  // optional here so the marketing-site build doesn't fail on these — the
+  // admin code surfaces a clear error at first use if they're missing.
+  SUPABASE_JWT_SECRET: z.string().min(1).optional(),
+  FETCHER_TOKEN: z.string().min(1).optional(),
+  // Phase G — Umami visitor analytics. NEXT_PUBLIC_* is consumed by
+  // (site)/layout.tsx to inject the tracker <script>; the bare-server vars
+  // by /admin/analytics. All optional — when blank, the public site omits
+  // the script tag and the admin page renders a "not configured" card.
+  // Self-hosted Umami has no API-keys feature (cloud-only), so we auth via
+  // POST /api/auth/login with username/password and cache the JWT.
+  NEXT_PUBLIC_UMAMI_WEBSITE_ID: z.string().optional(),
+  UMAMI_INTERNAL_URL: z.string().url().optional(),
+  UMAMI_USERNAME: z.string().optional(),
+  UMAMI_PASSWORD: z.string().optional(),
+  UMAMI_WEBSITE_ID: z.string().optional(),
 });
 
 export type Env = z.infer<typeof schema>;
