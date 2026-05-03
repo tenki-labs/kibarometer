@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Hammer, LayoutDashboard, Tag } from "lucide-react";
 
 import {
   CommandDialog,
@@ -13,17 +12,14 @@ import {
   CommandList,
 } from "@/components/ui/command";
 
-const ITEMS = [
-  { href: "/admin", label: "Oversikt", icon: LayoutDashboard },
-  { href: "/admin/jobs", label: "Jobber", icon: Hammer },
-  { href: "/admin/keywords", label: "Nøkkelord", icon: Tag },
-] as const;
+import { ADMIN_NAV } from "./admin-nav";
 
 type Props = { open: boolean; onOpenChange: (next: boolean) => void };
 
-// CMD+K palette. Today only navigates between admin sections; once the admin
-// has search-worthy content (job log, keyword fuzzy match, etc.) we extend
-// the dialog with extra <CommandGroup>s.
+// CMD+K palette. Mirrors the sidebar so every staff destination is one
+// keystroke away. The cmdk fuzzy matcher only inspects each item's `value`
+// string (not the group heading), so we fold the section label into value
+// to make queries like "drift" surface that whole group.
 export function SearchCommand({ open, onOpenChange }: Props) {
   const router = useRouter();
 
@@ -40,21 +36,23 @@ export function SearchCommand({ open, onOpenChange }: Props) {
       <CommandInput placeholder="Søk i admin…" />
       <CommandList>
         <CommandEmpty>Ingen treff.</CommandEmpty>
-        <CommandGroup heading="Naviger">
-          {ITEMS.map((item) => {
-            const Icon = item.icon;
-            return (
-              <CommandItem
-                key={item.href}
-                value={`${item.label} ${item.href}`}
-                onSelect={() => go(item.href)}
-              >
-                <Icon />
-                <span>{item.label}</span>
-              </CommandItem>
-            );
-          })}
-        </CommandGroup>
+        {ADMIN_NAV.map((section) => (
+          <CommandGroup key={section.label} heading={section.label}>
+            {section.items.map((item) => {
+              const Icon = item.icon;
+              return (
+                <CommandItem
+                  key={item.href}
+                  value={`${section.label} ${item.label} ${item.href}`}
+                  onSelect={() => go(item.href)}
+                >
+                  <Icon />
+                  <span>{item.label}</span>
+                </CommandItem>
+              );
+            })}
+          </CommandGroup>
+        ))}
       </CommandList>
     </CommandDialog>
   );

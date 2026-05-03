@@ -25,13 +25,8 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { logoutAction } from "@/app/admin/login/actions";
+import { ADMIN_SEGMENT_LABELS } from "./admin-nav";
 import { SearchCommand, useSearchHotkey } from "./search-command";
-
-const SEGMENT_LABELS: Record<string, string> = {
-  admin: "Admin",
-  jobs: "Jobber",
-  keywords: "Nøkkelord",
-};
 
 function buildCrumbs(pathname: string) {
   const segments = pathname.split("/").filter(Boolean);
@@ -40,7 +35,7 @@ function buildCrumbs(pathname: string) {
   for (let i = 0; i < segments.length; i += 1) {
     const seg = segments[i];
     acc += `/${seg}`;
-    const label = SEGMENT_LABELS[seg] ?? prettifyId(seg);
+    const label = ADMIN_SEGMENT_LABELS[seg] ?? prettifyId(seg);
     crumbs.push({ href: acc, label, isLast: i === segments.length - 1 });
   }
   // Always at least one crumb (Oversikt) when on /admin exactly.
