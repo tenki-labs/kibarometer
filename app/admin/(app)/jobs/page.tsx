@@ -29,7 +29,7 @@ import {
   fetchAction,
   refreshSnapshotsAction,
 } from "./actions";
-import { AutoRefresh } from "./_components/auto-refresh";
+import { AutoRefresh } from "@/app/admin/_components/auto-refresh";
 
 const BACKFILL_JOB = "backfill_nav_stillingsfeed";
 const TRIGGER_LABEL: Record<string, string> = {

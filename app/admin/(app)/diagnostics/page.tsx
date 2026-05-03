@@ -18,10 +18,9 @@ import {
 import { Flash } from "@/app/admin/_components/flash";
 import { PageHeader } from "@/app/admin/_components/page-header";
 import { StatCard } from "@/app/admin/_components/stat-card";
+import { AutoRefresh } from "@/app/admin/_components/auto-refresh";
 import { sbFetch } from "@/lib/admin/sb";
 
-// Server component: pulls every metric on render. Auto-refresh at the
-// page level (meta refresh) keeps the UI live without any client JS.
 export const dynamic = "force-dynamic";
 
 type TableSizeRow = {
@@ -98,8 +97,7 @@ export default async function DiagnosticsPage({ searchParams }: Props) {
 
   return (
     <>
-      {/* Auto-refresh every 30s — server component re-renders, no JS shipped. */}
-      <meta httpEquiv="refresh" content="30" />
+      <AutoRefresh enabled intervalMs={30000} />
       <Flash searchParams={params} />
       <PageHeader
         eyebrow="Innsikt"

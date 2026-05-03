@@ -20,6 +20,7 @@ import { Flash } from "@/app/admin/_components/flash";
 import { PageHeader } from "@/app/admin/_components/page-header";
 import { StatCard } from "@/app/admin/_components/stat-card";
 import { StatusBadge } from "@/app/admin/_components/status-badge";
+import { AutoRefresh } from "@/app/admin/_components/auto-refresh";
 import { sbFetch } from "@/lib/admin/sb";
 import { fmtDateTime } from "@/lib/admin/flash";
 
@@ -137,7 +138,7 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
 
   return (
     <>
-      {isRunning ? <meta httpEquiv="refresh" content="3" /> : null}
+      <AutoRefresh enabled={isRunning} intervalMs={3000} />
       <Flash searchParams={sp} />
       <PageHeader
         eyebrow="Drift"
