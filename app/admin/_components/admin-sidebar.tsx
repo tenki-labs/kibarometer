@@ -9,6 +9,7 @@ import {
   Bot,
   Database,
   FileText,
+  FolderTree,
   Gauge,
   Hammer,
   LayoutDashboard,
@@ -54,6 +55,7 @@ const SECTIONS: { label: string; items: NavItem[] }[] = [
         label: "Kandidater",
         icon: Sparkles,
       },
+      { href: "/admin/categories", label: "Kategorier", icon: FolderTree },
     ],
   },
   {
