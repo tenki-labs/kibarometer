@@ -43,7 +43,7 @@ export async function toggleAction(id: string) {
   try {
     const row = await toggle({ sb: sbFetch, id });
     redirect(
-      `/admin/keywords${flashQs({ ok: row.is_active ? "Aktivert" : "Deaktivert" })}`,
+      `/admin/keywords${flashQs({ ok: row.status === "canonical" ? "Aktivert" : "Deaktivert" })}`,
     );
   } catch (err) {
     if (isRedirect(err)) throw err;

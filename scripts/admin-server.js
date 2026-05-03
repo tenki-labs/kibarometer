@@ -378,7 +378,7 @@ const server = createServer(async (req, res) => {
       if (action === "toggle" && req.method === "POST") {
         try {
           const row = await Keywords.toggle({ sb: sbFetch, id });
-          return redirect(`/admin/keywords${flashQs({ ok: row.is_active ? "Aktivert" : "Deaktivert" })}`);
+          return redirect(`/admin/keywords${flashQs({ ok: row.status === "canonical" ? "Aktivert" : "Deaktivert" })}`);
         } catch (err) {
           return redirect(`/admin/keywords${flashQs({ error: err.message })}`);
         }

@@ -26,6 +26,12 @@ const schema = z.object({
   UMAMI_USERNAME: z.string().optional(),
   UMAMI_PASSWORD: z.string().optional(),
   UMAMI_WEBSITE_ID: z.string().optional(),
+  // LLM analytics (PR 1+) — Cloudflare-tunneled OpenAI-compatible endpoint
+  // exposing Gemma 3 4B-IT (see docs/api_docs.md). Both optional so the
+  // CI build with placeholder env passes; lib/admin/mlx.ts surfaces a
+  // "not configured" state when MLX_API_KEY is unset.
+  MLX_BASE_URL: z.string().url().optional(),
+  MLX_API_KEY: z.string().optional(),
 });
 
 export type Env = z.infer<typeof schema>;

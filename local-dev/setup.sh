@@ -124,6 +124,8 @@ SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY
 SUPABASE_INTERNAL_URL=http://localhost:8000
 SUPABASE_JWT_SECRET=$JWT_SECRET
 FETCHER_TOKEN=$FETCHER_TOKEN
+MLX_BASE_URL=https://mlx.tenki.no/v1
+MLX_API_KEY=
 EOF
   echo "  Generated $ROOT/.env.local for pnpm dev."
 else
@@ -131,6 +133,15 @@ else
     if ! grep -q "^${KEY}=" "$ROOT/.env.local"; then
       VAR_NAME=$([[ "$KEY" == "SUPABASE_JWT_SECRET" ]] && echo "JWT_SECRET" || echo "FETCHER_TOKEN")
       echo "${KEY}=$(grep -E "^${VAR_NAME}=" "$LOCAL/.env" | head -1 | cut -d= -f2-)" >> "$ROOT/.env.local"
+      echo "  Backfilled $KEY into .env.local (restart pnpm dev to pick up)."
+    fi
+  done
+  # MLX defaults — points at the prod tunnel; local devs paste their own
+  # tnk_… token into MLX_API_KEY when they want to test against the Mac.
+  for KV in "MLX_BASE_URL=https://mlx.tenki.no/v1" "MLX_API_KEY="; do
+    KEY=${KV%%=*}
+    if ! grep -q "^${KEY}=" "$ROOT/.env.local"; then
+      echo "$KV" >> "$ROOT/.env.local"
       echo "  Backfilled $KEY into .env.local (restart pnpm dev to pick up)."
     fi
   done

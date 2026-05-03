@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   Activity,
   BarChart3,
+  Bot,
   Database,
   FileText,
   Gauge,
@@ -40,6 +41,7 @@ const SECTIONS: { label: string; items: NavItem[] }[] = [
     items: [
       { href: "/admin", label: "Oversikt", icon: LayoutDashboard },
       { href: "/admin/jobs", label: "Jobber", icon: Hammer },
+      { href: "/admin/llm", label: "AI-analyse", icon: Bot },
     ],
   },
   {

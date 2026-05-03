@@ -1,7 +1,8 @@
 // scripts/admin-sections/keywords.js
 // Admin section: keyword inclusion list (the methodology core).
-// Soft-delete only — flipping is_active=false preserves any matched_keywords[]
-// arrays that future nav_postings rows will hold.
+// Soft-delete via status='rejected' (was is_active=false pre-0015).
+// DEPRECATED: kiba-admin removal lands in Phase F PR 5; this file goes with it.
+// Updated minimally to survive the keywords.is_active → status rename.
 import { esc, rawHtml, fmtDateTime, btn, pageHead, nullIfEmpty } from "./shared.js";
 
 const LANGUAGES = ["any", "no", "en"];
@@ -13,7 +14,10 @@ const LANGUAGE_LABEL = { any: "alle", no: "norsk", en: "engelsk" };
 const MATCH_LABEL = { word: "ord", substring: "delstreng" };
 
 const SELECT_COLS =
-  "id,term,language,category,match_type,is_active,notes,created_at,updated_at";
+  "id,term,language,category,match_type,status,notes,created_at,updated_at";
+
+// canonical and trial both match in tagging; only canonical is publicly counted.
+const isMatching = (r) => r.status === "canonical" || r.status === "trial";
 
 function badge(text, colour = "#6E6E76") {
   return `<span style="display:inline-block;padding:.12rem .5rem;background:${colour};color:white;font:500 .62rem/1 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.14em">${esc(text)}</span>`;
@@ -32,23 +36,24 @@ function categorySection(cat, rows) {
   const tbody = rows.length === 0
     ? `<tr><td colspan="6" class="empty">Ingen i denne kategorien.</td></tr>`
     : rows.map((r) => {
-        const dim = r.is_active ? "" : "opacity:.45";
+        const matches = isMatching(r);
+        const dim = matches ? "" : "opacity:.45";
         return `<tr style="${dim}">
           <td><strong>${esc(r.term)}</strong>${r.notes ? `<div style="font-size:.78rem;color:var(--muted);margin-top:.15rem">${esc(r.notes)}</div>` : ""}</td>
           <td>${langBadge(r.language)}</td>
           <td>${matchBadge(r.match_type)}</td>
-          <td>${r.is_active ? "✓" : "—"}</td>
+          <td>${matches ? "✓" : "—"}</td>
           <td style="font-size:.78rem;color:var(--muted)">${esc(fmtDateTime(r.updated_at))}</td>
           <td style="white-space:nowrap;text-align:right">
             ${btn({ label: "Endre", variant: "ghost", size: "small", href: `/admin/keywords/${r.id}` })}
             <form method="post" action="/admin/keywords/${r.id}/toggle" style="display:inline;margin-left:.3rem">
-              ${btn({ label: r.is_active ? "Skjul" : "Aktiver", variant: "ghost", size: "small" })}
+              ${btn({ label: matches ? "Skjul" : "Aktiver", variant: "ghost", size: "small" })}
             </form>
           </td>
         </tr>`;
       }).join("");
   return `<div class="card" style="margin-top:1.25rem">
-    <div class="eyebrow" style="margin-bottom:.6rem">${esc(CATEGORY_LABEL[cat] || cat)} <span style="color:var(--muted);text-transform:none;letter-spacing:0;font-family:inherit">· ${rows.filter(r => r.is_active).length} aktive / ${rows.length} totalt</span></div>
+    <div class="eyebrow" style="margin-bottom:.6rem">${esc(CATEGORY_LABEL[cat] || cat)} <span style="color:var(--muted);text-transform:none;letter-spacing:0;font-family:inherit">· ${rows.filter(isMatching).length} aktive / ${rows.length} totalt</span></div>
     <table>
       <thead><tr>
         <th>Term</th><th>Språk</th><th>Match</th><th>Aktiv</th><th>Endret</th><th></th>
@@ -134,7 +139,7 @@ export async function detailInner({ sb, id }) {
       </div>
       <label style="display:block;margin-top:.75rem">Notat<textarea name="notes" rows="3" style="resize:vertical">${esc(row.notes || "")}</textarea></label>
       <label style="display:block;margin-top:.75rem">
-        <input type="checkbox" name="is_active" value="1"${row.is_active ? " checked" : ""} style="width:auto;margin-right:.4rem">
+        <input type="checkbox" name="is_active" value="1"${isMatching(row) ? " checked" : ""} style="width:auto;margin-right:.4rem">
         Aktiv (vises på metode-siden, brukes ved tagging)
       </label>
       <div style="margin-top:1rem;display:flex;gap:.6rem">
@@ -197,7 +202,8 @@ export async function create({ sb, body }) {
 export async function update({ sb, id, body }) {
   const payload = validatePayload(body);
   // Checkbox is absent from form-encoded body when unchecked, so we infer.
-  payload.is_active = body.is_active === "1" || body.is_active === "on" || body.is_active === true;
+  const checked = body.is_active === "1" || body.is_active === "on" || body.is_active === true;
+  payload.status = checked ? "canonical" : "rejected";
   const [row] = await sb(`/keywords?id=eq.${encodeURIComponent(id)}`, {
     service: true,
     method: "PATCH",
@@ -209,12 +215,13 @@ export async function update({ sb, id, body }) {
 }
 
 export async function toggle({ sb, id }) {
-  const [current] = await sb(`/keywords?id=eq.${encodeURIComponent(id)}&select=is_active`, { service: true });
+  const [current] = await sb(`/keywords?id=eq.${encodeURIComponent(id)}&select=status`, { service: true });
   if (!current) throw new Error("Ikke funnet");
+  const next = current.status === "rejected" ? "canonical" : "rejected";
   const [row] = await sb(`/keywords?id=eq.${encodeURIComponent(id)}`, {
     service: true,
     method: "PATCH",
-    body: { is_active: !current.is_active },
+    body: { status: next },
     prefer: "return=representation",
   });
   return row;

@@ -27,7 +27,7 @@ import { fmtDateTime } from "@/lib/admin/flash";
 import { updateAction } from "../actions";
 
 const SELECT_COLS =
-  "id,term,language,category,match_type,is_active,notes,created_at,updated_at";
+  "id,term,language,category,match_type,status,notes,created_at,updated_at";
 
 type Keyword = {
   id: string;
@@ -35,7 +35,7 @@ type Keyword = {
   language: "any" | "no" | "en";
   category: "tool" | "role" | "concept";
   match_type: "word" | "substring";
-  is_active: boolean;
+  status: "canonical" | "trial" | "rejected";
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -170,7 +170,7 @@ export default async function KeywordEditPage({ params, searchParams }: Props) {
                 id="is_active"
                 name="is_active"
                 value="1"
-                defaultChecked={row.is_active}
+                defaultChecked={row.status === "canonical" || row.status === "trial"}
               />
               <Label htmlFor="is_active" className="font-normal">
                 Aktiv (vises på metode-siden, brukes ved tagging)

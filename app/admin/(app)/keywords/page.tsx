@@ -35,7 +35,7 @@ import { reprocessAction } from "../jobs/actions";
 import { createAction } from "./actions";
 
 const SELECT_COLS =
-  "id,term,language,category,match_type,is_active,notes,created_at,updated_at";
+  "id,term,language,category,match_type,status,notes,created_at,updated_at";
 
 const CATEGORY_LABEL: Record<string, string> = {
   tool: "Verktøy",
@@ -51,11 +51,14 @@ type Keyword = {
   language: "any" | "no" | "en";
   category: "tool" | "role" | "concept";
   match_type: "word" | "substring";
-  is_active: boolean;
+  status: "canonical" | "trial" | "rejected";
   notes: string | null;
   created_at: string;
   updated_at: string;
 };
+
+// canonical and trial both match in tagging; only canonical counts publicly.
+const isMatching = (k: Keyword) => k.status === "canonical" || k.status === "trial";
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -107,11 +110,11 @@ export default async function KeywordsPage({ searchParams }: Props) {
     (byCategory[r.category] ??= []).push(r);
   }
 
-  const totalActive = rows.filter((r) => r.is_active).length;
+  const totalActive = rows.filter(isMatching).length;
   const counts = CATEGORIES.map((c) => ({
     cat: c,
     total: byCategory[c]?.length ?? 0,
-    active: (byCategory[c] ?? []).filter((r) => r.is_active).length,
+    active: (byCategory[c] ?? []).filter(isMatching).length,
   }));
 
   return (
