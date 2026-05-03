@@ -52,6 +52,7 @@ type JobRow = {
 
 type BackfillMeta = {
   next_cursor?: string | null;
+  tail_cursor?: string | null;
   completed?: boolean;
   last_event_at?: string | null;
 };
@@ -78,18 +79,18 @@ function durationLabel(started: string, finished: string | null): string {
 
 function backfillStateLine(meta: BackfillMeta | null): string {
   if (!meta) return "Ikke startet ennå.";
+  const last = meta.last_event_at
+    ? ` Siste hendelse: ${fmtDateTime(meta.last_event_at)}.`
+    : "";
   if (meta.completed) {
-    const last = meta.last_event_at
-      ? ` Siste hendelse: ${fmtDateTime(meta.last_event_at)}.`
-      : "";
-    return `Ferdig — har innhentet hele feeden.${last}`;
+    const head = meta.tail_cursor
+      ? `${String(meta.tail_cursor).slice(0, 8)}…`
+      : "?";
+    return `Innhentet til live head — overvåker for nye hendelser. Head: ${head}.${last}`;
   }
   const cursor = meta.next_cursor
     ? `${String(meta.next_cursor).slice(0, 8)}…`
     : "start";
-  const last = meta.last_event_at
-    ? ` Siste hendelse: ${fmtDateTime(meta.last_event_at)}.`
-    : "";
   return `Pågår. Neste markør: ${cursor}.${last}`;
 }
 
