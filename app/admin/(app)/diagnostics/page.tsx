@@ -209,7 +209,7 @@ export default async function DiagnosticsPage({ searchParams }: Props) {
             Rad-estimat er fra{" "}
             <code className="font-mono text-xs">pg_class.reltuples</code>{" "}
             (oppdateres ved ANALYZE — kan være litt utdatert). Tabeller som
-            aldri har vært ANALYZE'd vises som <code className="font-mono text-xs">—</code>.
+            aldri har vært ANALYZE&apos;d vises som <code className="font-mono text-xs">—</code>.
           </CardDescription>
         </CardHeader>
         <div className="overflow-x-auto">

@@ -13,6 +13,13 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
     <div className="min-h-screen">
       <SiteNav />
       {children}
+      {UMAMI_WEBSITE_ID ? (
+        <Script
+          src="/_umami/script.js"
+          data-website-id={UMAMI_WEBSITE_ID}
+          strategy="afterInteractive"
+        />
+      ) : null}
     </div>
   );
 }
