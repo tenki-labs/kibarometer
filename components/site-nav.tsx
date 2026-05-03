@@ -23,15 +23,22 @@ function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function NavList({
+function NavLinks({
   pathname,
+  orientation,
   onNavigate,
 }: {
   pathname: string;
+  orientation: "horizontal" | "vertical";
   onNavigate?: () => void;
 }) {
   return (
-    <ul className="flex flex-col gap-1">
+    <ul
+      className={cn(
+        "flex gap-1",
+        orientation === "vertical" ? "flex-col" : "flex-row items-center",
+      )}
+    >
       {NAV_ITEMS.map((item) => {
         const active = isActive(pathname, item.href);
         return (
@@ -41,10 +48,10 @@ function NavList({
               aria-current={active ? "page" : undefined}
               onClick={onNavigate}
               className={cn(
-                "block rounded-md px-3 py-2 text-sm font-mono uppercase tracking-wider transition-colors",
+                "block rounded-md px-3 py-2 text-xs font-mono uppercase tracking-wider transition-colors",
                 active
-                  ? "bg-secondary text-foreground"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
               {item.label}
@@ -61,37 +68,38 @@ export function SiteNav() {
   const [open, setOpen] = React.useState(false);
 
   return (
-    <>
-      {/* Desktop: vertical sticky rail, vertically centered */}
-      <aside className="hidden lg:flex fixed inset-y-0 left-0 z-30 w-56 flex-col justify-between border-r border-border bg-background px-6 py-8">
+    <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <div className="mx-auto flex h-14 w-full max-w-[1100px] items-center justify-between px-4 sm:px-6">
         <Link
           href="/"
-          className="font-mono text-xs uppercase tracking-[0.22em] text-muted-foreground hover:text-foreground"
+          className="font-mono text-xs uppercase tracking-[0.22em] text-foreground hover:text-muted-foreground"
         >
           kibarometer
         </Link>
-        <nav aria-label="Hovednavigasjon">
-          <NavList pathname={pathname} />
-        </nav>
-        <a
-          href="/api/v1/headline"
-          className="font-mono text-[0.65rem] uppercase tracking-widest text-muted-foreground hover:text-foreground"
-        >
-          API
-        </a>
-      </aside>
 
-      {/* Mobile: top bar with hamburger */}
-      <header className="lg:hidden sticky top-0 z-30 flex items-center justify-between border-b border-border bg-background px-4 py-3">
-        <Link
-          href="/"
-          className="font-mono text-xs uppercase tracking-[0.22em] text-foreground"
+        {/* Desktop: inline links + API */}
+        <nav
+          aria-label="Hovednavigasjon"
+          className="hidden md:flex items-center gap-4"
         >
-          kibarometer
-        </Link>
+          <NavLinks pathname={pathname} orientation="horizontal" />
+          <a
+            href="/api/v1/headline"
+            className="font-mono text-[0.65rem] uppercase tracking-widest text-muted-foreground hover:text-foreground"
+          >
+            API
+          </a>
+        </nav>
+
+        {/* Mobile: hamburger drawer (Norwegian labels are too wide for a phone) */}
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Åpne meny">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Åpne meny"
+              className="md:hidden"
+            >
               <Menu className="h-5 w-5" />
             </Button>
           </SheetTrigger>
@@ -102,8 +110,9 @@ export function SiteNav() {
               </p>
               <SheetClose asChild>
                 <div>
-                  <NavList
+                  <NavLinks
                     pathname={pathname}
+                    orientation="vertical"
                     onNavigate={() => setOpen(false)}
                   />
                 </div>
@@ -120,7 +129,7 @@ export function SiteNav() {
             </div>
           </SheetContent>
         </Sheet>
-      </header>
-    </>
+      </div>
+    </header>
   );
 }
