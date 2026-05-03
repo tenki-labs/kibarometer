@@ -24,3 +24,9 @@
 # (:00,:15,:30,:45) and enrich (:05,:20,:35,:50) so calls don't pile up on
 # the Mac. No-op when MLX_API_KEY is unset or a previous tick still active.
 8,23,38,53 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 90 ${ADMIN_URL}/admin/api/jobs/llm-discover > /var/log/last-llm-discover.log 2>&1 || logger -s "kiba-fetcher: llm-discover failed at $(date -Iseconds)"
+# LLM Tier 2 (classification): assign taxonomy categories to is_ai postings.
+# K=4 rows per tick (Tier 2 is slower than Tier 1 — full description + full
+# taxonomy + rationale ≈ 12 s/call). Offset 3 min from Tier 1 so the Mac
+# never sees overlapping calls. Skips silently when taxonomy or active
+# tier2 prompt is missing.
+11,26,41,56 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 90 ${ADMIN_URL}/admin/api/jobs/llm-classify > /var/log/last-llm-classify.log 2>&1 || logger -s "kiba-fetcher: llm-classify failed at $(date -Iseconds)"
