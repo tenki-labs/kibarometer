@@ -17,7 +17,7 @@ export default function MediaPage() {
       </p>
       <p className="meta">
         I mellomtiden, se{" "}
-        <Link href="/">Jobb-barometeret</Link> for daglig oppdaterte tall fra
+        <Link href="/jobb-barometer">Jobb-barometeret</Link> for daglig oppdaterte tall fra
         NAVs stillingsfeed.
       </p>
     </main>
