@@ -5,7 +5,7 @@ import "./globals.css";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
-const TITLE = "Kibarometeret — norsk arbeidsmarked, daglig oppdatert";
+const TITLE = "Kibarometeret";
 const DESCRIPTION =
   "Uavhengig dashbord som sporer AI-relaterte stillinger i norsk arbeidsmarked. Daglig oppdaterte tall fra NAVs stillingsfeed, åpen metode.";
 
