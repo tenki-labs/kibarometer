@@ -19,8 +19,8 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   {
-    href: "/jobb-barometer",
-    label: "Jobb-barometer",
+    href: "/jobbmarked",
+    label: "Jobbmarked",
     description: "Daglig oppdaterte tall fra NAV",
   },
   {
@@ -55,7 +55,7 @@ export function SiteNav() {
             <Button
               variant="ghost"
               size="sm"
-              className="font-mono text-xs uppercase tracking-[0.18em]"
+              className="cursor-pointer font-mono text-xs uppercase tracking-[0.18em]"
             >
               Menu
             </Button>
@@ -69,7 +69,7 @@ export function SiteNav() {
               <DropdownMenuItem
                 key={item.href}
                 asChild
-                className="rounded-md px-3 py-3 focus:bg-accent data-[highlighted]:bg-accent"
+                className="cursor-pointer rounded-md px-3 py-3 focus:bg-accent data-[highlighted]:bg-accent"
               >
                 <Link
                   href={item.href}
@@ -87,7 +87,7 @@ export function SiteNav() {
             <DropdownMenuSeparator className="my-2" />
             <DropdownMenuItem
               asChild
-              className="rounded-md px-3 py-2 focus:bg-accent data-[highlighted]:bg-accent"
+              className="cursor-pointer rounded-md px-3 py-2 focus:bg-accent data-[highlighted]:bg-accent"
             >
               <a
                 href="/api/v1/headline"

@@ -8,6 +8,15 @@ const nextConfig: NextConfig = {
   // re-run it during `next build` since the build itself can't fail on
   // type errors anyway when run in CI with strict: false.
   reactStrictMode: true,
+  async redirects() {
+    return [
+      {
+        source: "/jobb-barometer",
+        destination: "/jobbmarked",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
