@@ -17,7 +17,7 @@ const FALLBACK = {
   title: "Media-barometer",
   body_md: `En oversikt over hvordan norske medier dekker AI i arbeidsmarkedet kommer snart.
 
-I mellomtiden, se [Jobb-barometeret](/jobb-barometer) for daglig oppdaterte tall fra NAVs stillingsfeed.`,
+I mellomtiden, se [Jobbmarkedet](/jobbmarked) for daglig oppdaterte tall fra NAVs stillingsfeed.`,
 };
 
 export const metadata = {

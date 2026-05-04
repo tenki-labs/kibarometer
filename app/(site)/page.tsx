@@ -51,10 +51,10 @@ export default function LandingPage() {
           Daglig oppdaterte tall basert på NAVs stillingsfeed.
         </p>
         <Link
-          href="/jobb-barometer"
+          href="/jobbmarked"
           className="mt-10 inline-block font-mono text-xs uppercase tracking-[0.22em] text-foreground underline-offset-4 hover:underline"
         >
-          Se jobb-barometeret →
+          Se jobbmarkedet →
         </Link>
       </div>
       <script

@@ -12,7 +12,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.7,
     },
     {
-      url: `${SITE_URL}/jobb-barometer`,
+      url: `${SITE_URL}/jobbmarked`,
       lastModified,
       changeFrequency: "weekly",
       priority: 0.9,
