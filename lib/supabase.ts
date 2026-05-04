@@ -91,6 +91,19 @@ export type SnapshotCategory = {
   total_count_30d: number;
 };
 
+export type SnapshotCategoryDaily = {
+  posted_on: string;        // YYYY-MM-DD
+  category: string;
+  ai_count: number;
+  total_count: number;
+};
+
+export type SnapshotSkillCategoryDaily = {
+  posted_on: string;        // YYYY-MM-DD
+  slug: string;
+  ai_count: number;
+};
+
 // AI-skill category snapshot (LLM Tier 2 classification rolled up per slug).
 // See 0021_skill_snapshot.sql. The home page reads the rows for the latest
 // `computed_for` and joins with taxonomy_categories on slug to pick up the
