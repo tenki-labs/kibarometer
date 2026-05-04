@@ -11,13 +11,33 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-type NavItem = { href: string; label: string };
+type NavItem = {
+  href: string;
+  label: string;
+  description: string;
+};
 
 const NAV_ITEMS: NavItem[] = [
-  { href: "/jobb-barometer", label: "Jobb-barometer" },
-  { href: "/media", label: "Media-barometer" },
-  { href: "/metode", label: "Metode" },
-  { href: "/om", label: "Om" },
+  {
+    href: "/jobb-barometer",
+    label: "Jobb-barometer",
+    description: "Daglig oppdaterte tall fra NAV",
+  },
+  {
+    href: "/media",
+    label: "Media-barometer",
+    description: "Hvordan mediene dekker AI",
+  },
+  {
+    href: "/metode",
+    label: "Metode",
+    description: "Hvordan vi måler",
+  },
+  {
+    href: "/om",
+    label: "Om",
+    description: "Bak prosjektet",
+  },
 ];
 
 export function SiteNav() {
@@ -40,15 +60,42 @@ export function SiteNav() {
               Menu
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" sideOffset={8} className="w-48">
+          <DropdownMenuContent
+            align="end"
+            sideOffset={12}
+            className="w-[min(24rem,calc(100vw-2rem))] p-2"
+          >
             {NAV_ITEMS.map((item) => (
-              <DropdownMenuItem key={item.href} asChild>
-                <Link href={item.href}>{item.label}</Link>
+              <DropdownMenuItem
+                key={item.href}
+                asChild
+                className="rounded-md px-3 py-3 focus:bg-accent data-[highlighted]:bg-accent"
+              >
+                <Link
+                  href={item.href}
+                  className="flex flex-col items-start gap-1"
+                >
+                  <span className="text-xl font-medium tracking-tight text-foreground">
+                    {item.label}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {item.description}
+                  </span>
+                </Link>
               </DropdownMenuItem>
             ))}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <a href="/api/v1/headline">API</a>
+            <DropdownMenuSeparator className="my-2" />
+            <DropdownMenuItem
+              asChild
+              className="rounded-md px-3 py-2 focus:bg-accent data-[highlighted]:bg-accent"
+            >
+              <a
+                href="/api/v1/headline"
+                className="flex items-center justify-between font-mono text-[0.7rem] uppercase tracking-[0.22em] text-muted-foreground"
+              >
+                <span>API</span>
+                <span aria-hidden="true">→</span>
+              </a>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
