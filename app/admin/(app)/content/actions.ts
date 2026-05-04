@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { sbFetch } from "@/lib/admin/sb";
@@ -25,6 +26,10 @@ export async function updateAction(slug: string, formData: FormData) {
         prefer: "return=minimal",
       },
     );
+    // Purge the live route's ISR cache so the next request renders fresh
+    // copy instead of waiting up to 60s for the per-fetch revalidate
+    // window (lib/supabase.ts sb() default).
+    revalidatePath(`/${slug}`);
     redirect(`/admin/content/${slug}${flashQs({ ok: "Lagret" })}`);
   } catch (err) {
     if (isRedirect(err)) throw err;

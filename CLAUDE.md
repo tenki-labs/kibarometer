@@ -131,11 +131,13 @@ for journalists.
 5. Add nav entry to `SECTIONS` in [app/admin/_components/admin-sidebar.tsx](app/admin/_components/admin-sidebar.tsx) — pick "Drift", "Taksonomi", or "Innsikt", or add a new section.
 6. Test locally (`./local-dev/setup.sh` + `pnpm dev`), commit, push.
 
-**Editable static copy**: `/om` and `/metode` prose lives in
-[`public.site_content`](supabase/migrations/0011_site_content.sql) (Phase G),
-edited via `/admin/content/<slug>`. Code-driven sections (the keyword
-catalogue, API/embed snippets) stay in JSX — `site_content` is for
-prose only.
+**Editable static copy**: `/om`, `/metode`, and `/media` prose lives in
+[`public.site_content`](supabase/migrations/0011_site_content.sql) (Phase G;
+the `media` row was back-filled by `0026_site_content_media.sql`),
+edited via `/admin/content/<slug>`. Saves call `revalidatePath("/<slug>")`
+so the live page re-renders on the next request instead of waiting for
+the 60s ISR window. Code-driven sections (the keyword catalogue, API/embed
+snippets) stay in JSX — `site_content` is for prose only.
 
 ## 7. Migrations
 
