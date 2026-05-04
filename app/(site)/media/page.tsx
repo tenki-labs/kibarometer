@@ -37,16 +37,8 @@ export default async function MediaPage() {
   return (
     <main className="metode">
       <span className="eyebrow">· Media-barometer</span>
-      <h1 className="title">Media-barometer</h1>
-      <p className="lede">
-        En oversikt over hvordan norske medier dekker AI i arbeidsmarkedet
-        kommer snart.
-      </p>
-      <p className="meta">
-        I mellomtiden, se{" "}
-        <Link href="/jobb-barometer">Jobb-barometeret</Link> for daglig oppdaterte tall fra
-        NAVs stillingsfeed.
-      </p>
+      <h1 className="title">{title}</h1>
+      {renderMarkdown(body)}
     </main>
   );
 }
