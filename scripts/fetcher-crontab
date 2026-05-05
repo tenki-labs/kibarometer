@@ -45,3 +45,11 @@
 # per tick or 60 s wall, whichever first. No LLM. -m 90 covers the wall
 # budget plus the final DB write.
 4,9,14,19,24,29,34,39,44,49,54,59 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 90 ${ADMIN_URL}/admin/api/jobs/media-fetch-classify > /var/log/last-media-fetch.log 2>&1 || logger -s "kiba-fetcher: media-fetch-classify failed at $(date -Iseconds)"
+# brreg ingest (/oppstart). Once-daily forward poll of yesterday's
+# Enhetsregisteret registrations. Runs at 06:30 UTC — 30 min after NAV's
+# 06:00 daily fetch so the boxes don't compete on outbound bandwidth.
+# Per-day brreg volume sits well under the 10k page-cap, so no need for
+# the page-walking budget the bulk dump uses (PR 4 manual-only).
+# -m 300 gives generous slack: brreg API + per-page upserts can run
+# 60-120 s on a busy day.
+30 6 * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 300 ${ADMIN_URL}/admin/api/jobs/brreg-ingest > /var/log/last-brreg-ingest.log 2>&1 || logger -s "kiba-fetcher: brreg-ingest failed at $(date -Iseconds)"
