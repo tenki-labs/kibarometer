@@ -24,6 +24,11 @@ const NAV_ITEMS: NavItem[] = [
     description: "Daglig oppdaterte tall fra NAV",
   },
   {
+    href: "/oppstart",
+    label: "Oppstart",
+    description: "Nye norske foretak fra Brønnøysundregistrene",
+  },
+  {
     href: "/media",
     label: "Media-barometer",
     description: "Hvordan mediene dekker AI",

@@ -2,6 +2,7 @@ import type { ComponentType } from "react";
 import {
   BarChart3,
   Bot,
+  Building2,
   Database,
   FileText,
   FolderTree,
@@ -54,6 +55,7 @@ export const ADMIN_NAV: AdminNavSection[] = [
     label: "Innsikt",
     items: [
       { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
+      { href: "/admin/oppstart", label: "Oppstart", icon: Building2 },
       { href: "/admin/diagnostics", label: "Diagnostikk", icon: Gauge },
       { href: "/admin/content", label: "Innhold", icon: FileText },
       { href: "/admin/database", label: "Data", icon: Database },

@@ -47,7 +47,13 @@ for journalists.
   **Storage + imgproxy intentionally stripped** (Phase 0.5; CI guards via
   [.github/workflows/ci.yml](.github/workflows/ci.yml)).
 - `kiba-redis` — cache / rate-limit (declared but unused until a feature wires it)
-- `kiba-fetcher` — alpine cron sidecar, hits `kiba-web`'s `/admin/api/jobs/*`
+- `kiba-fetcher` — alpine cron sidecar, hits `kiba-web`'s `/admin/api/jobs/*`.
+  Three pipelines wired here: NAV (`fetch-nav`, `enrich-nav`, `llm-discover`,
+  `llm-classify`, `refresh-snapshots`), media (`media-*` per the AI
+  media-temperature pipeline), and brreg (`brreg-ingest` daily 06:30,
+  `brreg-roles` 12,42 each hour, `brreg-refresh-snapshots` 04:45). The
+  `brreg-bootstrap` and `brreg-roles-burst` routes are manual-only via
+  `/admin/oppstart` and not on the cron.
 - `kiba-backup` — alpine cron sidecar, nightly Postgres dump → Backblaze B2
 - `kiba-umami` — self-hosted visitor analytics (Phase G). Reads its own
   `umami` database inside `kiba-supabase-db` (provisioned by
