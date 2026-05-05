@@ -19,7 +19,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Flash } from "@/app/admin/_components/flash";
 import { PageHeader } from "@/app/admin/_components/page-header";
+import { SubmitButton } from "@/app/admin/_components/submit-button";
 import { sbFetch } from "@/lib/admin/sb";
+
+import { forgetCompanyAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -271,6 +274,26 @@ export default async function CompanyDetailPage({ params, searchParams }: Props)
               )}
             </TableBody>
           </Table>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6 border-rose-200 dark:border-rose-900">
+        <CardHeader>
+          <CardTitle className="text-base">Hard-slett foretak (GDPR)</CardTitle>
+          <CardDescription>
+            Permanent sletting av foretaket og dets roller. Aggregat-statistikker
+            i snapshot-tabellene blir liggende, men individuelle person-data
+            forsvinner. Rad i <code className="text-xs">jobs</code> registrerer
+            handlingen for revisjon.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form action={forgetCompanyAction}>
+            <input type="hidden" name="orgnr" value={c.orgnr} />
+            <SubmitButton size="sm" variant="destructive" pendingLabel="Sletter…">
+              Slett {c.orgnr} permanent
+            </SubmitButton>
+          </form>
         </CardContent>
       </Card>
 
