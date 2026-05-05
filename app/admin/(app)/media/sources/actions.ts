@@ -7,6 +7,7 @@ import { sbFetch } from "@/lib/admin/sb";
 import { fetchHtml } from "@/lib/admin/legacy/media-client.js";
 import { extractArticle } from "@/lib/admin/legacy/media-extract.js";
 import { parseRssFeed } from "@/lib/admin/legacy/media-discover.js";
+import { runMediaBackfill } from "@/lib/admin/legacy/media-backfill.js";
 
 const LIST = "/admin/media/sources";
 
@@ -137,6 +138,33 @@ export async function toggleActiveAction(id: string, formData: FormData) {
     });
     redirect(
       `${LIST}${flashQs({ ok: next ? "Kilde aktivert" : "Kilde deaktivert" })}`,
+    );
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    redirect(`${LIST}${flashQs({ error: msg(err) })}`);
+  }
+}
+
+// Per-source backfill. Single tick — runs adapter (search or sitemap) for
+// up to ~60 s, enqueues whatever URLs come back. The button polls until
+// stats.urls_found stops growing. We deliberately run inline (not in a
+// background task) so the operator sees the result in the flash QS.
+export async function backfillSourceAction(id: string) {
+  try {
+    const result = await runMediaBackfill({
+      sb: sbFetch,
+      sourceId: id,
+      trigger: "manual",
+    });
+    redirect(
+      `${LIST}${flashQs({
+        ok:
+          `Backfill ${result.domain}: ${result.urls_found} URL-er funnet, ` +
+          `${result.enqueued} nye i kø` +
+          (result.stopped && result.stopped !== "completed"
+            ? ` (stoppet: ${result.stopped})`
+            : ""),
+      })}`,
     );
   } catch (err) {
     if (isRedirect(err)) throw err;

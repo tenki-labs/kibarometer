@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Plus, Power, Rss } from "lucide-react";
+import { ArrowRight, Download, Plus, Power, Rss } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,7 @@ import { StatCard } from "@/app/admin/_components/stat-card";
 import { SubmitButton } from "@/app/admin/_components/submit-button";
 import { fmtDateTime } from "@/lib/admin/flash";
 import { sbFetch } from "@/lib/admin/sb";
-import { toggleActiveAction } from "./actions";
+import { backfillSourceAction, toggleActiveAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -133,6 +133,7 @@ export default async function MediaSourcesPage({ searchParams }: Props) {
                 <TableHead className="text-right">Kø (P / F)</TableHead>
                 <TableHead>Sist pollet</TableHead>
                 <TableHead>Aktiv</TableHead>
+                <TableHead className="text-right">Backfill</TableHead>
                 <TableHead className="text-right" />
               </TableRow>
             </TableHeader>
@@ -140,7 +141,7 @@ export default async function MediaSourcesPage({ searchParams }: Props) {
               {sources.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={8}
+                    colSpan={9}
                     className="py-12 text-center text-muted-foreground"
                   >
                     Ingen kilder ennå.
@@ -203,6 +204,28 @@ export default async function MediaSourcesPage({ searchParams }: Props) {
                           >
                             <Power />
                             {s.is_active ? "Aktiv" : "Inaktiv"}
+                          </SubmitButton>
+                        </form>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <form action={backfillSourceAction.bind(null, s.id)}>
+                          <SubmitButton
+                            variant="outline"
+                            size="sm"
+                            pendingLabel="Kjører…"
+                            disabled={
+                              !s.search_config &&
+                              s.backfill_method !== "sitemap"
+                            }
+                            title={
+                              !s.search_config &&
+                              s.backfill_method !== "sitemap"
+                                ? "Sett search_config eller bytt til sitemap først"
+                                : `Tikk backfill (${s.backfill_method})`
+                            }
+                          >
+                            <Download />
+                            Kjør
                           </SubmitButton>
                         </form>
                       </TableCell>
