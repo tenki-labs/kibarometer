@@ -34,3 +34,14 @@
 # never sees overlapping calls. Skips silently when taxonomy or active
 # tier2 prompt is missing.
 11,26,41,56 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 90 ${ADMIN_URL}/admin/api/jobs/llm-classify > /var/log/last-llm-classify.log 2>&1 || logger -s "kiba-fetcher: llm-classify failed at $(date -Iseconds)"
+# Media discover: poll active sources' RSS feeds, keyword-filter on
+# title+lede, enqueue matching URLs into media_url_queue. Cheap (no LLM,
+# no per-article fetch). 4× per hour offset from NAV ticks so curl calls
+# don't pile up on kiba-web.
+2,17,32,47 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 90 ${ADMIN_URL}/admin/api/jobs/media-discover > /var/log/last-media-discover.log 2>&1 || logger -s "kiba-fetcher: media-discover failed at $(date -Iseconds)"
+# Media fetch+classify: drain media_url_queue → media_articles. Fetches
+# article HTML, runs the tiered extractor, applies the keyword matcher,
+# computes simhash, probes for wire-cluster matches, persists. K=20 rows
+# per tick or 60 s wall, whichever first. No LLM. -m 90 covers the wall
+# budget plus the final DB write.
+4,9,14,19,24,29,34,39,44,49,54,59 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 90 ${ADMIN_URL}/admin/api/jobs/media-fetch-classify > /var/log/last-media-fetch.log 2>&1 || logger -s "kiba-fetcher: media-fetch-classify failed at $(date -Iseconds)"
