@@ -9,8 +9,6 @@
 // brreg_companies. Idempotent on orgnr; safe to re-run.
 
 export const runtime = "nodejs";
-// Bootstrap can run for many minutes; opt out of any default route timeout.
-export const maxDuration = 60 * 60; // 60 min
 
 import { bootstrapBrreg } from "@/lib/admin/legacy/brreg.js";
 import { sbFetch } from "@/lib/admin/sb";

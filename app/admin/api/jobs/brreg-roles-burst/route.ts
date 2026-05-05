@@ -5,7 +5,6 @@
 // drains. Same semantics as the cron handler — just larger K + budget.
 
 export const runtime = "nodejs";
-export const maxDuration = 5 * 60; // 5 min
 
 import { enrichRolesBrreg } from "@/lib/admin/legacy/brreg.js";
 import { sbFetch } from "@/lib/admin/sb";
