@@ -1,8 +1,7 @@
 // app/(site)/about/bot/page.tsx — public identification page for the
 // kibarometer crawler. Linked from the User-Agent string we send when
-// fetching brreg data:
-//   kibarometerbot/1.0 (+https://kibarometer.no/about/bot;
-//     nlod-attribution=brreg)
+// fetching brreg data (NLOD 2.0 attribution) and when fetching Norwegian
+// news outlets for the AI-medietemperatur pipeline.
 //
 // Per NLOD 2.0 etiquette: identify yourself, name a contact, document
 // the data sources, and offer a clear opt-out path.
@@ -14,7 +13,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 export const metadata: Metadata = {
   title: "kibarometerbot — om vår crawler",
   description:
-    "Identifikasjon og kontaktinformasjon for kibarometer.no's data-henting fra åpne offentlige registre.",
+    "Identifikasjon og kontaktinformasjon for kibarometer.no's data-henting fra åpne offentlige registre og norske medier.",
   alternates: { canonical: "/about/bot" },
   openGraph: { url: "/about/bot" },
   robots: { index: true, follow: true },
@@ -32,22 +31,26 @@ export default function BotPage() {
         kibarometerbot
       </h1>
       <p className="mt-4 text-base text-muted-foreground">
-        En automatisert klient som henter åpent offentlig register-data for
-        analyse. Drevet av Tenki Labs på vegne av kibarometer.no.
+        En automatisert klient som henter åpent offentlig register-data og
+        publisert nyhetsinnhold for analyse. Drevet av Tenki Labs på vegne av
+        kibarometer.no.
       </p>
 
       <section className="mt-12 space-y-3">
         <h2 className="text-xl font-semibold tracking-tight">User-Agent</h2>
         <pre className="overflow-x-auto rounded-md border bg-muted p-4 text-xs">
-{`kibarometerbot/1.0 (+${SITE_URL}/about/bot; nlod-attribution=brreg)`}
+{`kibarometerbot/1.0 (+${SITE_URL}/about/bot)`}
         </pre>
+        <p className="text-sm text-muted-foreground">
+          For brreg-trafikk inkluderes også <code>nlod-attribution=brreg</code>{" "}
+          som suffix i agenten.
+        </p>
       </section>
 
       <section className="mt-10 space-y-3">
         <h2 className="text-xl font-semibold tracking-tight">Hva henter vi?</h2>
         <p className="text-sm text-muted-foreground">
-          Per i dag kun fra Brønnøysundregistrene (data.brreg.no), under
-          NLOD 2.0-lisensen:
+          Fra Brønnøysundregistrene (data.brreg.no), under NLOD 2.0-lisensen:
         </p>
         <ul className="list-disc space-y-1 pl-6 text-sm text-muted-foreground">
           <li>
@@ -64,16 +67,46 @@ export default function BotPage() {
             installasjon, for historisk baseline (omtrent én gang per år).
           </li>
         </ul>
+        <p className="text-sm text-muted-foreground">
+          Fra norske medieoutletter (RSS-feeder + offentlige
+          søkesider) for{" "}
+          <a href="/mediedekning" className="underline underline-offset-2">
+            /mediedekning
+          </a>
+          :
+        </p>
+        <ul className="list-disc space-y-1 pl-6 text-sm text-muted-foreground">
+          <li>
+            RSS-feeder for daglig fanging av nye AI-relaterte saker.
+          </li>
+          <li>
+            Offentlige søkeendepunkter (f.eks. <code>/sok?q=AI</code>) for å
+            samle artikkel-URL-er som dekker AI.
+          </li>
+          <li>
+            HTML på enkeltartikler for å trekke ut overskrift, ingress,
+            publiseringsdato og forfatter — vi lagrer{" "}
+            <strong>aldri brødtekst</strong>, kun metadata og avledet
+            klassifisering.
+          </li>
+        </ul>
       </section>
 
       <section className="mt-10 space-y-3">
         <h2 className="text-xl font-semibold tracking-tight">Etikette</h2>
         <ul className="list-disc space-y-1 pl-6 text-sm text-muted-foreground">
-          <li>250 ms ventetid mellom hver forespørsel (~4 req/s peak).</li>
+          <li>250 ms ventetid mellom hver brreg-forespørsel (~4 req/s peak).</li>
+          <li>
+            ≥1 s ventetid mellom hver media-forespørsel per host
+            (per-kilde-konfigurerbar).
+          </li>
           <li>Eksponentiell backoff på 5xx og 429 (respekterer Retry-After).</li>
+          <li>
+            <code>robots.txt</code> respekteres på alle media-fetcher.
+          </li>
           <li>NLOD 2.0-attribusjon i User-Agent og på alle publiserte sider.</li>
           <li>
-            Vi bruker bulk-dumpen for store backfills og det filtrerte
+            Vi bruker bulk-dumpen for store brreg-backfills og det filtrerte
             API-et bare for daglige inkrementer — som anbefalt av brreg.
           </li>
         </ul>
@@ -88,6 +121,11 @@ export default function BotPage() {
           publiserer kun aggregater. Persondata slettes 5 år etter at
           foretaket er slettet fra brreg (GDPR Art. 5(1)(e),
           lagringsbegrensning).
+        </p>
+        <p className="text-sm text-muted-foreground">
+          For media-data lagres ingen brødtekst — bare metadata (URL,
+          overskrift, byline, publiseringsdato) og vår egen klassifisering
+          (AI-relevans, kategori, stance, intensitet).
         </p>
         <p className="text-sm text-muted-foreground">
           Ønsker du data om deg slettet på forespørsel, kontakt:{" "}
@@ -106,9 +144,25 @@ export default function BotPage() {
           Vil du at vi skal stoppe?
         </h2>
         <p className="text-sm text-muted-foreground">
-          Hvis du representerer en kilde vi henter fra og ønsker å pause
-          eller stoppe vår crawler, send en e-post til adressen over med
-          domenet/endepunktet, så blokkerer vi det innen 24 timer.
+          For media-kilder: legg til en <code>User-agent: kibarometerbot</code>{" "}
+          regel i <code>robots.txt</code>. Vi re-henter robots.txt minst én
+          gang i døgnet og slutter å hente påvirkede stier innen 24 timer.
+        </p>
+        <pre className="overflow-x-auto rounded-md border bg-muted p-4 text-xs">
+{`# Blokker kibarometerbot helt
+User-agent: kibarometerbot
+Disallow: /`}
+        </pre>
+        <p className="text-sm text-muted-foreground">
+          For andre tilfeller — eller om du trenger umiddelbar opt-out — send
+          en e-post til{" "}
+          <a
+            href="mailto:oscar@winsights.no"
+            className="underline underline-offset-2"
+          >
+            oscar@winsights.no
+          </a>{" "}
+          med domenet/endepunktet, så blokkerer vi det innen 24 timer.
         </p>
       </section>
 

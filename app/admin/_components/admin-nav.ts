@@ -10,6 +10,7 @@ import {
   Hammer,
   LayoutDashboard,
   MessageSquareCode,
+  Newspaper,
   Sparkles,
   Tag,
 } from "lucide-react";
@@ -55,6 +56,7 @@ export const ADMIN_NAV: AdminNavSection[] = [
     label: "Innsikt",
     items: [
       { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
+      { href: "/admin/media", label: "Mediedekning", icon: Newspaper },
       { href: "/admin/oppstart", label: "Oppstart", icon: Building2 },
       { href: "/admin/diagnostics", label: "Diagnostikk", icon: Gauge },
       { href: "/admin/content", label: "Innhold", icon: FileText },
