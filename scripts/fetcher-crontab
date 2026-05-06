@@ -45,3 +45,11 @@
 # per tick or 60 s wall, whichever first. No LLM. -m 90 covers the wall
 # budget plus the final DB write.
 4,9,14,19,24,29,34,39,44,49,54,59 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 90 ${ADMIN_URL}/admin/api/jobs/media-fetch-classify > /var/log/last-media-fetch.log 2>&1 || logger -s "kiba-fetcher: media-fetch-classify failed at $(date -Iseconds)"
+# Media LLM Tier 1: relevance confirmation + verbatim AI-phrase extraction.
+# K=15 / tick, ~3 s/call ≈ 45 s budget. Offset from NAV Tier 1 (:08/:23/:38/:53)
+# and NAV Tier 2 (:11/:26/:41/:56) so the Mac never sees overlapping calls.
+6,21,36,51 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 90 ${ADMIN_URL}/admin/api/jobs/media-llm-tier1 > /var/log/last-media-tier1.log 2>&1 || logger -s "kiba-fetcher: media-llm-tier1 failed at $(date -Iseconds)"
+# Media LLM Tier 2: classify into media_categories + score stance + intensity.
+# K=4 / tick, ~12 s/call. Skips silently when media_categories or active
+# media_tier2 prompt is missing.
+13,28,43,58 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 90 ${ADMIN_URL}/admin/api/jobs/media-llm-tier2 > /var/log/last-media-tier2.log 2>&1 || logger -s "kiba-fetcher: media-llm-tier2 failed at $(date -Iseconds)"
