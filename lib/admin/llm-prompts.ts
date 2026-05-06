@@ -7,7 +7,13 @@ import "server-only";
 
 import { sbFetch } from "@/lib/admin/sb";
 
-export type LlmPromptRole = "tier1" | "tier2" | "media_tier1" | "media_tier2";
+export type LlmPromptRole =
+  | "tier1"
+  | "tier2"
+  | "media_tier1"
+  | "media_tier2"
+  | "brreg_tier1"
+  | "brreg_tier2";
 
 export type LlmPrompt = {
   id: string;
