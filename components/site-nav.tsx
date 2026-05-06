@@ -24,6 +24,11 @@ const NAV_ITEMS: NavItem[] = [
     description: "Daglig oppdaterte tall fra NAV",
   },
   {
+    href: "/oppstart",
+    label: "Oppstart",
+    description: "Nye norske foretak fra Brønnøysundregistrene",
+  },
+  {
     href: "/media",
     label: "Media-barometer",
     description: "Hvordan mediene dekker AI",
@@ -43,7 +48,7 @@ const NAV_ITEMS: NavItem[] = [
 export function SiteNav() {
   return (
     <header className="sticky top-0 z-30 bg-background">
-      <div className="mx-auto flex h-14 w-full max-w-[1100px] items-center justify-between px-4 sm:px-6">
+      <div className="flex h-14 w-full items-center justify-between">
         <Link
           href="/"
           className="text-sm tracking-tight text-foreground hover:text-muted-foreground"

@@ -57,3 +57,22 @@
 # at 04:00 to stay clear of contention. Truncate+insert across 5 tables —
 # cheap; can re-run on demand from /admin/media.
 30 4 * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 120 ${ADMIN_URL}/admin/api/jobs/media-refresh-snapshots > /var/log/last-media-snapshots.log 2>&1 || logger -s "kiba-fetcher: media-refresh-snapshots failed at $(date -Iseconds)"
+# brreg ingest (/oppstart). Once-daily forward poll of yesterday's
+# Enhetsregisteret registrations. Runs at 06:30 UTC — 30 min after NAV's
+# 06:00 daily fetch so the boxes don't compete on outbound bandwidth.
+# Per-day brreg volume sits well under the 10k page-cap, so no need for
+# the page-walking budget the bulk dump uses (PR 4 manual-only).
+# -m 300 gives generous slack: brreg API + per-page upserts can run
+# 60-120 s on a busy day.
+30 6 * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 300 ${ADMIN_URL}/admin/api/jobs/brreg-ingest > /var/log/last-brreg-ingest.log 2>&1 || logger -s "kiba-fetcher: brreg-ingest failed at $(date -Iseconds)"
+# brreg role enrichment (/oppstart). Drains brreg_url_queue at K=50 rows
+# per tick, 60s wall budget. Polite 250ms pacing inside brreg-client →
+# ~12-13s of network per tick; the rest is DB writes. -m 90 gives slack
+# above the 60s budget. Offset 12,42 stays clear of NAV's :00,:15,:30,:45
+# backfill ticks and the :05,:20,:35,:50 enrich ticks.
+12,42 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 90 ${ADMIN_URL}/admin/api/jobs/brreg-roles > /var/log/last-brreg-roles.log 2>&1 || logger -s "kiba-fetcher: brreg-roles failed at $(date -Iseconds)"
+# brreg snapshot refresh (/oppstart). Truncate+insert across all five
+# brreg_snapshot_* tables in one transaction — runs in seconds. Offset
+# 45 min after NAV's 04:00 snapshot refresh so the two RPCs don't compete
+# for Postgres locks.
+45 4 * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 120 ${ADMIN_URL}/admin/api/jobs/brreg-refresh-snapshots > /var/log/last-brreg-snapshots.log 2>&1 || logger -s "kiba-fetcher: brreg-refresh-snapshots failed at $(date -Iseconds)"
