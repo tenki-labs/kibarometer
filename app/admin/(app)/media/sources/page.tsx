@@ -154,7 +154,7 @@ export default async function MediaSourcesPage({ searchParams }: Props) {
                     <TableRow key={s.id}>
                       <TableCell className="font-medium">
                         <Link
-                          href={`/admin/media/sources/${s.id}/edit`}
+                          href={`/admin/media/sources/${s.id}`}
                           className="underline decoration-dotted underline-offset-4 hover:opacity-80"
                         >
                           {s.name}

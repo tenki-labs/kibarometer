@@ -199,11 +199,25 @@ export default async function MediaOverviewPage({ searchParams }: Props) {
         title="Mediedekning"
         description="Operativ oversikt over AI-medietemperatur-pipelinen: kilder, kø, klassifisering og siste artikler. Den offentlige dashboarden ligger på /mediedekning."
         action={
-          <form action={refreshSnapshotsAction}>
-            <SubmitButton variant="outline" pendingLabel="Regner…">
-              Regn snapshots nå
-            </SubmitButton>
-          </form>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline">
+              <Link href="/admin/media/sources">Kilder</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/admin/media/articles">Artikler</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/admin/media/categories">Kategorier</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/admin/media/queue">Kø</Link>
+            </Button>
+            <form action={refreshSnapshotsAction}>
+              <SubmitButton variant="outline" pendingLabel="Regner…">
+                Regn snapshots
+              </SubmitButton>
+            </form>
+          </div>
         }
       />
 

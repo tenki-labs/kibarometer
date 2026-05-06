@@ -1,5 +1,11 @@
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, FileText } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileText, RefreshCcw } from "lucide-react";
+
+import { SubmitButton } from "@/app/admin/_components/submit-button";
+import {
+  bulkReclassifyAllAction,
+  bulkReclassifyTier2Action,
+} from "./actions";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -196,6 +202,42 @@ export default async function ArticlesPage({ searchParams }: Props) {
             </Button>
           </div>
         </form>
+      </Card>
+
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 font-mono text-xs uppercase tracking-[0.18em]">
+            <RefreshCcw className="size-3.5" />
+            Bulk-handlinger
+          </CardTitle>
+          <CardDescription>
+            Kjøres på alle rader som matcher filtrene over. Re-klassifisering
+            er ikke-destruktivt — Tier 2 plukker opp resatte rader på neste
+            cron-tikk eller via &quot;Burst T2&quot; på{" "}
+            <Link href="/admin/media" className="underline">
+              /admin/media
+            </Link>
+            .
+          </CardDescription>
+        </CardHeader>
+        <div className="flex flex-wrap items-center gap-2 px-6 pb-6">
+          <form action={bulkReclassifyTier2Action}>
+            <input type="hidden" name="q" value={q} />
+            <input type="hidden" name="source" value={sourceId} />
+            <input type="hidden" name="ai" value={aiOnly ? "1" : ""} />
+            <SubmitButton variant="outline" pendingLabel="Resetter…">
+              Reset Tier 2 (filter)
+            </SubmitButton>
+          </form>
+          <form action={bulkReclassifyAllAction}>
+            <input type="hidden" name="q" value={q} />
+            <input type="hidden" name="source" value={sourceId} />
+            <input type="hidden" name="ai" value={aiOnly ? "1" : ""} />
+            <SubmitButton variant="outline" pendingLabel="Resetter…">
+              Reset Tier 1 + 2 (filter)
+            </SubmitButton>
+          </form>
+        </div>
       </Card>
 
       <Card className="gap-0 p-0">
