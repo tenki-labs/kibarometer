@@ -1,9 +1,9 @@
+import Link from "next/link";
 import {
   AlertTriangle,
   Bot,
   KeyRound,
   ListChecks,
-  Sparkles,
   Wifi,
   WifiOff,
 } from "lucide-react";
@@ -32,7 +32,7 @@ import { AutoRefresh } from "@/app/admin/_components/auto-refresh";
 import { fmtDateTime } from "@/lib/admin/flash";
 import { mlxConfigured, readMlxHealth } from "@/lib/admin/mlx";
 import { sbFetch } from "@/lib/admin/sb";
-import { pingAction, runTier1Action, runTier2Action } from "./actions";
+import { pingAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -356,27 +356,22 @@ export default async function LlmStatusPage({ searchParams }: Props) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 font-mono text-xs uppercase tracking-[0.18em]">
             <ListChecks className="size-3.5" />
-            Manuelle triggere
+            Diagnostikk
           </CardTitle>
           <CardDescription>
-            Cron kjører Tier 1 hvert 15. min (08, 23, 38, 53) og Tier 2 (11, 26,
-            41, 56). Trigg manuelt for å tømme kø eller verifisere etter
-            re-deploy.
+            Endepunkt-ping for å bekrefte tunnel + tokens. Manuelle Tier 1- /
+            Tier 2-bursts ligger nå per pipeline:{" "}
+            <Link href="/admin/job-market" className="underline">
+              /admin/job-market
+            </Link>{" "}
+            for NAV,{" "}
+            <Link href="/admin/media" className="underline">
+              /admin/media
+            </Link>{" "}
+            for medie-pipelinen.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
-          <form action={runTier1Action}>
-            <SubmitButton variant="outline" size="sm" pendingLabel="Starter…">
-              <Sparkles />
-              Kjør Tier 1-batch
-            </SubmitButton>
-          </form>
-          <form action={runTier2Action}>
-            <SubmitButton variant="outline" size="sm" pendingLabel="Starter…">
-              <Sparkles />
-              Kjør Tier 2-batch
-            </SubmitButton>
-          </form>
           <form action={pingAction}>
             <SubmitButton variant="outline" size="sm" pendingLabel="Tester…">
               {tunnel === "red" || tunnel === "unknown" ? (

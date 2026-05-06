@@ -14,8 +14,15 @@ import {
   fastForwardNav,
   pastFFThreshold,
 } from "@/lib/admin/legacy/fast-forward.js";
+import { runClassify } from "@/lib/admin/llm-classify";
+import { runDiscover } from "@/lib/admin/llm-discover";
 import { sbFetch } from "@/lib/admin/sb";
 import { flashQs } from "@/lib/admin/flash";
+
+const SKIP_LABEL: Record<string, string> = {
+  no_api_key: "MLX_API_KEY mangler",
+  already_running: "Allerede i gang — hopper over",
+};
 
 // NAV-specific operations. These were previously co-located with the
 // generic process-history view at /admin/processes; PR 3 moves them to
@@ -273,6 +280,72 @@ export async function stopDrainAction() {
       `/admin/job-market${flashQs({ error: `Stopp feilet: ${msg(err)}` })}`,
     );
   }
+}
+
+// Tier 1 burst (deteksjon + AI-frase-uttrekk). Same orchestrator runDiscover
+// as the cron tick and as /admin/llm's lifted-out button. Defers via after()
+// so the action returns immediately while the orchestrator runs to completion;
+// runDiscover writes its own jobs row, so progress is visible on
+// /admin/processes. Pre-flight check surfaces useful skip reasons (no API
+// key / already-running) without waiting on the LLM loop.
+export async function runTier1Action() {
+  const skip = await llmPreflight("tier1");
+  if (skip) {
+    redirect(`/admin/job-market${flashQs({ ok: skip })}`);
+  }
+  after(async () => {
+    try {
+      await runDiscover({ sb: sbFetch, trigger: "manual" });
+    } catch {
+      // runDiscover writes its own failure PATCH to the jobs row.
+    }
+  });
+  redirect(
+    `/admin/job-market${flashQs({
+      ok: "Tier 1-batch startet — følg progresjon på /admin/processes.",
+    })}`,
+  );
+}
+
+export async function runTier2Action() {
+  const skip = await llmPreflight("tier2");
+  if (skip) {
+    redirect(`/admin/job-market${flashQs({ ok: skip })}`);
+  }
+  after(async () => {
+    try {
+      await runClassify({ sb: sbFetch, trigger: "manual" });
+    } catch {
+      // runClassify writes its own failure PATCH to the jobs row.
+    }
+  });
+  redirect(
+    `/admin/job-market${flashQs({
+      ok: "Tier 2-batch startet — følg progresjon på /admin/processes.",
+    })}`,
+  );
+}
+
+// Cheap dry-fire that probes the same skip-paths the orchestrators check
+// internally. Lets us surface a flash before deferring the long-running
+// LLM loop with after().
+async function llmPreflight(
+  tier: "tier1" | "tier2",
+): Promise<string | null> {
+  if (!process.env.MLX_API_KEY) return SKIP_LABEL.no_api_key;
+  const jobName = tier === "tier1" ? "llm-discover" : "llm-classify";
+  try {
+    const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const running = await sbFetch<{ id: string }[]>(
+      `/jobs?name=eq.${jobName}&status=eq.running` +
+        `&last_heartbeat=gt.${encodeURIComponent(cutoff)}&select=id&limit=1`,
+      { service: true },
+    );
+    if (running.length > 0) return SKIP_LABEL.already_running;
+  } catch {
+    // If the probe itself fails, let the orchestrator handle it.
+  }
+  return null;
 }
 
 // NAV-only snapshot refresh. Kept as a separate action even though the
