@@ -1,44 +1,82 @@
-// app/(site)/media/page.tsx — media-barometer stub. Title + body sourced
-// from public.site_content (slug = 'media') so an admin can edit copy on
-// /admin/content/media without redeploying. Falls back to a hardcoded
-// copy if the row is missing (build-time prerender, fresh install before
-// the seed has run, etc.) so the page never breaks.
+// app/(site)/media/page.tsx — five-segment scroll-snap dashboard for the
+// kibarometer media-temperature index.
+//
+// Server component. Fetches every snapshot we need in parallel and hands the
+// full datasets to <Scroller>, which owns the time-range toggle and the snap
+// container. The client slices the per-day rows itself so toggling
+// max / 1y / 1q / 1m is instant — no extra round trip.
 
-import { sb } from "@/lib/supabase";
-import { renderMarkdown } from "@/lib/admin/markdown";
+import type { Metadata } from "next";
+import { Suspense } from "react";
 
-type SiteContent = {
-  slug: string;
-  title: string;
-  body_md: string;
-};
+import {
+  sb,
+  type MediaAnomalyDaily,
+  type MediaCategory,
+  type MediaSnapshotCategoryDaily,
+  type MediaSnapshotIndex,
+} from "@/lib/supabase";
 
-const FALLBACK = {
-  title: "Media-barometer",
-  body_md: `En oversikt over hvordan norske medier dekker AI i arbeidsmarkedet kommer snart.
+import { Scroller } from "./_components/scroller";
 
-I mellomtiden, se [Jobbmarkedet](/jobbmarked) for daglig oppdaterte tall fra NAVs stillingsfeed.`,
-};
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
-export const metadata = {
-  title: "Media-barometer — Kibarometeret",
+export const metadata: Metadata = {
+  title: "Media",
   description:
-    "Hvordan norske medier dekker AI i arbeidsmarkedet. Kommer snart.",
+    "Norsk medieklima for kunstig intelligens — daglig oppdatert kibarometer-indeks fra norske mediers AI-dekning.",
+  alternates: { canonical: "/media" },
+  openGraph: { url: "/media" },
+};
+
+export const revalidate = 60;
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "@id": `${SITE_URL}/media#webpage`,
+  url: `${SITE_URL}/media`,
+  name: "Media",
+  inLanguage: "nb-NO",
 };
 
 export default async function MediaPage() {
-  const rows = await sb<SiteContent[]>(
-    "/site_content?slug=eq.media&select=slug,title,body_md",
-  ).catch(() => [] as SiteContent[]);
-  const row = rows[0];
-  const title = row?.title ?? FALLBACK.title;
-  const body = row?.body_md ?? FALLBACK.body_md;
+  const [latestRows, indexHistory, categoryDaily, categories, anomalies] =
+    await Promise.all([
+      sb<MediaSnapshotIndex[]>(
+        "/media_snapshot_index?order=date.desc&limit=1",
+      ),
+      sb<MediaSnapshotIndex[]>(
+        "/media_snapshot_index?order=date.asc",
+      ),
+      sb<MediaSnapshotCategoryDaily[]>(
+        "/media_snapshot_category_daily?order=published_on.asc",
+      ),
+      sb<MediaCategory[]>(
+        "/media_categories?is_active=is.true&select=slug,label_no,label_en,description&order=slug.asc",
+      ),
+      sb<MediaAnomalyDaily[]>(
+        "/media_anomaly_daily?is_spike=is.true&order=date.desc,z_score.desc&limit=10",
+      ),
+    ]);
+
+  const latest = latestRows[0] ?? null;
 
   return (
-    <main className="metode">
-      <span className="eyebrow">· Media-barometer</span>
-      <h1 className="title">{title}</h1>
-      {renderMarkdown(body)}
-    </main>
+    <>
+      <Suspense fallback={null}>
+        <Scroller
+          latest={latest}
+          indexHistory={indexHistory}
+          categoryDaily={categoryDaily}
+          categories={categories}
+          anomalies={anomalies}
+        />
+      </Suspense>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+    </>
   );
 }

@@ -133,3 +133,86 @@ export type Keyword = {
   match_type: "word" | "substring";
   notes: string | null;
 };
+
+// ---- Media snapshot types (0029_media.sql, public-read) -----------------
+
+export type MediaSnapshotIndex = {
+  date: string;                    // YYYY-MM-DD
+  index_value: number;             // 0..100
+  article_count_7d: number;
+  ai_article_count_7d: number;
+  categories_above_water: number;
+  categories_below_water: number;
+};
+
+export type MediaSnapshotCategoryDaily = {
+  published_on: string;            // YYYY-MM-DD
+  category_slug: string;
+  ai_count: number;
+  distinct_story_count: number;
+  temperature: number | null;
+};
+
+export type MediaAnomalyDaily = {
+  date: string;                    // YYYY-MM-DD
+  category_slug: string;
+  count: number;
+  baseline_mean: number;
+  baseline_stddev: number;
+  z_score: number;
+  is_spike: boolean;
+};
+
+export type MediaCategory = {
+  slug: string;
+  label_no: string;
+  label_en: string | null;
+  description: string | null;
+};
+
+// ---- Brreg snapshot types (0030_brreg.sql, public-read) -----------------
+
+export type BrregSnapshotHeadline = {
+  computed_for: string;
+  computed_at: string;
+  total_7d: number;
+  total_30d: number;
+  total_30d_yoy: number;
+  ai_relevant_count_30d: number;
+  ai_relevant_share_30d: number;          // 0..1
+  it_share_30d: number;
+  kreativ_media_share_30d: number;
+  tjenester_share_30d: number;
+  enriched_combined_share_30d: number;
+  as_share_of_ai_relevant_30d: number;
+  enk_share_of_ai_relevant_30d: number;
+  aksjekapital_median_ai_relevant_as_30d: number | null;
+  aksjekapital_median_non_ai_as_30d: number | null;
+  ai_relevant_mom_growth: number | null;
+  ai_relevant_qoq_growth: number | null;
+};
+
+export type BrregSnapshotDaily = {
+  registrert_dato: string;         // YYYY-MM-DD
+  nace_category_slug: string;
+  count: number;
+  ai_relevant_count: number;
+  young_founder_count: number;
+};
+
+export type BrregSnapshotGeography = {
+  fylke: string;
+  count_30d: number;
+  ai_relevant_count_30d: number;
+  count_per_100k_30d: number | null;
+};
+
+export type BrregSnapshotCohort = {
+  cohort_quarter: string;
+  is_ai_relevant: boolean;
+  total_at_registration: number;
+  still_active_count: number;
+  slettet_count: number;
+  konkurs_count: number;
+  survival_rate_pct: number;
+};
