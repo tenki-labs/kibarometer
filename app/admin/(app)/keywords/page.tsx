@@ -31,7 +31,7 @@ import { PageHeader } from "@/app/admin/_components/page-header";
 import { StatCard } from "@/app/admin/_components/stat-card";
 import { SubmitButton } from "@/app/admin/_components/submit-button";
 import { sbFetch } from "@/lib/admin/sb";
-import { reprocessAction } from "../processes/actions";
+import { reprocessAction } from "../job-market/actions";
 import { createAction } from "./actions";
 
 const SELECT_COLS =
