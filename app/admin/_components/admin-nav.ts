@@ -47,6 +47,11 @@ export const ADMIN_NAV: AdminNavSection[] = [
     items: [
       { href: "/admin/job-market", label: "Oversikt", icon: LayoutDashboard },
       { href: "/admin/job-market/categories", label: "Kategorier", icon: FolderTree },
+      {
+        href: "/admin/job-market/prompts",
+        label: "Systemprompt",
+        icon: MessageSquareCode,
+      },
     ],
   },
   {
