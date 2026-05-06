@@ -130,10 +130,10 @@ describe("searchSourceUrls — orchestrator", () => {
         crawl_delay_ms: 100,
         search_config: {
           url_template: "https://digi.no/sok?q={q}&page={page}",
-          queries: ["AI", "KI"],
           max_pages_per_query: 5,
         },
       },
+      queries: ["AI", "KI"],
       fetcher,
     });
     expect(urls).toContain("https://digi.no/artikkel/openai-1");
@@ -157,10 +157,10 @@ describe("searchSourceUrls — orchestrator", () => {
         crawl_delay_ms: 100,
         search_config: {
           url_template: "https://digi.no/sok?q={q}&page={page}",
-          queries: ["AI"],
           max_pages_per_query: 10,
         },
       },
+      queries: ["AI"],
       fetcher,
     });
     expect(urls).toContain("https://digi.no/artikkel/a-1");
@@ -171,11 +171,12 @@ describe("searchSourceUrls — orchestrator", () => {
     await expect(
       searchSourceUrls({
         source: { id: "s", domain: "digi.no", search_config: null },
+        queries: ["AI"],
       }),
     ).rejects.toThrow(/search_config/);
   });
 
-  it("throws when queries is empty", async () => {
+  it("throws when queries arg is empty", async () => {
     await expect(
       searchSourceUrls({
         source: {
@@ -183,9 +184,9 @@ describe("searchSourceUrls — orchestrator", () => {
           domain: "digi.no",
           search_config: {
             url_template: "https://digi.no/sok?q={q}",
-            queries: [],
           },
         },
+        queries: [],
       }),
     ).rejects.toThrow(/queries/);
   });
@@ -206,10 +207,10 @@ describe("searchSourceUrls — orchestrator", () => {
         crawl_delay_ms: 100,
         search_config: {
           url_template: "https://digi.no/sok?q={q}&page={page}",
-          queries: ["AI", "KI"],
           max_pages_per_query: 2,
         },
       },
+      queries: ["AI", "KI"],
       fetcher,
     });
     expect(urls).toEqual(["https://digi.no/artikkel/ok"]);
@@ -234,10 +235,10 @@ describe("searchSourceUrls — orchestrator", () => {
         crawl_delay_ms: 100,
         search_config: {
           url_template: "https://digi.no/sok?q={q}&page={page}",
-          queries: ["AI"],
           max_pages_per_query: 50,
         },
       },
+      queries: ["AI"],
       fetcher,
       maxWallMs: 100, // 100 ms cap; 50 ms per page → ~2 pages
       now: () => nowMs,

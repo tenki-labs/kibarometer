@@ -114,12 +114,31 @@ export async function createAction(formData: FormData) {
 export async function updateAction(id: string, formData: FormData) {
   try {
     const shape = parseForm(formData);
-    await sbFetch(`/media_sources?id=eq.${encodeURIComponent(id)}`, {
-      service: true,
-      method: "PATCH",
-      body: { ...shape, updated_at: new Date().toISOString() },
-      prefer: "return=minimal",
-    });
+    // return=representation so we can assert the write actually landed —
+    // a silent "Lagret" with stale search_config would block the operator
+    // from ever activating new outlets.
+    const updated = await sbFetch<Array<{ search_config: unknown; extractor_config: unknown }>>(
+      `/media_sources?id=eq.${encodeURIComponent(id)}`,
+      {
+        service: true,
+        method: "PATCH",
+        body: { ...shape, updated_at: new Date().toISOString() },
+        prefer: "return=representation",
+      },
+    );
+    const row = updated[0];
+    if (!row) {
+      throw new Error(
+        "PATCH returnerte ingen rad — kilden finnes ikke eller RLS blokkerte skrivingen",
+      );
+    }
+    const sentSc = JSON.stringify(shape.search_config ?? null);
+    const gotSc = JSON.stringify(row.search_config ?? null);
+    if (sentSc !== gotSc) {
+      throw new Error(
+        `search_config ble ikke skrevet. Sendt: ${sentSc.slice(0, 120)} · I DB: ${gotSc.slice(0, 120)}`,
+      );
+    }
     redirect(`${LIST}/${id}/edit${flashQs({ ok: "Lagret" })}`);
   } catch (err) {
     if (isRedirect(err)) throw err;

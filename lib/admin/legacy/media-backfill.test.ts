@@ -68,13 +68,17 @@ describe("runMediaBackfill", () => {
             backfill_method: "site_search",
             search_config: {
               url_template: "https://digi.no/sok?q={q}&page={page}",
-              queries: ["AI"],
               max_pages_per_query: 2,
             },
             crawl_delay_ms: 100,
             backfill_cursor: null,
           },
         ],
+      },
+      {
+        path: /^\/keywords/,
+        method: "GET",
+        reply: [{ term: "AI" }],
       },
       {
         path: /^\/jobs$/,
@@ -201,6 +205,7 @@ describe("runMediaBackfill", () => {
           },
         ],
       },
+      { path: /^\/keywords/, method: "GET", reply: [{ term: "AI" }] },
       { path: /^\/jobs$/, method: "POST", reply: [{ id: "job-3" }] },
       {
         path: /^\/jobs\?id=eq\.job-3/,
@@ -239,13 +244,13 @@ describe("runMediaBackfill", () => {
             backfill_method: "site_search",
             search_config: {
               url_template: "https://dup.no/sok?q={q}&page={page}",
-              queries: ["AI"],
               max_pages_per_query: 1,
             },
             crawl_delay_ms: 100,
           },
         ],
       },
+      { path: /^\/keywords/, method: "GET", reply: [{ term: "AI" }] },
       { path: /^\/jobs$/, method: "POST", reply: [{ id: "job-4" }] },
       // ignore-duplicates: PostgREST returns [] when the row was a conflict.
       { path: /^\/media_url_queue$/, method: "POST", reply: [] },
