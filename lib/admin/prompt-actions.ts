@@ -17,11 +17,11 @@ import { sbFetch } from "@/lib/admin/sb";
 const MAX_BODY_BYTES = 50_000;
 
 // Tier 2 prompts that classify into taxonomies need this placeholder so
-// lib/admin/llm-{classify,media-tier2}.ts can substitute the active
-// taxonomy at runtime. Both NAV's `tier2` and media's `media_tier2`
-// share this contract.
+// lib/admin/llm-{classify,media-tier2,brreg-tier2}.ts can substitute the
+// active taxonomy at runtime. NAV's `tier2`, media's `media_tier2`, and
+// brreg's `brreg_tier2` all share this contract.
 function requiresCategoriesBlock(role: string): boolean {
-  return role === "tier2" || role === "media_tier2";
+  return role === "tier2" || role === "media_tier2" || role === "brreg_tier2";
 }
 
 export type PromptActionsConfig = {

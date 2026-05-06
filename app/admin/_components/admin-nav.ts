@@ -100,6 +100,11 @@ export const ADMIN_NAV: AdminNavSection[] = [
         label: "Kategorier",
         icon: FolderTree,
       },
+      {
+        href: "/admin/startups/prompts",
+        label: "Systemprompt",
+        icon: MessageSquareCode,
+      },
     ],
   },
   {
