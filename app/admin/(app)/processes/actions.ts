@@ -308,6 +308,59 @@ export async function refreshSnapshotsAction() {
   );
 }
 
+// Cross-domain "Refresh snapshots" button on /admin/processes — calls
+// the three RPCs (NAV, media, brreg) sequentially. Total wall time
+// is <5 s in practice; safe to await without `after()`. Each RPC is
+// idempotent (truncate + insert) so a partial failure mid-sequence
+// leaves the previously-completed domains in a consistent state.
+//
+// We deliberately skip the `jobs` table for the orchestrator itself —
+// each underlying RPC has its own job row in the per-domain refresh
+// route handlers. Calling the RPCs directly here avoids triple-double-
+// counting and keeps the manual + cron paths writing the same rows.
+export async function refreshAllSnapshotsAction() {
+  const results: string[] = [];
+  try {
+    await sbFetch(`/rpc/refresh_all_snapshots`, {
+      service: true,
+      method: "POST",
+      body: {},
+    });
+    results.push("nav ok");
+  } catch (err) {
+    results.push(`nav fail: ${msg(err)}`);
+  }
+  try {
+    await sbFetch(`/rpc/refresh_all_media_snapshots`, {
+      service: true,
+      method: "POST",
+      body: {},
+    });
+    results.push("media ok");
+  } catch (err) {
+    results.push(`media fail: ${msg(err)}`);
+  }
+  try {
+    await sbFetch(`/rpc/refresh_all_brreg_snapshots`, {
+      service: true,
+      method: "POST",
+      body: {},
+    });
+    results.push("brreg ok");
+  } catch (err) {
+    results.push(`brreg fail: ${msg(err)}`);
+  }
+
+  const anyFailed = results.some((r) => r.includes("fail"));
+  redirect(
+    `/admin/processes${flashQs(
+      anyFailed
+        ? { error: `Refresh: ${results.join(" · ")}` }
+        : { ok: `Refresh: ${results.join(" · ")}` },
+    )}`,
+  );
+}
+
 // Next's `redirect()` throws a special error with `digest === "NEXT_REDIRECT"`
 // — re-throw it so the redirect actually happens, otherwise we'd swallow it
 // in the catch and turn the success flash into an error flash.

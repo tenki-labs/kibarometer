@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { Hammer } from "lucide-react";
+import { ListTodo } from "lucide-react";
 
 import {
   Card,
@@ -10,24 +9,17 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SubmitButton } from "@/app/admin/_components/submit-button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Flash } from "@/app/admin/_components/flash";
+import { JobsTable, type JobsTableRow } from "@/app/admin/_components/jobs-table";
 import { PageHeader } from "@/app/admin/_components/page-header";
 import { StatCard } from "@/app/admin/_components/stat-card";
-import { StatusBadge } from "@/app/admin/_components/status-badge";
 import { sbFetch } from "@/lib/admin/sb";
 import { fmtDateTime } from "@/lib/admin/flash";
 import {
   enrichAction,
   fastForwardAction,
   fetchAction,
+  refreshAllSnapshotsAction,
   refreshSnapshotsAction,
   stopDrainAction,
   toggleCronPausedAction,
@@ -36,24 +28,6 @@ import { pastFFThreshold } from "@/lib/admin/legacy/fast-forward.js";
 import { AutoRefresh } from "@/app/admin/_components/auto-refresh";
 
 const BACKFILL_JOB = "backfill_nav_stillingsfeed";
-const TRIGGER_LABEL: Record<string, string> = {
-  manual: "manuell",
-  cron: "cron",
-  "fast-forward": "drain",
-};
-
-type JobRow = {
-  id: string;
-  name: string;
-  trigger: string;
-  status: string;
-  started_at: string;
-  finished_at: string | null;
-  rows_processed: number | null;
-  error: string | null;
-  progress_pct: number | null;
-  current_step: string | null;
-};
 
 type BackfillMeta = {
   next_cursor?: string | null;
@@ -97,14 +71,6 @@ type SnapshotHeadline = {
 };
 
 type EnrichQueueRow = { id: string };
-
-function durationLabel(started: string, finished: string | null): string {
-  if (!finished) return "—";
-  const ms = new Date(finished).getTime() - new Date(started).getTime();
-  if (ms < 1000) return `${ms} ms`;
-  if (ms < 60_000) return `${(ms / 1000).toFixed(1)} s`;
-  return `${Math.round(ms / 1000)} s`;
-}
 
 function formatElapsed(ms: number): string {
   if (ms < 1000) return `${ms} ms`;
@@ -332,7 +298,7 @@ export default async function JobsPage({ searchParams }: Props) {
     latestHeadline,
     appSettings,
   ] = await Promise.all([
-    sbFetch<JobRow[]>(
+    sbFetch<JobsTableRow[]>(
       `/jobs?select=id,name,trigger,status,started_at,finished_at,rows_processed,error,progress_pct,current_step&order=started_at.desc&limit=50`,
       { service: true },
     ),
@@ -382,8 +348,8 @@ export default async function JobsPage({ searchParams }: Props) {
       <Flash searchParams={params} />
       <PageHeader
         eyebrow="Drift"
-        title="Jobber"
-        description="Manuelle triggere for NAV-fetch, backfill, berikelse og snapshot-refresh — og loggen for de siste 50 kjøringene."
+        title="Prosesser"
+        description="Manuelle triggere for NAV-fetch, backfill, berikelse og snapshot-refresh — og loggen for de siste 50 kjøringene på tvers av alle pipelines."
       />
 
       {drainRunning && drain ? <DrainBanner row={drain} /> : null}
@@ -476,10 +442,10 @@ export default async function JobsPage({ searchParams }: Props) {
           action={enrichAction}
         />
         <TriggerCard
-          title="Snapshot-refresh"
+          title="Snapshot-refresh (kun NAV)"
           description={
             <>
-              Regner ut <code className="font-mono text-xs">snapshot_*</code>-tabellene som dashbordet leser. Kjører kl. 04:00 (etter backup). Trigg manuelt etter en re-tag eller stor backfill-burst.
+              Regner ut NAV-spesifikke <code className="font-mono text-xs">snapshot_*</code>-tabellene. Cron kjører dette kl. 04:00 UTC. Bruk knappen «Refresh snapshots (alle)» nedenfor for å regne om både NAV, media og brreg på én gang.
             </>
           }
           status={
@@ -487,8 +453,19 @@ export default async function JobsPage({ searchParams }: Props) {
               ? `Sist regnet: ${fmtDateTime(headline.computed_at)}. AI-stillinger 7d: ${headline.ai_count_7d}, 30d: ${headline.ai_count_30d}.`
               : "Aldri kjørt — kjør én gang for å fylle dashbord-tabellene."
           }
-          buttonLabel="Regn snapshots nå"
+          buttonLabel="Regn NAV-snapshots"
           action={refreshSnapshotsAction}
+        />
+        <TriggerCard
+          title="Refresh snapshots (alle)"
+          description={
+            <>
+              Bygger NAV-, media- og brreg-snapshots på nytt i én operasjon (sekvensielle RPC-kall). &lt;5 s totalt. Kjør etter en re-tag eller backfill-burst når du vil ha tallene oppdatert på tvers av alle pipelines.
+            </>
+          }
+          status="Cron kjører per-domene 04:00 / 04:30 / 04:45 UTC."
+          buttonLabel="Refresh snapshots"
+          action={refreshAllSnapshotsAction}
         />
       </div>
 
@@ -496,105 +473,15 @@ export default async function JobsPage({ searchParams }: Props) {
         <CardHeader className="px-6 py-4">
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2 font-mono text-[0.7rem] uppercase tracking-[0.14em]">
-              <Hammer className="size-4" />
-              Siste 50 jobber
+              <ListTodo className="size-4" />
+              Siste 50 prosesser
             </CardTitle>
             <span className="text-xs text-muted-foreground">
               {rows.length} {rows.length === 1 ? "rad" : "rader"}
             </span>
           </div>
         </CardHeader>
-        <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Jobb</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Startet</TableHead>
-              <TableHead>Varighet</TableHead>
-              <TableHead className="text-right">Rader</TableHead>
-              <TableHead>Trigger</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={6}
-                  className="py-12 text-center text-muted-foreground"
-                >
-                  Ingen jobber ennå.
-                </TableCell>
-              </TableRow>
-            ) : (
-              rows.map((r) => {
-                const isRunning = r.status === "running";
-                return (
-                  <TableRow key={r.id}>
-                    <TableCell className="font-mono text-xs">
-                      <Link
-                        href={`/admin/processes/${r.id}`}
-                        className="underline decoration-dotted underline-offset-4 hover:opacity-80"
-                      >
-                        {r.name}
-                      </Link>
-                      {isRunning && r.current_step ? (
-                        <div className="mt-1 max-w-md truncate text-[0.7rem] text-muted-foreground">
-                          {r.current_step}
-                        </div>
-                      ) : null}
-                      {isRunning ? (
-                        <div
-                          className="mt-1 h-1 w-32 overflow-hidden rounded-full bg-muted"
-                          role="progressbar"
-                          aria-valuemin={0}
-                          aria-valuemax={100}
-                          aria-valuenow={r.progress_pct ?? undefined}
-                        >
-                          <div
-                            className={
-                              r.progress_pct == null
-                                ? "h-full w-full bg-foreground/30"
-                                : "h-full bg-foreground transition-all"
-                            }
-                            style={
-                              r.progress_pct != null
-                                ? { width: `${Math.min(100, Math.max(0, r.progress_pct))}%` }
-                                : undefined
-                            }
-                          />
-                        </div>
-                      ) : null}
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={r.status} />
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                      {fmtDateTime(r.started_at)}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {durationLabel(r.started_at, r.finished_at)}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {r.rows_processed ?? "—"}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      <span className="font-mono uppercase tracking-wider">
-                        {TRIGGER_LABEL[r.trigger] ?? r.trigger}
-                      </span>
-                      {r.error ? (
-                        <div className="mt-1 max-w-md truncate text-destructive">
-                          {r.error.slice(0, 200)}
-                        </div>
-                      ) : null}
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-        </div>
+        <JobsTable rows={rows} mode="full" emptyLabel="Ingen prosesser ennå." />
       </Card>
     </>
   );
