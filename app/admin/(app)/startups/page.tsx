@@ -25,7 +25,14 @@ import { StatusBadge } from "@/app/admin/_components/status-badge";
 import { SubmitButton } from "@/app/admin/_components/submit-button";
 import { sbFetch } from "@/lib/admin/sb";
 
-import { backfillAction, ingestAction } from "./actions";
+import {
+  backfillAction,
+  ingestAction,
+  reprocessKeywordsAction,
+  runTier1Action,
+  runTier2Action,
+  stopReprocessAction,
+} from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -114,6 +121,9 @@ export default async function OppstartOverviewPage({ searchParams }: Props) {
     queuePending,
     queueFailed,
     rolesPersisted,
+    tier1Pending,
+    tier2Pending,
+    reprocessDrain,
     settings,
     recentCompanies,
     recentJobs,
@@ -128,6 +138,19 @@ export default async function OppstartOverviewPage({ searchParams }: Props) {
     countRows("brreg_url_queue", `status=eq.pending`),
     countRows("brreg_url_queue", `status=eq.failed`),
     countRows("brreg_roles"),
+    countRows(
+      "brreg_companies",
+      `is_ai_relevant=is.true&tier1_completed_at=is.null&llm_retry_count=lt.3`,
+    ),
+    countRows(
+      "brreg_companies",
+      `tier1_completed_at=not.is.null&tier2_completed_at=is.null&is_ai_relevant=is.true&llm_retry_count=lt.3`,
+    ),
+    sbFetch<{ id: string; status: string; current_step: string | null; progress_pct: number | null; metadata: Record<string, unknown> | null }[]>(
+      `/jobs?name=eq.brreg_reprocess_drain&order=started_at.desc&limit=1` +
+        `&select=id,status,current_step,progress_pct,metadata`,
+      { service: true },
+    ).catch(() => []),
     sbFetch<AppSettingsRow[]>(
       `/app_settings?id=eq.1&select=brreg_young_founder_age_max`,
       { service: true },
@@ -137,10 +160,13 @@ export default async function OppstartOverviewPage({ searchParams }: Props) {
       { service: true },
     ).catch(() => [] as RecentCompanyRow[]),
     sbFetch<RecentJobRow[]>(
-      `/jobs?name=in.(fetch_brreg_enheter,bootstrap_brreg,enrich_brreg_roles,refresh_brreg_snapshots)&select=id,name,trigger,status,started_at,finished_at,rows_processed,current_step,error&order=started_at.desc&limit=10`,
+      `/jobs?name=in.(fetch_brreg_enheter,bootstrap_brreg,enrich_brreg_roles,refresh_brreg_snapshots,reprocess_brreg_keywords,brreg_reprocess_drain,brreg_llm_tier1,brreg_llm_tier2)&select=id,name,trigger,status,started_at,finished_at,rows_processed,current_step,error&order=started_at.desc&limit=10`,
       { service: true },
     ).catch(() => [] as RecentJobRow[]),
   ]);
+
+  const reprocessRunning = reprocessDrain[0]?.status === "running";
+  const reprocessStep = reprocessDrain[0]?.current_step ?? null;
 
   const aiShare30d =
     companies30d > 0
@@ -256,6 +282,117 @@ export default async function OppstartOverviewPage({ searchParams }: Props) {
         <code className="font-mono">/admin/api/jobs/brreg-roles-burst</code>{" "}
         hvis du trenger å forsere det.
       </p>
+
+      <h2 className="mt-8 mb-3 font-mono text-[0.7rem] uppercase tracking-[0.14em] text-muted-foreground">
+        Manuelle kjøringer
+      </h2>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:auto-rows-fr">
+        <Card className="gap-3">
+          <CardHeader>
+            <CardTitle className="font-mono text-xs uppercase tracking-[0.18em]">
+              Kjør keyword-mapping
+            </CardTitle>
+            <CardDescription>
+              Re-tagger hele brreg_companies-tabellen mot dagens nøkkelord-
+              regler. Tagger navn og aktivitet uavhengig — den genererte
+              kolonnen <code className="font-mono">is_ai_relevant</code>{" "}
+              oppdateres automatisk. Idempotent. Tier 1/2-kolonnene rystes
+              ikke.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <div className="text-sm text-muted-foreground">
+              {reprocessRunning
+                ? reprocessStep
+                  ? `Kjører — ${reprocessStep}`
+                  : "Kjører…"
+                : "Manuell trigger — ingen cron."}
+            </div>
+            <div className="flex gap-2">
+              <form action={reprocessKeywordsAction}>
+                <SubmitButton
+                  variant="outline"
+                  size="sm"
+                  pendingLabel="Starter…"
+                  disabled={reprocessRunning}
+                >
+                  {reprocessRunning ? "Kjører…" : "Kjør keyword-mapping"}
+                </SubmitButton>
+              </form>
+              {reprocessRunning ? (
+                <form action={stopReprocessAction}>
+                  <SubmitButton
+                    variant="outline"
+                    size="sm"
+                    pendingLabel="Stopper…"
+                  >
+                    Stopp
+                  </SubmitButton>
+                </form>
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="gap-3">
+          <CardHeader>
+            <CardTitle className="font-mono text-xs uppercase tracking-[0.18em]">
+              Kjør Tier 1 (deteksjon)
+            </CardTitle>
+            <CardDescription>
+              LLM-burst som henter ut verbatim AI-fraser fra aktivitetsteksten
+              på AI-relevante selskaper der{" "}
+              <code className="font-mono">tier1_completed_at</code> er null.
+              Cron drainer kontinuerlig (:01,:16,:31,:46); knappen er en
+              manuell drainer ved store re-deploys eller kø-pukler.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex-1 text-sm text-muted-foreground">
+              {formatNum(tier1Pending)} selskaper ventende på Tier 1.
+            </div>
+            <form action={runTier1Action}>
+              <SubmitButton
+                variant="outline"
+                size="sm"
+                pendingLabel="Starter…"
+                disabled={tier1Pending === 0}
+              >
+                Kjør Tier 1
+              </SubmitButton>
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card className="gap-3">
+          <CardHeader>
+            <CardTitle className="font-mono text-xs uppercase tracking-[0.18em]">
+              Kjør Tier 2 (kategorisering)
+            </CardTitle>
+            <CardDescription>
+              LLM-burst som plasserer AI-selskaper i{" "}
+              <code className="font-mono">brreg_categories</code>-slugs og
+              scorer konfidens. Cron drainer kontinuerlig
+              (:07,:22,:37,:52); knappen er en manuell drainer.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex-1 text-sm text-muted-foreground">
+              {formatNum(tier2Pending)} AI-selskaper ventende på Tier 2.
+            </div>
+            <form action={runTier2Action}>
+              <SubmitButton
+                variant="outline"
+                size="sm"
+                pendingLabel="Starter…"
+                disabled={tier2Pending === 0}
+              >
+                Kjør Tier 2
+              </SubmitButton>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
 
       <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
         <Card>
