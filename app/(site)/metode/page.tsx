@@ -86,7 +86,7 @@ export default async function MetodePage() {
 
       {/* AI-skill taxonomy used by Tier 2 LLM classification. Read live from
           public.taxonomy_categories so retiring or editing a definition in
-          /admin/nav/categories shows up here without redeploy. Falls back to
+          /admin/job-market/categories shows up here without redeploy. Falls back to
           silence if the migration hasn't run yet (catch in the fetch). */}
       {taxonomy.length > 0 && (
         <>

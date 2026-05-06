@@ -42,12 +42,12 @@ const nextConfig: NextConfig = {
       },
       {
         source: "/admin/categories",
-        destination: "/admin/nav/categories",
+        destination: "/admin/job-market/categories",
         permanent: true,
       },
       {
         source: "/admin/categories/:path*",
-        destination: "/admin/nav/categories/:path*",
+        destination: "/admin/job-market/categories/:path*",
         permanent: true,
       },
       {

@@ -124,7 +124,7 @@ export default async function CategoriesPage({ searchParams }: Props) {
         description="AI-skill-kategorier som driver Tier 2-klassifiseringen og /metode-siden. Slug er uforanderlig — opprett ny og pensjonér gammel for å skifte navn."
         action={
           <Button asChild>
-            <Link href="/admin/nav/categories/new">
+            <Link href="/admin/job-market/categories/new">
               <Plus />
               Ny kategori
             </Link>
@@ -224,7 +224,7 @@ export default async function CategoriesPage({ searchParams }: Props) {
                     </TableCell>
                     <TableCell className="text-right">
                       <Link
-                        href={`/admin/nav/categories/${cat.slug}`}
+                        href={`/admin/job-market/categories/${cat.slug}`}
                         className="inline-flex items-center gap-1 text-xs font-medium hover:opacity-80"
                       >
                         Rediger

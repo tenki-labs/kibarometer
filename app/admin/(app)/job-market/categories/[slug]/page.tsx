@@ -70,7 +70,7 @@ export default async function CategoryEditPage({ params, searchParams }: Props) 
           title="Endre kategori"
           action={
             <Button asChild variant="outline">
-              <Link href="/admin/nav/categories">
+              <Link href="/admin/job-market/categories">
                 <ArrowLeft />
                 Tilbake
               </Link>
@@ -108,7 +108,7 @@ export default async function CategoryEditPage({ params, searchParams }: Props) 
         }
         action={
           <Button asChild variant="ghost">
-            <Link href="/admin/nav/categories">
+            <Link href="/admin/job-market/categories">
               <ArrowLeft />
               Tilbake
             </Link>

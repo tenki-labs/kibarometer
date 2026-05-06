@@ -57,7 +57,7 @@ export default async function CategoryNewPage({ searchParams }: Props) {
         }
         action={
           <Button asChild variant="ghost">
-            <Link href="/admin/nav/categories">
+            <Link href="/admin/job-market/categories">
               <ArrowLeft />
               Tilbake
             </Link>
@@ -140,7 +140,7 @@ export default async function CategoryNewPage({ searchParams }: Props) {
             <div className="flex gap-2">
               <SubmitButton pendingLabel="Oppretter…">Opprett</SubmitButton>
               <Button asChild variant="ghost">
-                <Link href="/admin/nav/categories">Avbryt</Link>
+                <Link href="/admin/job-market/categories">Avbryt</Link>
               </Button>
             </div>
           </form>
