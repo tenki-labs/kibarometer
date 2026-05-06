@@ -24,7 +24,12 @@ import { StatCard } from "@/app/admin/_components/stat-card";
 import { SubmitButton } from "@/app/admin/_components/submit-button";
 import { sbFetch } from "@/lib/admin/sb";
 import { fmtDateTime } from "@/lib/admin/flash";
-import { refreshSnapshotsAction } from "./actions";
+import {
+  burstFetchClassifyAction,
+  burstTier1Action,
+  burstTier2Action,
+  refreshSnapshotsAction,
+} from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -249,12 +254,25 @@ export default async function MediaOverviewPage({ searchParams }: Props) {
                   <TableCell className="text-right tabular-nums">
                     {pending.toLocaleString("nb-NO")}
                   </TableCell>
+                  <TableCell className="text-right">
+                    <form action={burstFetchClassifyAction}>
+                      <SubmitButton
+                        variant="outline"
+                        size="sm"
+                        pendingLabel="Kjører…"
+                        disabled={pending === 0}
+                      >
+                        Tøm kø
+                      </SubmitButton>
+                    </form>
+                  </TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell className="text-muted-foreground">Kø: failed</TableCell>
                   <TableCell className="text-right tabular-nums">
                     {failed.toLocaleString("nb-NO")}
                   </TableCell>
+                  <TableCell />
                 </TableRow>
                 <TableRow>
                   <TableCell className="text-muted-foreground">
@@ -263,6 +281,18 @@ export default async function MediaOverviewPage({ searchParams }: Props) {
                   <TableCell className="text-right tabular-nums">
                     {t1Pending.toLocaleString("nb-NO")}
                   </TableCell>
+                  <TableCell className="text-right">
+                    <form action={burstTier1Action}>
+                      <SubmitButton
+                        variant="outline"
+                        size="sm"
+                        pendingLabel="Kjører…"
+                        disabled={t1Pending === 0}
+                      >
+                        Burst T1
+                      </SubmitButton>
+                    </form>
+                  </TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell className="text-muted-foreground">
@@ -270,6 +300,18 @@ export default async function MediaOverviewPage({ searchParams }: Props) {
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {t2Pending.toLocaleString("nb-NO")}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <form action={burstTier2Action}>
+                      <SubmitButton
+                        variant="outline"
+                        size="sm"
+                        pendingLabel="Kjører…"
+                        disabled={t2Pending === 0}
+                      >
+                        Burst T2
+                      </SubmitButton>
+                    </form>
                   </TableCell>
                 </TableRow>
               </TableBody>

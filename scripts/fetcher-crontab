@@ -53,3 +53,7 @@
 # K=4 / tick, ~12 s/call. Skips silently when media_categories or active
 # media_tier2 prompt is missing.
 13,28,43,58 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 90 ${ADMIN_URL}/admin/api/jobs/media-llm-tier2 > /var/log/last-media-tier2.log 2>&1 || logger -s "kiba-fetcher: media-llm-tier2 failed at $(date -Iseconds)"
+# Media snapshot refresh: nightly at 04:30 UTC, offset from refresh_all_snapshots
+# at 04:00 to stay clear of contention. Truncate+insert across 5 tables —
+# cheap; can re-run on demand from /admin/media.
+30 4 * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 120 ${ADMIN_URL}/admin/api/jobs/media-refresh-snapshots > /var/log/last-media-snapshots.log 2>&1 || logger -s "kiba-fetcher: media-refresh-snapshots failed at $(date -Iseconds)"

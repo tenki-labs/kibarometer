@@ -4,8 +4,16 @@ import { redirect } from "next/navigation";
 
 import { flashQs } from "@/lib/admin/flash";
 import { sbFetch } from "@/lib/admin/sb";
+import { runMediaTier1 } from "@/lib/admin/llm-media-tier1";
+import { runMediaTier2 } from "@/lib/admin/llm-media-tier2";
+import { runFetchClassify } from "@/lib/admin/legacy/media-fetch-classify.js";
 
 const LIST = "/admin/media";
+
+const BURST_K_TIER1 = 100;
+const BURST_K_TIER2 = 20;
+const BURST_K_FETCH = 200;
+const BURST_WALL_MS = 4 * 60_000;
 
 // Trigger the snapshot orchestrator. Cheap (truncate+insert across 5 tables);
 // run after a re-tag, a backfill burst, or anything else that materially
@@ -23,6 +31,85 @@ export async function refreshSnapshotsAction() {
     if (isRedirect(err)) throw err;
     redirect(`${LIST}${flashQs({ error: msg(err) })}`);
   }
+}
+
+// Burst Tier 1: K=100 / 4-min budget. Same orchestrator as the cron tick;
+// just bigger K so the operator can drain a backfill backlog without
+// waiting for ~15-row cron ticks. Operator can fire repeatedly until
+// "ai_relevant" stops growing.
+export async function burstTier1Action() {
+  try {
+    const r = await runMediaTier1({
+      sb: sbFetch,
+      trigger: "manual",
+      k: BURST_K_TIER1,
+      wallTimeMs: BURST_WALL_MS,
+    });
+    redirect(`${LIST}${flashQs({ ok: burstFlash("Tier 1", r) })}`);
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    redirect(`${LIST}${flashQs({ error: msg(err) })}`);
+  }
+}
+
+// Burst Tier 2: K=20 / 4-min budget. Slower per-row (~12 s on Gemma 4B).
+export async function burstTier2Action() {
+  try {
+    const r = await runMediaTier2({
+      sb: sbFetch,
+      trigger: "manual",
+      k: BURST_K_TIER2,
+      wallTimeMs: BURST_WALL_MS,
+    });
+    redirect(`${LIST}${flashQs({ ok: burstFlash("Tier 2", r) })}`);
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    redirect(`${LIST}${flashQs({ error: msg(err) })}`);
+  }
+}
+
+// Burst fetch+classify: K=200 / 4-min budget. Bandwidth-bound, not
+// LLM-bound — per-source crawl_delay_ms is still respected.
+export async function burstFetchClassifyAction() {
+  try {
+    const r = (await runFetchClassify({
+      sb: sbFetch,
+      trigger: "manual",
+      k: BURST_K_FETCH,
+      maxWallMs: BURST_WALL_MS,
+    })) as {
+      status: string;
+      reason?: string;
+      processed?: number;
+      ai_relevant?: number;
+      stopped?: string;
+    };
+    const parts = [
+      `Fetch+klassifiser: ${r.processed ?? 0} URL-er prosessert`,
+      r.ai_relevant != null ? `${r.ai_relevant} AI-treff` : null,
+      r.stopped ? `(stoppet: ${r.stopped})` : null,
+    ].filter(Boolean);
+    redirect(`${LIST}${flashQs({ ok: parts.join(" · ") })}`);
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    redirect(`${LIST}${flashQs({ error: msg(err) })}`);
+  }
+}
+
+function burstFlash(
+  label: string,
+  r: {
+    status: string;
+    reason?: string;
+    metadata?: { processed: number; stopped: string };
+  },
+): string {
+  if (r.status === "skipped") {
+    return `${label}: hoppet over (${r.reason ?? "ukjent grunn"})`;
+  }
+  const m = r.metadata;
+  if (!m) return `${label}: kjørt`;
+  return `${label}: ${m.processed} prosessert (stoppet: ${m.stopped})`;
 }
 
 function isRedirect(err: unknown): boolean {
