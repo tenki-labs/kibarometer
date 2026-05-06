@@ -5,7 +5,7 @@
 // hallucinated phrases via includes()-validation, persists.
 //
 // System prompt is loaded from public.llm_prompts (role='tier1', active=true)
-// — operator-editable via /admin/llm-prompts (PR 8). Migration 0018 seeds
+// — operator-editable via /admin/media/prompts (PR 8). Migration 0018 seeds
 // the initial prompt body + few-shot examples (verbatim-extraction).
 //
 // Concurrency: a same-name job with a fresh heartbeat (< 5 min old) blocks

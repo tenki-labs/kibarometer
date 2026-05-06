@@ -5,7 +5,7 @@
 // Cron tick: 45 4 * * * (offset 45 min after NAV's 04:00 snapshot
 // refresh and the 03:00 nightly backup).
 //
-// Manual trigger from /admin/oppstart's "Refresh snapshots" button (PR 7)
+// Manual trigger from /admin/startups's "Refresh snapshots" button (PR 7)
 // hits the same handler.
 
 export const runtime = "nodejs";

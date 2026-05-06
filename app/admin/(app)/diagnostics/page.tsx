@@ -182,7 +182,7 @@ export default async function DiagnosticsPage({ searchParams }: Props) {
             </CardTitle>
             <CardDescription>
               Suksess / feil / kjører-status. Detaljer på{" "}
-              <code className="font-mono text-xs">/admin/jobs</code>.
+              <code className="font-mono text-xs">/admin/processes</code>.
             </CardDescription>
           </CardHeader>
           <CardContent>

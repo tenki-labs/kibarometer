@@ -533,7 +533,7 @@ export default async function JobsPage({ searchParams }: Props) {
                   <TableRow key={r.id}>
                     <TableCell className="font-mono text-xs">
                       <Link
-                        href={`/admin/jobs/${r.id}`}
+                        href={`/admin/processes/${r.id}`}
                         className="underline decoration-dotted underline-offset-4 hover:opacity-80"
                       >
                         {r.name}

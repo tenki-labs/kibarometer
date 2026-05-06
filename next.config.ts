@@ -15,6 +15,51 @@ const nextConfig: NextConfig = {
         destination: "/jobbmarked",
         permanent: true,
       },
+      // Admin URL slug standardization (PR 1 of admin restructure).
+      // English dev slugs everywhere; sidebar labels stay Norwegian.
+      // 308 permanent — bookmarks update on next hit; middleware
+      // matcher /admin/:path* still gates these because the redirect
+      // resolves to a /admin/* destination.
+      {
+        source: "/admin/jobs",
+        destination: "/admin/processes",
+        permanent: true,
+      },
+      {
+        source: "/admin/jobs/:path*",
+        destination: "/admin/processes/:path*",
+        permanent: true,
+      },
+      {
+        source: "/admin/oppstart",
+        destination: "/admin/startups",
+        permanent: true,
+      },
+      {
+        source: "/admin/oppstart/:path*",
+        destination: "/admin/startups/:path*",
+        permanent: true,
+      },
+      {
+        source: "/admin/categories",
+        destination: "/admin/nav/categories",
+        permanent: true,
+      },
+      {
+        source: "/admin/categories/:path*",
+        destination: "/admin/nav/categories/:path*",
+        permanent: true,
+      },
+      {
+        source: "/admin/llm-prompts",
+        destination: "/admin/media/prompts",
+        permanent: true,
+      },
+      {
+        source: "/admin/llm-prompts/:path*",
+        destination: "/admin/media/prompts/:path*",
+        permanent: true,
+      },
     ];
   },
 };

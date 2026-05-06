@@ -36,14 +36,14 @@ export async function ingestAction(formData: FormData) {
       toDate,
     });
     redirect(
-      `/admin/oppstart${flashQs({
+      `/admin/startups${flashQs({
         ok: `Hentet ${result.fetched} foretak (${result.upserted} upserted, ${result.enqueued} til rolle-kø)`,
       })}`,
     );
   } catch (err) {
     if (isRedirect(err)) throw err;
     redirect(
-      `/admin/oppstart${flashQs({ error: `Henting feilet: ${msg(err)}` })}`,
+      `/admin/startups${flashQs({ error: `Henting feilet: ${msg(err)}` })}`,
     );
   }
 }
@@ -58,7 +58,7 @@ export async function bootstrapAction(formData: FormData) {
     }
   });
   redirect(
-    `/admin/oppstart${flashQs({
+    `/admin/startups${flashQs({
       ok: `Bootstrap startet${floorDate ? ` (fra ${floorDate})` : ""} — kan ta 10-30 min. Følg status nedenfor.`,
     })}`,
   );
@@ -78,7 +78,7 @@ export async function rolesBurstAction() {
     }
   });
   redirect(
-    `/admin/oppstart${flashQs({
+    `/admin/startups${flashQs({
       ok: "Rolle-kø burst startet (K=500, 4-min budsjett) — følg status nedenfor.",
     })}`,
   );
@@ -88,12 +88,12 @@ export async function refreshSnapshotsAction() {
   try {
     await refreshBrregSnapshots({ sb: sbFetch, trigger: "manual" });
     redirect(
-      `/admin/oppstart${flashQs({ ok: "Snapshot-oppfriskning fullført." })}`,
+      `/admin/startups${flashQs({ ok: "Snapshot-oppfriskning fullført." })}`,
     );
   } catch (err) {
     if (isRedirect(err)) throw err;
     redirect(
-      `/admin/oppstart${flashQs({ error: `Oppfriskning feilet: ${msg(err)}` })}`,
+      `/admin/startups${flashQs({ error: `Oppfriskning feilet: ${msg(err)}` })}`,
     );
   }
 }

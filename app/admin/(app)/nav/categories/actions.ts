@@ -12,7 +12,7 @@ const VALID_SCOPES = new Set<ReprocessScope>([
   "since_date",
 ]);
 
-const LIST = "/admin/categories";
+const LIST = "/admin/nav/categories";
 
 export async function createAction(formData: FormData) {
   const slug = String(formData.get("slug") ?? "").trim().toLowerCase();
@@ -209,7 +209,7 @@ async function bumpVersion(notes: string) {
   });
 }
 
-// "new" is reserved because /admin/categories/new is the create-page route;
+// "new" is reserved because /admin/nav/categories/new is the create-page route;
 // a real slug "new" would be shadowed by the static segment.
 const RESERVED_SLUGS = new Set(["new"]);
 

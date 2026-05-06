@@ -92,7 +92,7 @@ export default async function CompaniesPage({ searchParams }: Props) {
     set("orgform", overrides.orgform ?? orgform);
     set("page", overrides.page ?? String(page));
     const qs = sp.toString();
-    return `/admin/oppstart/companies${qs ? `?${qs}` : ""}`;
+    return `/admin/startups/companies${qs ? `?${qs}` : ""}`;
   };
 
   return (
@@ -146,7 +146,7 @@ export default async function CompaniesPage({ searchParams }: Props) {
             <div className="flex items-end gap-2">
               <Button type="submit" size="sm">Bruk filter</Button>
               <Button type="button" asChild variant="outline" size="sm">
-                <Link href="/admin/oppstart/companies">Nullstill</Link>
+                <Link href="/admin/startups/companies">Nullstill</Link>
               </Button>
             </div>
           </form>
@@ -182,7 +182,7 @@ export default async function CompaniesPage({ searchParams }: Props) {
                   <TableRow key={c.orgnr}>
                     <TableCell className="font-mono text-xs">
                       <Link
-                        href={`/admin/oppstart/companies/${encodeURIComponent(c.orgnr)}`}
+                        href={`/admin/startups/companies/${encodeURIComponent(c.orgnr)}`}
                         className="hover:underline"
                       >
                         {c.orgnr}

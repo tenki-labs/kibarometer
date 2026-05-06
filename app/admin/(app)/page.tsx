@@ -145,7 +145,7 @@ export default async function AdminOverviewPage({ searchParams }: Props) {
         </CardContent>
         <CardFooter className="border-t pt-4">
           <Link
-            href="/admin/jobs"
+            href="/admin/processes"
             className="inline-flex items-center gap-1 text-xs font-medium text-foreground transition-opacity hover:opacity-80"
           >
             Se alle jobber

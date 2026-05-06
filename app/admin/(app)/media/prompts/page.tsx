@@ -118,7 +118,7 @@ function RoleSection({ role, rows }: { role: Role; rows: Revision[] }) {
         </div>
         {active ? (
           <Button asChild size="sm" variant="outline">
-            <Link href={`/admin/llm-prompts/${active.id}`}>
+            <Link href={`/admin/media/prompts/${active.id}`}>
               <Plus />
               Lag ny revisjon
             </Link>
@@ -175,7 +175,7 @@ function RoleSection({ role, rows }: { role: Role; rows: Revision[] }) {
                           </form>
                         )}
                         <Link
-                          href={`/admin/llm-prompts/${r.id}`}
+                          href={`/admin/media/prompts/${r.id}`}
                           className="inline-flex items-center gap-1 text-xs font-medium hover:opacity-80"
                         >
                           Vis

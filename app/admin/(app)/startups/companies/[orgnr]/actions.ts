@@ -25,7 +25,7 @@ function msg(err: unknown): string {
 export async function forgetCompanyAction(formData: FormData) {
   const orgnr = String(formData.get("orgnr") || "").trim();
   if (!orgnr) {
-    redirect(`/admin/oppstart${flashQs({ error: "Manglende orgnr" })}`);
+    redirect(`/admin/startups${flashQs({ error: "Manglende orgnr" })}`);
   }
 
   const claims = await getStaffClaims();
@@ -72,14 +72,14 @@ export async function forgetCompanyAction(formData: FormData) {
     );
 
     redirect(
-      `/admin/oppstart${flashQs({
+      `/admin/startups${flashQs({
         ok: `Foretak ${orgnr} hard-slettet (inkl. roller og kø).`,
       })}`,
     );
   } catch (err) {
     if (isRedirect(err)) throw err;
     redirect(
-      `/admin/oppstart/companies/${encodeURIComponent(orgnr)}${flashQs({
+      `/admin/startups/companies/${encodeURIComponent(orgnr)}${flashQs({
         error: `Hard-sletting feilet: ${msg(err)}`,
       })}`,
     );

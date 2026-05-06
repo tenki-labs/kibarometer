@@ -1,7 +1,7 @@
 // POST /admin/api/jobs/brreg-bootstrap — bearer-authed manual-only entry
 // point for the bulk-dump bootstrap. NOT on the cron schedule: this is a
 // long-running (~10–30 min depending on floor date) one-shot operator
-// trigger fired from the "Run bootstrap" button in /admin/oppstart (PR 7).
+// trigger fired from the "Run bootstrap" button in /admin/startups (PR 7).
 //
 // Streams brreg's daily JSON dump (~200 MB compressed), filters by
 // app_settings.brreg_bootstrap_floor_date (default 2018-01-01) or an

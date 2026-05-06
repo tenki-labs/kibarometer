@@ -101,7 +101,7 @@ export default async function LlmPromptRevisionPage({
         }
         action={
           <Button asChild variant="ghost">
-            <Link href="/admin/llm-prompts">
+            <Link href="/admin/media/prompts">
               <ArrowLeft />
               Tilbake
             </Link>
@@ -197,7 +197,7 @@ export default async function LlmPromptRevisionPage({
             <div className="flex gap-2">
               <SubmitButton pendingLabel="Lagrer…">Lagre ny revisjon</SubmitButton>
               <Button asChild variant="ghost">
-                <Link href="/admin/llm-prompts">Avbryt</Link>
+                <Link href="/admin/media/prompts">Avbryt</Link>
               </Button>
             </div>
           </form>
@@ -220,7 +220,7 @@ function notFound(sp: Record<string, string | string[] | undefined>) {
         title="Revisjon ikke funnet"
         action={
           <Button asChild variant="outline">
-            <Link href="/admin/llm-prompts">
+            <Link href="/admin/media/prompts">
               <ArrowLeft />
               Tilbake
             </Link>

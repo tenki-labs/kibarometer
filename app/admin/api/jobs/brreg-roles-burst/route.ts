@@ -1,7 +1,7 @@
 // POST /admin/api/jobs/brreg-roles-burst — bearer-authed manual-only
 // "Catch up backlog" handler. K=500 rows per call, 4-min wall budget.
 // Fired from the "Drain role-fetch queue (burst)" button on
-// /admin/oppstart (PR 7). Operator can fire repeatedly until the queue
+// /admin/startups (PR 7). Operator can fire repeatedly until the queue
 // drains. Same semantics as the cron handler — just larger K + budget.
 
 export const runtime = "nodejs";

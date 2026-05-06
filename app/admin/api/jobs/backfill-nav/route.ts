@@ -8,7 +8,7 @@ export async function POST(req: Request) {
   const denied = requireBearer(req);
   if (denied) return denied;
 
-  // Soft pause: operator toggled cron off via /admin/jobs. The cron in
+  // Soft pause: operator toggled cron off via /admin/processes. The cron in
   // kiba-fetcher still ticks at its scheduled time; this short-circuit
   // keeps the route's response time low.
   const settings = await sbFetch<{ cron_paused: boolean }[]>(
