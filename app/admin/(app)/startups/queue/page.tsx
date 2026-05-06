@@ -21,7 +21,11 @@ import { StatCard } from "@/app/admin/_components/stat-card";
 import { SubmitButton } from "@/app/admin/_components/submit-button";
 import { sbFetch } from "@/lib/admin/sb";
 
-import { discardFailedAction, retryFailedAction } from "./actions";
+import {
+  discardFailedAction,
+  retryFailedAction,
+  rolesBurstAction,
+} from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -95,6 +99,32 @@ export default async function QueuePage({ searchParams }: Props) {
           hint="Etter 3 forsøk fryses raden som 'failed'."
         />
       </div>
+
+      <Card className="mt-6 gap-3">
+        <CardHeader>
+          <CardTitle className="font-mono text-[0.7rem] uppercase tracking-[0.14em]">
+            Manuell drainer
+          </CardTitle>
+          <CardDescription>
+            Burst-drain av rolle-køen (K=500 / 4-min budget) — samme
+            orchestrator som <code className="font-mono">brreg-roles</code>{" "}
+            cron, bare større batch. Bruk når du har en pukkel etter
+            backfill og ikke vil vente på neste tikk.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form action={rolesBurstAction}>
+            <SubmitButton
+              variant="outline"
+              size="sm"
+              pendingLabel="Starter…"
+              disabled={pending === 0}
+            >
+              Tøm rollekø ({pending.toLocaleString("nb-NO")})
+            </SubmitButton>
+          </form>
+        </CardContent>
+      </Card>
 
       {failed > 0 && (
         <Card className="mt-6 border-rose-200 dark:border-rose-900">
