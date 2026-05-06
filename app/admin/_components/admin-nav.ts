@@ -2,12 +2,14 @@ import type { ComponentType } from "react";
 import {
   BarChart3,
   Bot,
+  Briefcase,
   Building2,
   Database,
   FileText,
   FolderTree,
   Gauge,
   LayoutDashboard,
+  ListChecks,
   ListTodo,
   MessageSquareCode,
   Newspaper,
@@ -46,6 +48,12 @@ export const ADMIN_NAV: AdminNavSection[] = [
     label: "Jobbmarked",
     items: [
       { href: "/admin/job-market", label: "Oversikt", icon: LayoutDashboard },
+      {
+        href: "/admin/job-market/postings",
+        label: "Stillinger",
+        icon: Briefcase,
+      },
+      { href: "/admin/job-market/queue", label: "Kø", icon: ListChecks },
       { href: "/admin/job-market/categories", label: "Kategorier", icon: FolderTree },
       {
         href: "/admin/job-market/prompts",
