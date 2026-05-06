@@ -12,7 +12,6 @@ import { Textarea } from "@/components/ui/textarea";
 
 const SEARCH_CONFIG_PLACEHOLDER = `{
   "url_template": "https://www.example.no/sok?q={q}&page={page}",
-  "queries": ["AI", "KI", "kunstig intelligens", "ChatGPT", "språkmodell", "maskinlæring"],
   "result_selector": "article a",
   "next_page_selector": "a[rel=next]",
   "max_pages_per_query": 50
@@ -172,7 +171,11 @@ export function SourceFields({ initial = {} }: { initial?: SourceFormShape }) {
         />
         <p className="text-xs text-muted-foreground">
           Brukes av backfill-orkestratoren til å iterere{" "}
-          <code className="font-mono">queries × pages</code>. La stå tom for å bruke sitemap-fallback.
+          <code className="font-mono">queries × pages</code>. Søkeordene
+          hentes fra <code className="font-mono">/admin/keywords</code> (rader
+          med <code className="font-mono">domain</code> i{" "}
+          <code className="font-mono">media</code>/<code className="font-mono">any</code>) —
+          ikke list dem her. La feltet stå tomt for å bruke sitemap-fallback.
         </p>
       </div>
 
