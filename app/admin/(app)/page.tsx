@@ -9,12 +9,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { AutoRefresh } from "@/app/admin/_components/auto-refresh";
 import { Flash } from "@/app/admin/_components/flash";
+import { JobsTable, type JobsTableRow } from "@/app/admin/_components/jobs-table";
 import { PageHeader } from "@/app/admin/_components/page-header";
 import { StatCard } from "@/app/admin/_components/stat-card";
-import { StatusBadge } from "@/app/admin/_components/status-badge";
 import { sbFetch } from "@/lib/admin/sb";
-import { fmtDateTime } from "@/lib/admin/flash";
 import { getStaffClaims } from "@/lib/admin/auth";
 
 type SnapshotHeadline = {
@@ -23,15 +23,6 @@ type SnapshotHeadline = {
   ai_count_7d: number;
   ai_count_30d: number;
   ai_share_30d: number;
-};
-
-type RecentJob = {
-  id: string;
-  name: string;
-  status: string;
-  trigger: string;
-  started_at: string;
-  finished_at: string | null;
 };
 
 type KeywordCount = { count: number };
@@ -51,10 +42,10 @@ export default async function AdminOverviewPage({ searchParams }: Props) {
       "/snapshot_headline?order=computed_for.desc&limit=1&select=computed_for,computed_at,ai_count_7d,ai_count_30d,ai_share_30d",
       { service: true },
     ).catch(() => [] as SnapshotHeadline[]),
-    sbFetch<RecentJob[]>(
-      "/jobs?select=id,name,status,trigger,started_at,finished_at&order=started_at.desc&limit=5",
+    sbFetch<JobsTableRow[]>(
+      "/jobs?select=id,name,status,trigger,started_at,finished_at,rows_processed,error,progress_pct,current_step&order=started_at.desc&limit=10",
       { service: true },
-    ).catch(() => [] as RecentJob[]),
+    ).catch(() => [] as JobsTableRow[]),
     sbFetch<KeywordCount[] | { count: number }>(
       "/keywords?status=eq.canonical&select=count",
       { service: true, headers: { Prefer: "count=exact" } },
@@ -65,9 +56,11 @@ export default async function AdminOverviewPage({ searchParams }: Props) {
   const activeKeywords = Array.isArray(keywordRows)
     ? (keywordRows[0] as KeywordCount | undefined)?.count ?? keywordRows.length
     : 0;
+  const runningCount = recentJobs.filter((r) => r.status === "running").length;
 
   return (
     <>
+      <AutoRefresh enabled={runningCount > 0} intervalMs={5000} />
       <Flash searchParams={params} />
       <PageHeader
         eyebrow="Drift"
@@ -98,7 +91,7 @@ export default async function AdminOverviewPage({ searchParams }: Props) {
           hint={
             headline
               ? `Andel: ${headline.ai_share_30d != null ? (headline.ai_share_30d * 100).toFixed(2) + "%" : "—"}`
-              : "Kjør snapshot-refresh på Jobber"
+              : "Kjør snapshot-refresh på Prosesser"
           }
         />
         <StatCard
@@ -108,47 +101,24 @@ export default async function AdminOverviewPage({ searchParams }: Props) {
         />
       </div>
 
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle className="font-mono text-[0.7rem] uppercase tracking-[0.14em]">
-            Siste jobber
-          </CardTitle>
+      <Card className="mt-6 gap-0 p-0">
+        <CardHeader className="px-6 py-4">
+          <div className="flex items-center justify-between">
+            <CardTitle className="font-mono text-[0.7rem] uppercase tracking-[0.14em]">
+              Pågående og siste prosesser
+            </CardTitle>
+            <span className="text-xs text-muted-foreground">
+              {runningCount > 0 ? `${runningCount} kjører nå` : "Klar"}
+            </span>
+          </div>
         </CardHeader>
-        <CardContent>
-          {recentJobs.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              Ingen jobber ennå.
-            </p>
-          ) : (
-            <ul className="divide-y divide-border">
-              {recentJobs.map((job) => (
-                <li
-                  key={job.id}
-                  className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
-                >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <StatusBadge status={job.status} />
-                    <code className="truncate font-mono text-xs">
-                      {job.name}
-                    </code>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span>{fmtDateTime(job.started_at)}</span>
-                    <span className="font-mono uppercase tracking-wider">
-                      {job.trigger}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-        <CardFooter className="border-t pt-4">
+        <JobsTable rows={recentJobs} mode="compact" />
+        <CardFooter className="border-t px-6 py-4">
           <Link
             href="/admin/processes"
             className="inline-flex items-center gap-1 text-xs font-medium text-foreground transition-opacity hover:opacity-80"
           >
-            Se alle jobber
+            Se alle prosesser
             <ArrowRight className="size-3.5" />
           </Link>
         </CardFooter>
