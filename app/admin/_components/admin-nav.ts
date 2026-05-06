@@ -88,7 +88,18 @@ export const ADMIN_NAV: AdminNavSection[] = [
   {
     label: "Oppstart",
     items: [
-      { href: "/admin/startups", label: "Oversikt", icon: Building2 },
+      { href: "/admin/startups", label: "Oversikt", icon: LayoutDashboard },
+      {
+        href: "/admin/startups/companies",
+        label: "Selskaper",
+        icon: Building2,
+      },
+      { href: "/admin/startups/queue", label: "Kø", icon: ListChecks },
+      {
+        href: "/admin/startups/categories",
+        label: "Kategorier",
+        icon: FolderTree,
+      },
     ],
   },
   {

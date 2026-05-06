@@ -4,9 +4,7 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import {
   bootstrapBrreg,
-  enrichRolesBrreg,
   fetchBrreg,
-  refreshBrregSnapshots,
 } from "@/lib/admin/legacy/brreg.js";
 import { sbFetch } from "@/lib/admin/sb";
 import { flashQs } from "@/lib/admin/flash";
@@ -14,8 +12,12 @@ import { flashQs } from "@/lib/admin/flash";
 // fetchBrreg is fast (one date filter, one or two pages of 1000 each →
 // usually <30 s). Await it so the operator sees the count in the flash.
 // bootstrapBrreg can run for many minutes (200 MB stream + per-row
-// upserts) — defer with after(). Roles burst is also deferred since it
-// takes ~2-4 min. refreshBrregSnapshots awaits.
+// upserts) — defer with after(). The legacy snapshot + roles-burst
+// actions were removed in PR 7: snapshots are covered by the global
+// "Refresh snapshots" button on /admin/processes (calls all three
+// domains' RPCs), and the roles-burst route runs on cron (12,42 each
+// hour) — operators who really need to force a tick can curl the
+// route directly.
 
 function isRedirect(err: unknown): boolean {
   return Boolean(err && typeof err === "object" && "digest" in err);
@@ -48,52 +50,24 @@ export async function ingestAction(formData: FormData) {
   }
 }
 
-export async function bootstrapAction(formData: FormData) {
-  const floorDate = (formData.get("floor") as string) || null;
+// Brreg backfill — full-registry bulk-dump load. Renamed from
+// bootstrapAction in PR 7 to match the cross-domain "Backfill" label
+// (NAV uses the same word). The floor-date input was removed in the
+// same PR; backfill now always loads the full Brreg registry. The
+// underlying lib function bootstrapBrreg() still resolves null floor
+// to "no filter" — see lib/admin/legacy/brreg.js + migration 0033.
+export async function backfillAction() {
   after(async () => {
     try {
-      await bootstrapBrreg({ sb: sbFetch, trigger: "manual", floorDate });
+      await bootstrapBrreg({ sb: sbFetch, trigger: "manual", floorDate: null });
     } catch {
       // bootstrapBrreg writes its own failure PATCH to the jobs row.
     }
   });
   redirect(
     `/admin/startups${flashQs({
-      ok: `Bootstrap startet${floorDate ? ` (fra ${floorDate})` : ""} — kan ta 10-30 min. Følg status nedenfor.`,
+      ok: "Backfill startet — laster hele Brreg-registeret. Kan ta 10-30 min. Følg status nedenfor.",
     })}`,
   );
 }
 
-export async function rolesBurstAction() {
-  after(async () => {
-    try {
-      await enrichRolesBrreg({
-        sb: sbFetch,
-        trigger: "manual",
-        k: 500,
-        maxWallMs: 4 * 60_000,
-      });
-    } catch {
-      // enrichRolesBrreg writes its own failure PATCH.
-    }
-  });
-  redirect(
-    `/admin/startups${flashQs({
-      ok: "Rolle-kø burst startet (K=500, 4-min budsjett) — følg status nedenfor.",
-    })}`,
-  );
-}
-
-export async function refreshSnapshotsAction() {
-  try {
-    await refreshBrregSnapshots({ sb: sbFetch, trigger: "manual" });
-    redirect(
-      `/admin/startups${flashQs({ ok: "Snapshot-oppfriskning fullført." })}`,
-    );
-  } catch (err) {
-    if (isRedirect(err)) throw err;
-    redirect(
-      `/admin/startups${flashQs({ error: `Oppfriskning feilet: ${msg(err)}` })}`,
-    );
-  }
-}
