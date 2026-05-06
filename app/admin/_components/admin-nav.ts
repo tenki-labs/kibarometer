@@ -13,6 +13,7 @@ import {
   ListTodo,
   MessageSquareCode,
   Newspaper,
+  Rss,
   Sparkles,
   Tag,
 } from "lucide-react";
@@ -66,6 +67,17 @@ export const ADMIN_NAV: AdminNavSection[] = [
     label: "Medie-dekning",
     items: [
       { href: "/admin/media", label: "Oversikt", icon: Newspaper },
+      {
+        href: "/admin/media/sources",
+        label: "Kilder & artikler",
+        icon: Rss,
+      },
+      { href: "/admin/media/queue", label: "Kø", icon: ListChecks },
+      {
+        href: "/admin/media/categories",
+        label: "Kategorier",
+        icon: FolderTree,
+      },
       {
         href: "/admin/media/prompts",
         label: "Systemprompt",

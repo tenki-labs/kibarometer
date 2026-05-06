@@ -33,6 +33,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Flash } from "@/app/admin/_components/flash";
+import { MediaSourcesArticlesTabs } from "@/app/admin/_components/media-sources-articles-tabs";
 import { PageHeader } from "@/app/admin/_components/page-header";
 import { fmtDateTime } from "@/lib/admin/flash";
 import { sbFetch } from "@/lib/admin/sb";
@@ -139,10 +140,11 @@ export default async function ArticlesPage({ searchParams }: Props) {
     <>
       <Flash searchParams={sp} />
       <PageHeader
-        eyebrow="Mediedekning"
-        title="Artikler"
+        eyebrow="Medie-dekning"
+        title="Kilder & artikler"
         description="Alle medierader pipelinen har samlet inn — metadata + avledet analyse, aldri brødtekst."
       />
+      <MediaSourcesArticlesTabs current="articles" />
 
       <Card className="mb-6">
         <CardHeader>
