@@ -220,7 +220,7 @@ export function Scroller({
         </div>
       </section>
 
-      <section className="snap-segment">
+      <section className="snap-segment sm:snap-start sm:snap-always">
         <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
           <h2 className="text-lg font-medium tracking-tight sm:text-xl">
             Mest brukte AI-nøkkelord siste 30 dager
@@ -229,7 +229,7 @@ export function Scroller({
         </div>
       </section>
 
-      <section className="snap-segment">
+      <section className="snap-segment sm:snap-start sm:snap-always">
         <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
           <h2 className="text-lg font-medium tracking-tight sm:text-xl">
             AI-stillinger etter fylke
