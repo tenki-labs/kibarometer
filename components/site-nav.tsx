@@ -48,7 +48,7 @@ const NAV_ITEMS: NavItem[] = [
 export function SiteNav() {
   return (
     <header className="sticky top-0 z-30 bg-background">
-      <div className="flex h-14 w-full items-center justify-between">
+      <div className="flex h-14 w-full items-center justify-between px-4">
         <Link
           href="/"
           className="text-sm tracking-tight text-foreground hover:text-muted-foreground"
