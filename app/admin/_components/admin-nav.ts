@@ -45,7 +45,7 @@ export const ADMIN_NAV: AdminNavSection[] = [
   {
     label: "Jobbmarked",
     items: [
-      { href: "/admin/nav/categories", label: "Kategorier", icon: FolderTree },
+      { href: "/admin/job-market/categories", label: "Kategorier", icon: FolderTree },
     ],
   },
   {
@@ -100,8 +100,8 @@ export const ADMIN_SEGMENT_LABELS: Record<string, string> = (() => {
   }
   // Domain-hub and entity segments not in ADMIN_NAV (yet) but reachable
   // via existing pages or redirects — seed breadcrumb labels by hand so
-  // /admin/nav/categories renders as "Jobbmarked / Kategorier" etc.
-  out.nav = "Jobbmarked";
+  // /admin/job-market/categories renders as "Jobbmarked / Kategorier" etc.
+  out["job-market"] = "Jobbmarked";
   out.startups = "Oppstart";
   out.media = "Medie-dekning";
   out.prompts = "Systemprompt";
