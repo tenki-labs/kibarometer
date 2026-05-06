@@ -3,9 +3,9 @@
 import { makePromptActions } from "@/lib/admin/prompt-actions";
 
 const { createRevisionAction, setActiveAction } = makePromptActions({
-  roles: ["media_tier1", "media_tier2"] as const,
-  list: "/admin/media/prompts",
-  roleLabels: { media_tier1: "Tier 1", media_tier2: "Tier 2" },
+  roles: ["tier1", "tier2"] as const,
+  list: "/admin/job-market/prompts",
+  roleLabels: { tier1: "Tier 1", tier2: "Tier 2" },
 });
 
 export { createRevisionAction, setActiveAction };

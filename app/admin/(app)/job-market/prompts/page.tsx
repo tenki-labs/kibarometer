@@ -9,25 +9,25 @@ import { setActiveAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
-const ROLES = ["media_tier1", "media_tier2"];
+const ROLES = ["tier1", "tier2"];
 
 const ROLE_TITLES: Record<string, string> = {
-  media_tier1: "Tier 1 — Relevans",
-  media_tier2: "Tier 2 — Klassifisering",
+  tier1: "Tier 1 — Discovery",
+  tier2: "Tier 2 — Klassifisering",
 };
 
 const ROLE_BLURBS: Record<string, string> = {
-  media_tier1:
-    "Bekrefter at en artikkel handler om AI og henter ut verbatim AI-fraser. Lest av lib/admin/llm-media-tier1.ts på hvert cron-tikk.",
-  media_tier2:
-    "Klassifiserer AI-relaterte artikler inn i media-kategorier med stance/intensitet. Må inneholde {{categories_block}} — erstattes ved kjøretid.",
+  tier1:
+    "Verbatim AI-frase-uttrekk fra alle nye stillinger. Lest av lib/admin/llm-discover.ts på hvert cron-tikk.",
+  tier2:
+    "Klassifiserer AI-positive stillinger inn i taksonomi-kategoriene. Må inneholde {{categories_block}} — erstattes ved kjøretid.",
 };
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default async function MediaPromptsListPage({ searchParams }: Props) {
+export default async function NavPromptsListPage({ searchParams }: Props) {
   const sp = await searchParams;
 
   const rows = await sbFetch<PromptRevision[]>(
@@ -41,16 +41,16 @@ export default async function MediaPromptsListPage({ searchParams }: Props) {
     <>
       <Flash searchParams={sp} />
       <PageHeader
-        eyebrow="Medie-dekning"
+        eyebrow="Jobbmarked"
         title="Systemprompt"
         description={
           <>
-            Versjonerte system-prompts for media-pipelinen. Hver lagring lager
-            en ny rad — historikken er uforanderlig. Én aktiv prompt per rolle
-            — den blir lest av{" "}
-            <code className="font-mono">lib/admin/llm-media-tier1.ts</code> og{" "}
-            <code className="font-mono">lib/admin/llm-media-tier2.ts</code>{" "}
-            uten redeploy.
+            Versjonerte system-prompts for NAV-pipelinen. Hver lagring lager en
+            ny rad — historikken er uforanderlig. Én aktiv prompt per rolle —
+            den blir lest av{" "}
+            <code className="font-mono">lib/admin/llm-discover.ts</code> og{" "}
+            <code className="font-mono">lib/admin/llm-classify.ts</code> uten
+            redeploy.
           </>
         }
       />
@@ -59,9 +59,9 @@ export default async function MediaPromptsListPage({ searchParams }: Props) {
         roles={ROLES}
         roleTitles={ROLE_TITLES}
         roleBlurbs={ROLE_BLURBS}
-        basePath="/admin/media/prompts"
+        basePath="/admin/job-market/prompts"
         setActiveAction={setActiveAction}
-        emptyStateMigration="0031"
+        emptyStateMigration="0018"
       />
     </>
   );

@@ -9,12 +9,12 @@ import { createRevisionAction, setActiveAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
-const ROLES = ["media_tier1", "media_tier2"] as const;
+const ROLES = ["tier1", "tier2"] as const;
 type Role = (typeof ROLES)[number];
 
 const ROLE_TITLES: Record<Role, string> = {
-  media_tier1: "Tier 1 — Relevans",
-  media_tier2: "Tier 2 — Klassifisering",
+  tier1: "Tier 1 — Discovery",
+  tier2: "Tier 2 — Klassifisering",
 };
 
 type Props = {
@@ -30,7 +30,7 @@ function isValidRole(s: string): s is Role {
   return ROLES.includes(s as Role);
 }
 
-export default async function MediaPromptRevisionPage({
+export default async function NavPromptRevisionPage({
   params,
   searchParams,
 }: Props) {
@@ -42,8 +42,8 @@ export default async function MediaPromptRevisionPage({
       <>
         <Flash searchParams={sp} />
         <PromptRevisionNotFound
-          eyebrow="Medie-dekning"
-          basePath="/admin/media/prompts"
+          eyebrow="Jobbmarked"
+          basePath="/admin/job-market/prompts"
         />
       </>
     );
@@ -61,8 +61,8 @@ export default async function MediaPromptRevisionPage({
       <>
         <Flash searchParams={sp} />
         <PromptRevisionNotFound
-          eyebrow="Medie-dekning"
-          basePath="/admin/media/prompts"
+          eyebrow="Jobbmarked"
+          basePath="/admin/job-market/prompts"
         />
       </>
     );
@@ -77,11 +77,11 @@ export default async function MediaPromptRevisionPage({
       <PromptRevisionEditor
         rev={rev}
         title={ROLE_TITLES[rev.role]}
-        eyebrow="Medie-dekning"
-        basePath="/admin/media/prompts"
+        eyebrow="Jobbmarked"
+        basePath="/admin/job-market/prompts"
         createRevision={create}
         setActive={setActive}
-        requiresCategoriesBlock={rev.role === "media_tier2"}
+        requiresCategoriesBlock={rev.role === "tier2"}
       />
     </>
   );
