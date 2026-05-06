@@ -21,6 +21,8 @@ import { pastFFThreshold } from "@/lib/admin/legacy/fast-forward.js";
 import {
   fastForwardAction,
   reprocessAction,
+  runTier1Action,
+  runTier2Action,
   stopDrainAction,
 } from "./actions";
 
@@ -143,6 +145,8 @@ export default async function JobMarketOverviewPage({ searchParams }: Props) {
     headlineRows,
     postingsTotal,
     postingsAi7d,
+    tier1QueueRows,
+    tier2QueueRows,
   ] = await Promise.all([
     sbFetch<JobsTableRow[]>(
       `/jobs?${navJobsFilter}&select=id,name,trigger,status,started_at,finished_at,rows_processed,error,progress_pct,current_step&order=started_at.desc&limit=20`,
@@ -173,6 +177,14 @@ export default async function JobMarketOverviewPage({ searchParams }: Props) {
       `/nav_postings?is_ai_related=is.true&select=count`,
       { service: true, headers: { Prefer: "count=exact" } },
     ).catch(() => [] as CountRow[]),
+    sbFetch<CountRow[] | { count: number }>(
+      `/nav_postings?tier1_completed_at=is.null&llm_retry_count=lt.3&select=count`,
+      { service: true, headers: { Prefer: "count=exact" } },
+    ).catch(() => [] as CountRow[]),
+    sbFetch<CountRow[] | { count: number }>(
+      `/nav_postings?is_ai=is.true&tier2_completed_at=is.null&llm_retry_count=lt.3&select=count`,
+      { service: true, headers: { Prefer: "count=exact" } },
+    ).catch(() => [] as CountRow[]),
   ]);
 
   const backfillMeta = latestBackfill[0]?.metadata ?? null;
@@ -187,6 +199,12 @@ export default async function JobMarketOverviewPage({ searchParams }: Props) {
     : 0;
   const aiPostings7d = Array.isArray(postingsAi7d)
     ? (postingsAi7d[0] as CountRow | undefined)?.count ?? postingsAi7d.length
+    : 0;
+  const tier1Queue = Array.isArray(tier1QueueRows)
+    ? (tier1QueueRows[0] as CountRow | undefined)?.count ?? tier1QueueRows.length
+    : 0;
+  const tier2Queue = Array.isArray(tier2QueueRows)
+    ? (tier2QueueRows[0] as CountRow | undefined)?.count ?? tier2QueueRows.length
     : 0;
 
   return (
@@ -250,11 +268,27 @@ export default async function JobMarketOverviewPage({ searchParams }: Props) {
           disabled={drainRunning}
         />
         <OperationCard
-          title="Reprocess"
+          title="Kjør keyword-mapping"
           description="Re-tagger hele nav_postings-tabellen mot dagens nøkkelord-regler. Kjør etter en stor endring i Nøkkelord eller Kategorier. Idempotent."
           status="Manuell trigger — ingen cron."
-          buttonLabel="Reprocess"
+          buttonLabel="Kjør keyword-mapping"
           action={reprocessAction}
+        />
+        <OperationCard
+          title="Kjør Tier 1 (deteksjon)"
+          description="LLM-burst som markerer AI-relevans og henter ut AI-fraser fra stillinger der tier1_completed_at er null. Cron drainer kontinuerlig (08, 23, 38, 53); knappen er en manuell drainer ved store re-deploys eller kø-pukler."
+          status={`${tier1Queue.toLocaleString("nb-NO")} stillinger ventende på Tier 1.`}
+          buttonLabel="Kjør Tier 1"
+          action={runTier1Action}
+          disabled={tier1Queue === 0}
+        />
+        <OperationCard
+          title="Kjør Tier 2 (kategorisering)"
+          description="LLM-burst som plasserer AI-stillinger i taksonomi-kategorier og scorer konfidens. Cron drainer kontinuerlig (11, 26, 41, 56); knappen er en manuell drainer."
+          status={`${tier2Queue.toLocaleString("nb-NO")} AI-stillinger ventende på Tier 2.`}
+          buttonLabel="Kjør Tier 2"
+          action={runTier2Action}
+          disabled={tier2Queue === 0}
         />
       </div>
 
