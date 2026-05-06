@@ -1,12 +1,14 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 
 import { flashQs } from "@/lib/admin/flash";
 import { sbFetch } from "@/lib/admin/sb";
 import { runMediaTier1 } from "@/lib/admin/llm-media-tier1";
 import { runMediaTier2 } from "@/lib/admin/llm-media-tier2";
 import { runFetchClassify } from "@/lib/admin/legacy/media-fetch-classify.js";
+import { reprocessMediaArticles } from "@/lib/admin/legacy/media-reprocess.js";
 
 const LIST = "/admin/media";
 
@@ -31,6 +33,36 @@ export async function refreshSnapshotsAction() {
     if (isRedirect(err)) throw err;
     redirect(`${LIST}${flashQs({ error: msg(err) })}`);
   }
+}
+
+// Re-tag every media_articles row against the current keyword catalogue.
+// Runs in the background via after() — the table is large enough that
+// the deferred orchestrator can take many minutes. A re-entrancy guard
+// (one running row at a time) prevents two operators racing.
+//
+// Re-tagging works against the headline only; lede/body_text aren't
+// persisted (copyright). is_ai_related may flip false for rows whose
+// original match was on body content.
+export async function reprocessKeywordsAction() {
+  const running = await sbFetch<{ id: string }[]>(
+    `/jobs?name=eq.reprocess_media_keywords&status=eq.running&select=id&limit=1`,
+    { service: true },
+  );
+  if (running.length > 0) {
+    redirect(
+      `${LIST}${flashQs({ error: "Re-tagging kjører allerede." })}`,
+    );
+  }
+  after(async () => {
+    try {
+      await reprocessMediaArticles({ sb: sbFetch, trigger: "manual" });
+    } catch {
+      // reprocessMediaArticles writes its own failure PATCH to the jobs row.
+    }
+  });
+  redirect(
+    `/admin/keywords${flashQs({ ok: "Re-tagging av medieartikler startet — se /admin/processes for status." })}`,
+  );
 }
 
 // Burst Tier 1: K=100 / 4-min budget. Same orchestrator as the cron tick;
