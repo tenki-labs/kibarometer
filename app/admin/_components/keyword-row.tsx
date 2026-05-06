@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { fmtDateTime } from "@/lib/admin/flash";
-import { toggleAction } from "@/app/admin/(app)/keywords/actions";
+import { deleteAction, toggleAction } from "@/app/admin/(app)/keywords/actions";
+import { DeleteKeywordButton } from "./delete-keyword-button";
 import { SubmitButton } from "./submit-button";
 
 const LANGUAGE_LABEL: Record<string, string> = {
@@ -87,11 +88,33 @@ export function KeywordRow({ kw }: { kw: KeywordRowData }) {
           <Button asChild variant="ghost" size="sm">
             <Link href={`/admin/keywords/${kw.id}`}>Endre</Link>
           </Button>
-          <form action={toggle}>
-            <SubmitButton variant="ghost" size="sm">
-              {matchesInTagging ? "Skjul" : "Aktiver"}
-            </SubmitButton>
-          </form>
+          {matchesInTagging ? (
+            // Active keyword: only show toggle (Deaktiver) — destructive
+            // delete sits behind a confirm in the inactive branch where
+            // it's the more useful action.
+            <form action={toggle}>
+              <SubmitButton variant="ghost" size="sm">
+                Deaktiver
+              </SubmitButton>
+            </form>
+          ) : (
+            // Inactive keyword: offer both Aktiver (toggle back) and
+            // Slett (hard delete). Operators reviewing rejected
+            // candidates need a way to clean up the catalogue rather
+            // than just hide rows.
+            <>
+              <form action={toggle}>
+                <SubmitButton variant="ghost" size="sm">
+                  Aktiver
+                </SubmitButton>
+              </form>
+              <DeleteKeywordButton
+                id={kw.id}
+                term={kw.term}
+                action={deleteAction}
+              />
+            </>
+          )}
         </div>
       </TableCell>
     </TableRow>
