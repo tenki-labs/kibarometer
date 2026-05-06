@@ -35,12 +35,12 @@ export async function fetchAction() {
   try {
     const result = await fetchNav({ sb: sbFetch, trigger: "manual" });
     redirect(
-      `/admin/jobs${flashQs({ ok: `Hentet ${result.rows_processed} stillinger` })}`,
+      `/admin/processes${flashQs({ ok: `Hentet ${result.rows_processed} stillinger` })}`,
     );
   } catch (err) {
     if (isRedirect(err)) throw err;
     redirect(
-      `/admin/jobs${flashQs({ error: `Henting feilet: ${msg(err)}` })}`,
+      `/admin/processes${flashQs({ error: `Henting feilet: ${msg(err)}` })}`,
     );
   }
 }
@@ -54,7 +54,7 @@ export async function backfillAction() {
     }
   });
   redirect(
-    `/admin/jobs${flashQs({ ok: "Backfill startet — se status nedenfor." })}`,
+    `/admin/processes${flashQs({ ok: "Backfill startet — se status nedenfor." })}`,
   );
 }
 
@@ -67,7 +67,7 @@ export async function enrichAction() {
     }
   });
   redirect(
-    `/admin/jobs${flashQs({ ok: "Berikelse startet — se status nedenfor." })}`,
+    `/admin/processes${flashQs({ ok: "Berikelse startet — se status nedenfor." })}`,
   );
 }
 
@@ -80,11 +80,11 @@ export async function reprocessAction() {
     }
   });
   redirect(
-    `/admin/keywords${flashQs({ ok: "Re-tagging startet — se /admin/jobs for status." })}`,
+    `/admin/keywords${flashQs({ ok: "Re-tagging startet — se /admin/processes for status." })}`,
   );
 }
 
-// BACKFILL button on /admin/jobs. One click drains NAV's feed from
+// BACKFILL button on /admin/processes. One click drains NAV's feed from
 // wherever the cursor sits to live head, in two phases:
 //   1. Fast-forward (no-op onPage) while last_event_at < FF_THRESHOLD.
 //      Skips NAV's 2023 migration burst — those events are about
@@ -122,7 +122,7 @@ export async function fastForwardAction() {
   );
   if (running.length > 0) {
     redirect(
-      `/admin/jobs${flashQs({ error: "Backfill kjører allerede." })}`,
+      `/admin/processes${flashQs({ error: "Backfill kjører allerede." })}`,
     );
   }
 
@@ -235,7 +235,7 @@ export async function fastForwardAction() {
   });
 
   redirect(
-    `/admin/jobs${flashQs({ ok: "Backfill startet — se status nedenfor." })}`,
+    `/admin/processes${flashQs({ ok: "Backfill startet — se status nedenfor." })}`,
   );
 }
 
@@ -257,17 +257,17 @@ export async function stopDrainAction() {
       },
     });
     redirect(
-      `/admin/jobs${flashQs({
+      `/admin/processes${flashQs({
         ok: "Backfill stoppet. Pågående batch fullfører før loopen slutter.",
       })}`,
     );
   } catch (err) {
     if (isRedirect(err)) throw err;
-    redirect(`/admin/jobs${flashQs({ error: `Stopp feilet: ${msg(err)}` })}`);
+    redirect(`/admin/processes${flashQs({ error: `Stopp feilet: ${msg(err)}` })}`);
   }
 }
 
-// Cron toggle on /admin/jobs. Flips app_settings.cron_paused. The
+// Cron toggle on /admin/processes. Flips app_settings.cron_paused. The
 // kiba-fetcher crontab still ticks at its scheduled time; the route
 // handler reads this flag and noops when paused.
 export async function toggleCronPausedAction() {
@@ -283,14 +283,14 @@ export async function toggleCronPausedAction() {
       body: { cron_paused: next, updated_at: new Date().toISOString() },
     });
     redirect(
-      `/admin/jobs${flashQs({
+      `/admin/processes${flashQs({
         ok: next ? "Daglig henting pauset." : "Daglig henting aktivert.",
       })}`,
     );
   } catch (err) {
     if (isRedirect(err)) throw err;
     redirect(
-      `/admin/jobs${flashQs({ error: `Toggle feilet: ${msg(err)}` })}`,
+      `/admin/processes${flashQs({ error: `Toggle feilet: ${msg(err)}` })}`,
     );
   }
 }
@@ -304,7 +304,7 @@ export async function refreshSnapshotsAction() {
     }
   });
   redirect(
-    `/admin/jobs${flashQs({ ok: "Snapshot-refresh startet — se status nedenfor." })}`,
+    `/admin/processes${flashQs({ ok: "Snapshot-refresh startet — se status nedenfor." })}`,
   );
 }
 

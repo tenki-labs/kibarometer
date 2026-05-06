@@ -315,7 +315,7 @@ export default async function OppstartOverviewPage({ searchParams }: Props) {
                     <TableRow key={c.orgnr}>
                       <TableCell className="font-mono text-xs">
                         <Link
-                          href={`/admin/oppstart/companies/${encodeURIComponent(c.orgnr)}`}
+                          href={`/admin/startups/companies/${encodeURIComponent(c.orgnr)}`}
                           className="hover:underline"
                         >
                           {c.orgnr}
@@ -358,7 +358,7 @@ export default async function OppstartOverviewPage({ searchParams }: Props) {
             <CardTitle>Siste jobber</CardTitle>
             <CardDescription>
               Brreg-relaterte jobs-rader (10 nyeste).{" "}
-              <Link href="/admin/jobs" className="underline underline-offset-2">
+              <Link href="/admin/processes" className="underline underline-offset-2">
                 Alle jobber →
               </Link>
             </CardDescription>
@@ -405,15 +405,15 @@ export default async function OppstartOverviewPage({ searchParams }: Props) {
       </div>
 
       <p className="mt-6 text-xs text-muted-foreground">
-        <Link href="/admin/oppstart/companies" className="underline underline-offset-2">
+        <Link href="/admin/startups/companies" className="underline underline-offset-2">
           Foretak-oversikt →
         </Link>{" "}
         ·{" "}
-        <Link href="/admin/oppstart/queue" className="underline underline-offset-2">
+        <Link href="/admin/startups/queue" className="underline underline-offset-2">
           Kø-helse →
         </Link>{" "}
         ·{" "}
-        <Link href="/admin/oppstart/categories" className="underline underline-offset-2">
+        <Link href="/admin/startups/categories" className="underline underline-offset-2">
           Kategorier →
         </Link>
       </p>

@@ -93,7 +93,7 @@ export default async function CategoriesPage({ searchParams }: Props) {
       </Card>
 
       <p className="mt-6 text-xs text-muted-foreground">
-        <Link href="/admin/oppstart" className="underline underline-offset-2">
+        <Link href="/admin/startups" className="underline underline-offset-2">
           ← Tilbake til oversikt
         </Link>
       </p>

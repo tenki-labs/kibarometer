@@ -21,12 +21,12 @@ export async function retryFailedAction() {
       prefer: "return=minimal",
     });
     redirect(
-      `/admin/oppstart/queue${flashQs({ ok: "Feilede rader satt tilbake til pending." })}`,
+      `/admin/startups/queue${flashQs({ ok: "Feilede rader satt tilbake til pending." })}`,
     );
   } catch (err) {
     if (isRedirect(err)) throw err;
     redirect(
-      `/admin/oppstart/queue${flashQs({ error: `Tilbakestilling feilet: ${msg(err)}` })}`,
+      `/admin/startups/queue${flashQs({ error: `Tilbakestilling feilet: ${msg(err)}` })}`,
     );
   }
 }
@@ -39,12 +39,12 @@ export async function discardFailedAction() {
       prefer: "return=minimal",
     });
     redirect(
-      `/admin/oppstart/queue${flashQs({ ok: "Feilede rader forkastet." })}`,
+      `/admin/startups/queue${flashQs({ ok: "Feilede rader forkastet." })}`,
     );
   } catch (err) {
     if (isRedirect(err)) throw err;
     redirect(
-      `/admin/oppstart/queue${flashQs({ error: `Forkasting feilet: ${msg(err)}` })}`,
+      `/admin/startups/queue${flashQs({ error: `Forkasting feilet: ${msg(err)}` })}`,
     );
   }
 }

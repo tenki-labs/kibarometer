@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { flashQs } from "@/lib/admin/flash";
 import { sbFetch } from "@/lib/admin/sb";
 
-const LIST = "/admin/llm-prompts";
+const LIST = "/admin/media/prompts";
 const ROLES = ["tier1", "tier2"] as const;
 type Role = (typeof ROLES)[number];
 

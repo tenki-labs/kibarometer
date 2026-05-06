@@ -45,7 +45,7 @@ export async function pingAction() {
 
 // Tier 1 batch — defer with after() so the action returns immediately while
 // the orchestrator runs to completion in-process. runDiscover writes its own
-// jobs row on success/failure, so the user can follow progress on /admin/jobs
+// jobs row on success/failure, so the user can follow progress on /admin/processes
 // even after this action redirects. Same shape as backfillAction in
 // app/admin/(app)/jobs/actions.ts.
 export async function runTier1Action() {
@@ -65,7 +65,7 @@ export async function runTier1Action() {
   });
   redirect(
     `/admin/llm${flashQs({
-      ok: "Tier 1-batch startet — følg progresjon på /admin/jobs.",
+      ok: "Tier 1-batch startet — følg progresjon på /admin/processes.",
     })}`,
   );
 }
@@ -84,7 +84,7 @@ export async function runTier2Action() {
   });
   redirect(
     `/admin/llm${flashQs({
-      ok: "Tier 2-batch startet — følg progresjon på /admin/jobs.",
+      ok: "Tier 2-batch startet — følg progresjon på /admin/processes.",
     })}`,
   );
 }

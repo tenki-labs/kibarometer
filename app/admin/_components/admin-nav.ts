@@ -7,8 +7,8 @@ import {
   FileText,
   FolderTree,
   Gauge,
-  Hammer,
   LayoutDashboard,
+  ListTodo,
   MessageSquareCode,
   Newspaper,
   Sparkles,
@@ -26,17 +26,47 @@ export type AdminNavSection = {
   items: AdminNavItem[];
 };
 
+// URL slug convention: English dev language so URLs match cron job
+// names, table prefixes, and route handler paths. Sidebar labels stay
+// Norwegian. PR 1 of admin restructure renames the top-level URLs and
+// regroups into six categories; per-domain sub-routes (Stillinger /
+// Selskaper entity browsers, /queue, /prompts) land in later PRs as
+// those pages get built.
 export const ADMIN_NAV: AdminNavSection[] = [
   {
     label: "Drift",
     items: [
       { href: "/admin", label: "Oversikt", icon: LayoutDashboard },
-      { href: "/admin/jobs", label: "Jobber", icon: Hammer },
-      { href: "/admin/llm", label: "AI-analyse", icon: Bot },
+      { href: "/admin/processes", label: "Prosesser", icon: ListTodo },
+      { href: "/admin/llm", label: "LLM-helse", icon: Bot },
+      { href: "/admin/diagnostics", label: "Diagnostikk", icon: Gauge },
     ],
   },
   {
-    label: "Taksonomi",
+    label: "Jobbmarked",
+    items: [
+      { href: "/admin/nav/categories", label: "Kategorier", icon: FolderTree },
+    ],
+  },
+  {
+    label: "Medie-dekning",
+    items: [
+      { href: "/admin/media", label: "Oversikt", icon: Newspaper },
+      {
+        href: "/admin/media/prompts",
+        label: "Systemprompt",
+        icon: MessageSquareCode,
+      },
+    ],
+  },
+  {
+    label: "Oppstart",
+    items: [
+      { href: "/admin/startups", label: "Oversikt", icon: Building2 },
+    ],
+  },
+  {
+    label: "Data",
     items: [
       { href: "/admin/keywords", label: "Nøkkelord", icon: Tag },
       {
@@ -44,23 +74,14 @@ export const ADMIN_NAV: AdminNavSection[] = [
         label: "Kandidater",
         icon: Sparkles,
       },
-      { href: "/admin/categories", label: "Kategorier", icon: FolderTree },
-      {
-        href: "/admin/llm-prompts",
-        label: "Systemprompt",
-        icon: MessageSquareCode,
-      },
+      { href: "/admin/database", label: "Database", icon: Database },
     ],
   },
   {
-    label: "Innsikt",
+    label: "Nettside",
     items: [
       { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
-      { href: "/admin/media", label: "Mediedekning", icon: Newspaper },
-      { href: "/admin/oppstart", label: "Oppstart", icon: Building2 },
-      { href: "/admin/diagnostics", label: "Diagnostikk", icon: Gauge },
       { href: "/admin/content", label: "Innhold", icon: FileText },
-      { href: "/admin/database", label: "Data", icon: Database },
     ],
   },
 ];
@@ -77,5 +98,16 @@ export const ADMIN_SEGMENT_LABELS: Record<string, string> = (() => {
       if (seg) out[seg] = item.label;
     }
   }
+  // Domain-hub and entity segments not in ADMIN_NAV (yet) but reachable
+  // via existing pages or redirects — seed breadcrumb labels by hand so
+  // /admin/nav/categories renders as "Jobbmarked / Kategorier" etc.
+  out.nav = "Jobbmarked";
+  out.startups = "Oppstart";
+  out.media = "Medie-dekning";
+  out.prompts = "Systemprompt";
+  out.processes = "Prosesser";
+  out.candidates = "Kandidater";
+  out.companies = "Selskaper";
+  out.queue = "Kø";
   return out;
 })();

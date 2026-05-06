@@ -78,7 +78,7 @@ export default async function QueuePage({ searchParams }: Props) {
             Innsikt i brreg_url_queue. Rader genereres når et nytt foretak
             havner i en kategori med <code className="text-xs">enrich_roles=true</code>.
             Cron drenerer K=50 hvert 30. min;{" "}
-            <Link href="/admin/oppstart" className="underline underline-offset-2">
+            <Link href="/admin/startups" className="underline underline-offset-2">
               burst-knappen
             </Link>{" "}
             kjører K=500.
@@ -131,7 +131,7 @@ export default async function QueuePage({ searchParams }: Props) {
                   <TableRow key={r.orgnr}>
                     <TableCell className="font-mono text-xs">
                       <Link
-                        href={`/admin/oppstart/companies/${encodeURIComponent(r.orgnr)}`}
+                        href={`/admin/startups/companies/${encodeURIComponent(r.orgnr)}`}
                         className="hover:underline"
                       >
                         {r.orgnr}
@@ -180,7 +180,7 @@ export default async function QueuePage({ searchParams }: Props) {
                   <TableRow key={r.orgnr}>
                     <TableCell className="font-mono text-xs">
                       <Link
-                        href={`/admin/oppstart/companies/${encodeURIComponent(r.orgnr)}`}
+                        href={`/admin/startups/companies/${encodeURIComponent(r.orgnr)}`}
                         className="hover:underline"
                       >
                         {r.orgnr}

@@ -2,7 +2,7 @@
 // Daily 06:30 UTC tick (offset 30 min after NAV's 06:00 daily fetch).
 // Runs fetchBrreg() with default date window (yesterday-only).
 //
-// Manual trigger from /admin/oppstart (PR 7) will hit this same handler
+// Manual trigger from /admin/startups (PR 7) will hit this same handler
 // with optional `?from=YYYY-MM-DD&to=YYYY-MM-DD` query params for ad-hoc
 // re-ingestion of a custom window (e.g. recovering from a missed cron).
 

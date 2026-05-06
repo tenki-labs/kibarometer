@@ -16,7 +16,7 @@ const VALID_SCOPES = new Set<ReprocessScope>([
 // POST /admin/api/jobs/llm-reprocess
 // Body: { scope: 'all_ai'|'category'|'since_date', category_slug?, since_date?, dry_run? }
 // Cron-friendly: bearer-authed; returns 200 with structured result. Manual
-// trigger from /admin/categories (PR 7) uses the same shape.
+// trigger from /admin/nav/categories (PR 7) uses the same shape.
 export async function POST(req: Request) {
   const denied = requireBearer(req);
   if (denied) return denied;

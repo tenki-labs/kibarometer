@@ -107,7 +107,7 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
           title="Jobb ikke funnet"
           action={
             <Button asChild variant="outline">
-              <Link href="/admin/jobs">
+              <Link href="/admin/processes">
                 <ArrowLeft />
                 Tilbake
               </Link>
@@ -154,7 +154,7 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
         }
         action={
           <Button asChild variant="ghost">
-            <Link href="/admin/jobs">
+            <Link href="/admin/processes">
               <ArrowLeft />
               Tilbake
             </Link>

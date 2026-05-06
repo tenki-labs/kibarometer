@@ -298,7 +298,7 @@ export default async function CompanyDetailPage({ params, searchParams }: Props)
       </Card>
 
       <p className="mt-6 text-xs text-muted-foreground">
-        <Link href="/admin/oppstart/companies" className="underline underline-offset-2">
+        <Link href="/admin/startups/companies" className="underline underline-offset-2">
           ← Tilbake til foretakliste
         </Link>
       </p>
