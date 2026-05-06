@@ -29,6 +29,7 @@ import {
   burstTier1Action,
   burstTier2Action,
   refreshSnapshotsAction,
+  reprocessKeywordsAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -247,6 +248,33 @@ export default async function MediaOverviewPage({ searchParams }: Props) {
           }
         />
       </div>
+
+      <h2 className="mt-8 mb-3 font-mono text-[0.7rem] uppercase tracking-[0.14em] text-muted-foreground">
+        Operasjoner
+      </h2>
+      <Card className="gap-3">
+        <CardHeader>
+          <CardTitle className="font-mono text-xs uppercase tracking-[0.18em]">
+            Kjør keyword-mapping
+          </CardTitle>
+          <CardDescription>
+            Re-tagger alle medieartikler mot dagens nøkkelord-katalog
+            (domain=media,any). Kjører mot overskrift — vi lagrer ikke
+            artikkeltekst, så enkelte rader som opprinnelig matchet på
+            innhold kan flippe is_ai_related = false. Idempotent.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex-1 text-sm text-muted-foreground">
+            Manuell trigger — ingen cron.
+          </div>
+          <form action={reprocessKeywordsAction}>
+            <SubmitButton variant="outline" size="sm" pendingLabel="Starter…">
+              Kjør keyword-mapping
+            </SubmitButton>
+          </form>
+        </CardContent>
+      </Card>
 
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
