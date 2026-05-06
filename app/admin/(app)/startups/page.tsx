@@ -25,12 +25,7 @@ import { StatusBadge } from "@/app/admin/_components/status-badge";
 import { SubmitButton } from "@/app/admin/_components/submit-button";
 import { sbFetch } from "@/lib/admin/sb";
 
-import {
-  bootstrapAction,
-  ingestAction,
-  refreshSnapshotsAction,
-  rolesBurstAction,
-} from "./actions";
+import { backfillAction, ingestAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -60,7 +55,6 @@ type RecentJobRow = {
 };
 
 type AppSettingsRow = {
-  brreg_bootstrap_floor_date: string;
   brreg_young_founder_age_max: number;
 };
 
@@ -135,7 +129,7 @@ export default async function OppstartOverviewPage({ searchParams }: Props) {
     countRows("brreg_url_queue", `status=eq.failed`),
     countRows("brreg_roles"),
     sbFetch<AppSettingsRow[]>(
-      `/app_settings?id=eq.1&select=brreg_bootstrap_floor_date,brreg_young_founder_age_max`,
+      `/app_settings?id=eq.1&select=brreg_young_founder_age_max`,
       { service: true },
     ).catch(() => [] as AppSettingsRow[]),
     sbFetch<RecentCompanyRow[]>(
@@ -153,7 +147,6 @@ export default async function OppstartOverviewPage({ searchParams }: Props) {
       ? `${((aiRelevant30d / companies30d) * 100).toFixed(1)} %`
       : "—";
 
-  const floorDate = settings?.[0]?.brreg_bootstrap_floor_date || "2018-01-01";
   const youngFounderMax = settings?.[0]?.brreg_young_founder_age_max ?? 22;
 
   // Today's date adjusted to "yesterday" for default ingest form value
@@ -163,8 +156,8 @@ export default async function OppstartOverviewPage({ searchParams }: Props) {
     <>
       <Flash searchParams={params} />
       <PageHeader
-        eyebrow="Innsikt"
-        title="Oppstart"
+        eyebrow="Oppstart"
+        title="Oversikt"
         description={
           <span>
             Nye norske foretak fra{" "}
@@ -187,8 +180,8 @@ export default async function OppstartOverviewPage({ searchParams }: Props) {
           value={formatNum(totalCompanies)}
           hint={
             totalCompanies === 0
-              ? "Kjør 'Bootstrap' for å fylle med historisk data."
-              : `Bootstrap-grense: ${floorDate}`
+              ? "Kjør «Backfill» for å laste hele Brreg-registeret."
+              : "Hele Brreg-registeret"
           }
         />
         <StatCard
@@ -212,76 +205,57 @@ export default async function OppstartOverviewPage({ searchParams }: Props) {
         />
       </div>
 
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle>Kontroller</CardTitle>
-          <CardDescription>
-            Manuelle handlinger. Cron kjører ingest 06:30 UTC, rolle-kø
-            12,42 hver time, og snapshot-oppfriskning 04:45 UTC.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <form action={ingestAction} className="flex flex-col gap-2 rounded-md border p-4">
-            <div className="text-sm font-medium">Inkremental henting</div>
-            <p className="text-xs text-muted-foreground">
-              Hent foretak fra brreg-API for et dato-vindu. Tomme felt =
-              gårsdagen. Idempotent på orgnr.
-            </p>
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <div>
-                <Label htmlFor="ingest-from" className="text-xs">Fra (YYYY-MM-DD)</Label>
-                <Input id="ingest-from" name="from" placeholder={yesterday} />
-              </div>
-              <div>
-                <Label htmlFor="ingest-to" className="text-xs">Til</Label>
-                <Input id="ingest-to" name="to" placeholder={yesterday} />
-              </div>
-            </div>
-            <SubmitButton size="sm" pendingLabel="Henter…">
-              Hent nå
-            </SubmitButton>
-          </form>
-
-          <form action={bootstrapAction} className="flex flex-col gap-2 rounded-md border p-4">
-            <div className="text-sm font-medium">Bootstrap (bulk dump)</div>
-            <p className="text-xs text-muted-foreground">
-              Last ned ~200 MB JSON-dump fra brreg, filtrer fra
-              start-dato. Kan ta 10–30 min. Manuell trigger.
-            </p>
+      <h2 className="mt-8 mb-3 font-mono text-[0.7rem] uppercase tracking-[0.14em] text-muted-foreground">
+        Operasjoner
+      </h2>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:auto-rows-fr">
+        <form action={ingestAction} className="flex flex-col gap-2 rounded-md border p-4">
+          <div className="text-sm font-medium">Ingest (inkrementell)</div>
+          <p className="text-xs text-muted-foreground">
+            Hent foretak fra brreg-API for et dato-vindu. Tomme felt =
+            gårsdagen. Idempotent på orgnr. Cron kjører dette daglig
+            06:30 UTC.
+          </p>
+          <div className="grid grid-cols-2 gap-2 pt-1">
             <div>
-              <Label htmlFor="bootstrap-floor" className="text-xs">
-                Start-dato (default {floorDate})
-              </Label>
-              <Input id="bootstrap-floor" name="floor" placeholder={floorDate} />
+              <Label htmlFor="ingest-from" className="text-xs">Fra (YYYY-MM-DD)</Label>
+              <Input id="ingest-from" name="from" placeholder={yesterday} />
             </div>
-            <SubmitButton size="sm" variant="outline" pendingLabel="Starter…">
-              Kjør bootstrap
-            </SubmitButton>
-          </form>
+            <div>
+              <Label htmlFor="ingest-to" className="text-xs">Til</Label>
+              <Input id="ingest-to" name="to" placeholder={yesterday} />
+            </div>
+          </div>
+          <SubmitButton size="sm" pendingLabel="Henter…">
+            Ingest
+          </SubmitButton>
+        </form>
 
-          <form action={rolesBurstAction} className="flex flex-col gap-2 rounded-md border p-4">
-            <div className="text-sm font-medium">Rolle-kø burst</div>
-            <p className="text-xs text-muted-foreground">
-              Tøm rolle-køen raskere enn cron (K=500, 4-min budsjett).
-              Kø-dybde: {formatNum(queuePending)} ventende.
-            </p>
-            <SubmitButton size="sm" variant="outline" pendingLabel="Starter…" disabled={queuePending === 0}>
-              Kjør burst
-            </SubmitButton>
-          </form>
-
-          <form action={refreshSnapshotsAction} className="flex flex-col gap-2 rounded-md border p-4">
-            <div className="text-sm font-medium">Snapshot-oppfriskning</div>
-            <p className="text-xs text-muted-foreground">
-              Bygg om alle brreg_snapshot_* tabeller. Tar sekunder.
-              Driver alt på /oppstart-siden.
-            </p>
-            <SubmitButton size="sm" variant="outline" pendingLabel="Oppdaterer…">
-              Oppfrisk nå
-            </SubmitButton>
-          </form>
-        </CardContent>
-      </Card>
+        <form action={backfillAction} className="flex flex-col gap-2 rounded-md border p-4">
+          <div className="text-sm font-medium">Backfill (bulk dump)</div>
+          <p className="text-xs text-muted-foreground">
+            Last ned ~200 MB JSON-dump fra brreg og last hele registeret
+            (uten dato-filter). Kan ta 10–30 min. Manuell trigger; ingen
+            cron. Idempotent på orgnr — trygt å kjøre på nytt.
+          </p>
+          <SubmitButton size="sm" variant="outline" pendingLabel="Starter…">
+            Backfill
+          </SubmitButton>
+        </form>
+      </div>
+      <p className="mt-2 text-xs text-muted-foreground">
+        Snapshot-oppfriskning ligger på{" "}
+        <Link
+          href="/admin/processes"
+          className="underline underline-offset-2 hover:opacity-80"
+        >
+          Drift &gt; Prosesser
+        </Link>{" "}
+        som «Refresh snapshots» og kjøres på alle domener samtidig. Rolle-kø
+        drainer hver time via cron — kontakt den manuelt via{" "}
+        <code className="font-mono">/admin/api/jobs/brreg-roles-burst</code>{" "}
+        hvis du trenger å forsere det.
+      </p>
 
       <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
         <Card>
