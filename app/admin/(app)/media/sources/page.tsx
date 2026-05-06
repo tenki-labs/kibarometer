@@ -19,6 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Flash } from "@/app/admin/_components/flash";
+import { MediaSourcesArticlesTabs } from "@/app/admin/_components/media-sources-articles-tabs";
 import { PageHeader } from "@/app/admin/_components/page-header";
 import { StatCard } from "@/app/admin/_components/stat-card";
 import { SubmitButton } from "@/app/admin/_components/submit-button";
@@ -80,9 +81,9 @@ export default async function MediaSourcesPage({ searchParams }: Props) {
     <>
       <Flash searchParams={sp} />
       <PageHeader
-        eyebrow="Mediedekning"
-        title="Kilder"
-        description="Norske medieoutletter pipelinen poller. Aktiver én etter at search_config er sjekket via tørrtest."
+        eyebrow="Medie-dekning"
+        title="Kilder & artikler"
+        description="Norske medieoutletter pipelinen poller, og artiklene de leverer. Aktiver én kilde etter at search_config er sjekket via tørrtest."
         action={
           <Button asChild>
             <Link href="/admin/media/sources/new">
@@ -92,6 +93,7 @@ export default async function MediaSourcesPage({ searchParams }: Props) {
           </Button>
         }
       />
+      <MediaSourcesArticlesTabs current="sources" />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard
