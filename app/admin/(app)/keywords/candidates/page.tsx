@@ -74,23 +74,33 @@ const RECEIPT_CONTEXT_CHARS = 25;
 
 type CandidateStatus = "pending" | "trial" | "canonical" | "rejected" | "merged";
 
+type SourceTag = "jobs" | "media" | "brreg";
+
+type Sample = {
+  source: SourceTag;
+  id: string;
+  title: string | null;
+  link: string | null;
+  text: string | null;
+};
+
 type Candidate = {
   term_norm: string;
   evidence_count: number;
   first_seen_at: string;
   last_seen_at: string;
-  sample_posting_ids: string[];
+  sources: SourceTag[];
+  samples: Sample[];
   status: CandidateStatus;
   merged_into_term: string | null;
   reviewed_at: string | null;
   reviewed_by: string | null;
 };
 
-type Posting = {
-  id: string;
-  title: string | null;
-  description: string | null;
-  source_url: string | null;
+const SOURCE_LABEL: Record<SourceTag, string> = {
+  jobs: "Stillinger",
+  media: "Medie",
+  brreg: "Oppstart",
 };
 
 type CanonicalKeyword = {
@@ -141,18 +151,6 @@ export default async function CandidatesPage({ searchParams }: Props) {
       { service: true },
     ),
   ]);
-
-  const sampleIds = Array.from(
-    new Set(pending.flatMap((c) => c.sample_posting_ids ?? [])),
-  ).filter(Boolean);
-  const postings = sampleIds.length
-    ? await sbFetch<Posting[]>(
-        `/nav_postings?id=in.(${sampleIds.map(encodeURIComponent).join(",")})` +
-          `&select=id,title,description,source_url`,
-        { service: true },
-      )
-    : [];
-  const postingsById = new Map(postings.map((p) => [p.id, p]));
 
   const trialMatchCounts = await Promise.all(
     trials.map((t) => countMatches(t.term)),
@@ -228,7 +226,6 @@ export default async function CandidatesPage({ searchParams }: Props) {
                 <PendingRow
                   key={cand.term_norm}
                   candidate={cand}
-                  postingsById={postingsById}
                   canonicals={canonicals}
                   reviewer={reviewer}
                 />
@@ -324,25 +321,31 @@ export default async function CandidatesPage({ searchParams }: Props) {
 
 function PendingRow({
   candidate,
-  postingsById,
   canonicals,
   reviewer,
 }: {
   candidate: Candidate;
-  postingsById: Map<string, Posting>;
   canonicals: CanonicalKeyword[];
   reviewer: string;
 }) {
-  const samples = (candidate.sample_posting_ids ?? [])
-    .slice(0, RECEIPTS_PER_CANDIDATE)
-    .map((id) => postingsById.get(id))
-    .filter((p): p is Posting => Boolean(p));
+  const samples = (candidate.samples ?? []).slice(0, RECEIPTS_PER_CANDIDATE);
+  const sources = candidate.sources ?? [];
+  const evidenceLabel = inferEvidenceLabel(sources);
 
   return (
     <details className="rounded-md border bg-card">
       <summary className="flex cursor-pointer flex-wrap items-center gap-3 px-4 py-3 hover:bg-muted/40">
         <span className="font-mono text-sm">{candidate.term_norm}</span>
-        <Badge variant="secondary">{candidate.evidence_count} stillinger</Badge>
+        <Badge variant="secondary">
+          {candidate.evidence_count} {evidenceLabel}
+        </Badge>
+        <div className="flex flex-wrap gap-1">
+          {sources.map((s) => (
+            <Badge key={s} variant="outline" className="text-[0.65rem]">
+              {SOURCE_LABEL[s] ?? s}
+            </Badge>
+          ))}
+        </div>
         <span className="ml-auto text-xs text-muted-foreground">
           Sist sett {fmtDateTime(candidate.last_seen_at)}
         </span>
@@ -354,32 +357,34 @@ function PendingRow({
         </p>
         {samples.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Stillingene som ga grunnlaget er ikke lenger tilgjengelige.
+            Kildene som ga grunnlaget er ikke lenger tilgjengelige.
           </p>
         ) : (
           <ul className="flex flex-col gap-2">
             {samples.map((p) => {
-              const receipt = makeReceipt(p.description, candidate.term_norm);
+              const receipt = makeReceipt(p.text, candidate.term_norm);
+              const titleText = p.title ?? p.id;
               return (
                 <li
-                  key={p.id}
+                  key={`${p.source}:${p.id}`}
                   className="rounded-md border border-border/60 bg-muted/20 p-3"
                 >
                   <div className="mb-1 flex items-center gap-2">
-                    {p.source_url ? (
+                    <Badge variant="outline" className="text-[0.6rem]">
+                      {SOURCE_LABEL[p.source] ?? p.source}
+                    </Badge>
+                    {p.link ? (
                       <a
-                        href={p.source_url}
+                        href={p.link}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-sm font-medium hover:underline"
                       >
-                        {p.title ?? p.id}
+                        {titleText}
                         <ExternalLink className="size-3" />
                       </a>
                     ) : (
-                      <span className="text-sm font-medium">
-                        {p.title ?? p.id}
-                      </span>
+                      <span className="text-sm font-medium">{titleText}</span>
                     )}
                   </div>
                   {receipt ? (
@@ -396,8 +401,8 @@ function PendingRow({
                     </p>
                   ) : (
                     <p className="text-xs italic text-muted-foreground">
-                      Phrasen ble ikke funnet i denne beskrivelsen
-                      (sannsynligvis redigert etter Tier 1 kjørte).
+                      Phrasen ble ikke funnet i utdraget (sannsynligvis
+                      redigert etter Tier 1 kjørte).
                     </p>
                   )}
                 </li>
@@ -661,6 +666,19 @@ function makeReceipt(
     description.slice(idx + phrase.length, end) +
     (end < description.length ? "…" : "");
   return { before, match, after };
+}
+
+// Pluralise the evidence-count chip ("12 stillinger" / "12 artikler" / "12
+// selskaper" / "12 kilder") based on which pipelines surfaced the phrase.
+// Mixed sources fall back to a generic word so the chip stays accurate
+// without spelling out every combination.
+function inferEvidenceLabel(sources: SourceTag[]): string {
+  if (sources.length === 1) {
+    if (sources[0] === "jobs") return "stillinger";
+    if (sources[0] === "media") return "artikler";
+    if (sources[0] === "brreg") return "selskaper";
+  }
+  return "kilder";
 }
 
 function daysSince(iso: string): number {
