@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
+  CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
@@ -23,7 +24,13 @@ import { StatCard } from "@/app/admin/_components/stat-card";
 import { SubmitButton } from "@/app/admin/_components/submit-button";
 import { fmtDateTime } from "@/lib/admin/flash";
 import { sbFetch } from "@/lib/admin/sb";
-import { discardOldFailedAction, retryQueueAction } from "./actions";
+import {
+  burstFetchClassifyAction,
+  burstTier1Action,
+  burstTier2Action,
+  discardOldFailedAction,
+  retryQueueAction,
+} from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -52,41 +59,59 @@ function unwrapCount(rows: CountRow[] | { count: number } | null): number {
 export default async function MediaQueuePage({ searchParams }: Props) {
   const sp = await searchParams;
 
-  const [pending, fetched, failedCount, skipped, oldestPending, recentFailures] =
-    await Promise.all([
-      sbFetch<CountRow[] | { count: number }>(
-        `/media_url_queue?status=eq.pending&select=count`,
-        { service: true, headers: { Prefer: "count=exact" } },
-      ).catch(() => null),
-      sbFetch<CountRow[] | { count: number }>(
-        `/media_url_queue?status=eq.fetched&select=count`,
-        { service: true, headers: { Prefer: "count=exact" } },
-      ).catch(() => null),
-      sbFetch<CountRow[] | { count: number }>(
-        `/media_url_queue?status=eq.failed&select=count`,
-        { service: true, headers: { Prefer: "count=exact" } },
-      ).catch(() => null),
-      sbFetch<CountRow[] | { count: number }>(
-        `/media_url_queue?status=eq.skipped_keyword&select=count`,
-        { service: true, headers: { Prefer: "count=exact" } },
-      ).catch(() => null),
-      sbFetch<{ discovered_at: string }[]>(
-        `/media_url_queue?status=eq.pending&order=discovered_at.asc&limit=1` +
-          `&select=discovered_at`,
-        { service: true },
-      ).catch(() => []),
-      sbFetch<QueueRow[]>(
-        `/media_url_queue?status=eq.failed&order=discovered_at.desc&limit=50` +
-          `&select=id,url,status,attempts,discovered_at,last_error,` +
-          `source:media_sources(name,domain)`,
-        { service: true },
-      ).catch(() => [] as QueueRow[]),
-    ]);
+  const [
+    pending,
+    fetched,
+    failedCount,
+    skipped,
+    tier1Pending,
+    tier2Pending,
+    oldestPending,
+    recentFailures,
+  ] = await Promise.all([
+    sbFetch<CountRow[] | { count: number }>(
+      `/media_url_queue?status=eq.pending&select=count`,
+      { service: true, headers: { Prefer: "count=exact" } },
+    ).catch(() => null),
+    sbFetch<CountRow[] | { count: number }>(
+      `/media_url_queue?status=eq.fetched&select=count`,
+      { service: true, headers: { Prefer: "count=exact" } },
+    ).catch(() => null),
+    sbFetch<CountRow[] | { count: number }>(
+      `/media_url_queue?status=eq.failed&select=count`,
+      { service: true, headers: { Prefer: "count=exact" } },
+    ).catch(() => null),
+    sbFetch<CountRow[] | { count: number }>(
+      `/media_url_queue?status=eq.skipped_keyword&select=count`,
+      { service: true, headers: { Prefer: "count=exact" } },
+    ).catch(() => null),
+    sbFetch<CountRow[] | { count: number }>(
+      `/media_articles?deleted_at=is.null&is_ai_related=is.true&tier1_completed_at=is.null&select=count`,
+      { service: true, headers: { Prefer: "count=exact" } },
+    ).catch(() => null),
+    sbFetch<CountRow[] | { count: number }>(
+      `/media_articles?deleted_at=is.null&tier1_completed_at=not.is.null&tier2_completed_at=is.null&select=count`,
+      { service: true, headers: { Prefer: "count=exact" } },
+    ).catch(() => null),
+    sbFetch<{ discovered_at: string }[]>(
+      `/media_url_queue?status=eq.pending&order=discovered_at.asc&limit=1` +
+        `&select=discovered_at`,
+      { service: true },
+    ).catch(() => []),
+    sbFetch<QueueRow[]>(
+      `/media_url_queue?status=eq.failed&order=discovered_at.desc&limit=50` +
+        `&select=id,url,status,attempts,discovered_at,last_error,` +
+        `source:media_sources(name,domain)`,
+      { service: true },
+    ).catch(() => [] as QueueRow[]),
+  ]);
 
   const pendingCount = unwrapCount(pending);
   const fetchedCount = unwrapCount(fetched);
   const failed = unwrapCount(failedCount);
   const skippedCount = unwrapCount(skipped);
+  const t1PendingCount = unwrapCount(tier1Pending);
+  const t2PendingCount = unwrapCount(tier2Pending);
   const oldest = oldestPending[0]?.discovered_at;
 
   return (
@@ -136,6 +161,50 @@ export default async function MediaQueuePage({ searchParams }: Props) {
           hint="Filtrert i Stage 2 (negativ cache)"
         />
       </div>
+
+      <Card className="mt-6 gap-3">
+        <CardHeader>
+          <CardTitle className="font-mono text-[0.7rem] uppercase tracking-[0.14em]">
+            Manuelle drainere
+          </CardTitle>
+          <CardDescription>
+            Samme orchestratorer som cron-tikkene + Hub-knappene. Bruk når
+            du har en backfill-pukkel og ikke vil vente på neste tikk.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <form action={burstFetchClassifyAction}>
+            <SubmitButton
+              variant="outline"
+              size="sm"
+              pendingLabel="Kjører…"
+              disabled={pendingCount === 0}
+            >
+              Tøm fetch+klassifiser ({pendingCount.toLocaleString("nb-NO")})
+            </SubmitButton>
+          </form>
+          <form action={burstTier1Action}>
+            <SubmitButton
+              variant="outline"
+              size="sm"
+              pendingLabel="Starter…"
+              disabled={t1PendingCount === 0}
+            >
+              Kjør Tier 1 ({t1PendingCount.toLocaleString("nb-NO")})
+            </SubmitButton>
+          </form>
+          <form action={burstTier2Action}>
+            <SubmitButton
+              variant="outline"
+              size="sm"
+              pendingLabel="Starter…"
+              disabled={t2PendingCount === 0}
+            >
+              Kjør Tier 2 ({t2PendingCount.toLocaleString("nb-NO")})
+            </SubmitButton>
+          </form>
+        </CardContent>
+      </Card>
 
       <Card className="mt-6 gap-0 p-0">
         <CardHeader className="px-6 py-4">

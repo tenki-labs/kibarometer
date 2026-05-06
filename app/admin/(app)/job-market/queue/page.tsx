@@ -19,8 +19,15 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Flash } from "@/app/admin/_components/flash";
 import { PageHeader } from "@/app/admin/_components/page-header";
+import { SubmitButton } from "@/app/admin/_components/submit-button";
 import { fmtDateTime } from "@/lib/admin/flash";
 import { sbFetch } from "@/lib/admin/sb";
+
+import {
+  runEnrichAction,
+  runTier1Action,
+  runTier2Action,
+} from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -158,18 +165,36 @@ export default async function NavQueuePage({ searchParams }: Props) {
           </TabsTrigger>
         </TabsList>
         <TabsContent value="enrich">
+          <DrainBar
+            label="Tøm enrich-kø"
+            description="Drainer én batch (~60s budget) av berikelses-køen — samme orchestrator som cron kjører hvert 15. min."
+            disabled={enrichCount === 0}
+            action={runEnrichAction}
+          />
           <QueueTable
             rows={enrichRows}
             emptyLabel="Berikelseskøen er tom — alle aktive stillinger har detalj-payload."
           />
         </TabsContent>
         <TabsContent value="tier1">
+          <DrainBar
+            label="Kjør Tier 1"
+            description="Drainer én batch av Tier 1 LLM-køen. Samme orchestrator som cron + Hub-knappen."
+            disabled={t1Count === 0}
+            action={runTier1Action}
+          />
           <QueueTable
             rows={t1Rows}
             emptyLabel="Ingen rader venter på Tier 1-klassifisering."
           />
         </TabsContent>
         <TabsContent value="tier2">
+          <DrainBar
+            label="Kjør Tier 2"
+            description="Drainer én batch av Tier 2 LLM-køen. Samme orchestrator som cron + Hub-knappen."
+            disabled={t2Count === 0}
+            action={runTier2Action}
+          />
           <QueueTable
             rows={t2Rows}
             emptyLabel="Ingen rader venter på Tier 2-klassifisering."
@@ -177,6 +202,36 @@ export default async function NavQueuePage({ searchParams }: Props) {
         </TabsContent>
       </Tabs>
     </>
+  );
+}
+
+function DrainBar({
+  label,
+  description,
+  disabled,
+  action,
+}: {
+  label: string;
+  description: string;
+  disabled: boolean;
+  action: () => Promise<void>;
+}) {
+  return (
+    <Card className="mt-4 gap-3">
+      <CardContent className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <p className="flex-1 text-sm text-muted-foreground">{description}</p>
+        <form action={action}>
+          <SubmitButton
+            variant="outline"
+            size="sm"
+            pendingLabel="Starter…"
+            disabled={disabled}
+          >
+            {label}
+          </SubmitButton>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
 
