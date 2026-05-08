@@ -126,6 +126,7 @@ SUPABASE_JWT_SECRET=$JWT_SECRET
 FETCHER_TOKEN=$FETCHER_TOKEN
 MLX_BASE_URL=https://mlx.tenki.no/v1
 MLX_API_KEY=
+SCRAPER_URL=http://localhost:8200
 EOF
   echo "  Generated $ROOT/.env.local for pnpm dev."
 else
@@ -138,7 +139,9 @@ else
   done
   # MLX defaults — points at the prod tunnel; local devs paste their own
   # tnk_… token into MLX_API_KEY when they want to test against the Mac.
-  for KV in "MLX_BASE_URL=https://mlx.tenki.no/v1" "MLX_API_KEY="; do
+  # SCRAPER_URL defaults to localhost:8200 for the kiba-scraper container
+  # exposed by local-dev/compose.yml.
+  for KV in "MLX_BASE_URL=https://mlx.tenki.no/v1" "MLX_API_KEY=" "SCRAPER_URL=http://localhost:8200"; do
     KEY=${KV%%=*}
     if ! grep -q "^${KEY}=" "$ROOT/.env.local"; then
       echo "$KV" >> "$ROOT/.env.local"

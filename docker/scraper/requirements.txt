@@ -1,0 +1,11 @@
+# Pinned per Day 0 verification (2026-05-07).
+# scrapegraphai 1.76.0 is the latest on PyPI; v2 is the JS SDK only.
+scrapegraphai==1.76.0
+
+# FastAPI server + uvicorn worker.
+fastapi==0.136.1
+uvicorn[standard]==0.46.0
+
+# Pydantic for /discover input + /extract output validation.
+# scrapegraphai already pulls pydantic; we restate to lock the major.
+pydantic>=2.0,<3.0

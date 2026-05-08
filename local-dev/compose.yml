@@ -31,6 +31,26 @@ services:
     command: ["redis-server", "--save", "60", "1", "--appendonly", "no"]
     mem_limit: 64m
 
+  # PR scrapegraph-sidecar — local instance, talks to the production-tunneled
+  # MLX endpoint (mlx.tenki.no) by default. Set MLX_API_KEY in
+  # local-dev/.env to actually test discovery; otherwise /healthz returns 503
+  # and pnpm dev's media backfill button fails fast.
+  scraper:
+    container_name: kiba-scraper
+    build:
+      context: ${KIBA_REPO_ROOT}/docker/scraper
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      MLX_BASE_URL: ${MLX_BASE_URL:-https://mlx.tenki.no/v1}
+      MLX_API_KEY: ${MLX_API_KEY:-}
+      MLX_MODEL: ${MLX_MODEL:-mlx-community/gemma-3-4b-it-4bit}
+      LOG_LEVEL: INFO
+    ports:
+      # Host 8200 to avoid kong on 8000 — pnpm dev reads SCRAPER_URL.
+      - "8200:8000"
+    mem_limit: 1g
+
   # Phase G — local Umami. Exposed on host port 3001 so the operator can hit
   # the dashboard directly (no edge proxy in local dev). The `umami` database
   # is provisioned by migration 0009 on first apply; Umami runs its own

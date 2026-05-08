@@ -13,6 +13,21 @@ type SiteContent = {
   body_md: string;
 };
 
+type MediaSource = {
+  name: string;
+  domain: string;
+  category: string | null;
+};
+
+const SOURCE_CATEGORY_LABEL: Record<string, string> = {
+  mainstream: "Mainstream daglig/ukentlig",
+  tech: "Tech / IT-presse",
+  business: "Næringsliv / finans",
+  policy: "Politikk / spesialist",
+  other: "Annet",
+};
+const SOURCE_CATEGORY_ORDER = ["mainstream", "tech", "business", "policy", "other"];
+
 const FALLBACK = {
   title: "Hvordan vi måler",
   body_md: `Kibarometeret leser [NAVs stillingsfeed](https://navikt.github.io/pam-stilling-feed/) og merker en stilling som *AI-relatert* hvis tittelen, beskrivelsen eller yrkesfeltet inneholder ett eller flere av begrepene i listen under. Listen er kuratert manuelt og redigeres åpent.
@@ -50,7 +65,7 @@ const CATEGORY_LABEL: Record<Keyword["category"], string> = {
 const CATEGORY_ORDER: Keyword["category"][] = ["tool", "role", "concept"];
 
 export default async function MetodePage() {
-  const [keywords, contentRows, taxonomy] = await Promise.all([
+  const [keywords, contentRows, taxonomy, mediaSources] = await Promise.all([
     sb<Keyword[]>(
       "/keywords?select=id,term,language,category,match_type,notes&order=category.asc,term.asc",
     ),
@@ -60,7 +75,16 @@ export default async function MetodePage() {
     sb<TaxonomyCategory[]>(
       "/taxonomy_categories?select=slug,title,definition_md,sort_order&order=sort_order.asc",
     ).catch(() => [] as TaxonomyCategory[]),
+    sb<MediaSource[]>(
+      "/media_sources?is_active=is.true&select=name,domain,category&order=name.asc",
+    ).catch(() => [] as MediaSource[]),
   ]);
+
+  const sourcesByCategory: Record<string, MediaSource[]> = {};
+  for (const s of mediaSources) {
+    const key = s.category ?? "other";
+    (sourcesByCategory[key] ??= []).push(s);
+  }
 
   const content = contentRows[0];
   const title = content?.title ?? FALLBACK.title;
@@ -164,6 +188,49 @@ export default async function MetodePage() {
           </div>
         );
       })}
+
+      {mediaSources.length > 0 && (
+        <>
+          <h2 id="kilder">Kilder ({mediaSources.length})</h2>
+          <p>
+            Kibarometeret følger redaksjonelt innhold fra norske medieoutletter
+            for å måle AI-dekning. Listen under viser hvilke kilder som er
+            aktive i dag, gruppert etter type. Aktivering skjer manuelt — vi
+            legger ikke til outletter automatisk uten redaksjonell vurdering.
+          </p>
+          <p>
+            URL-oppdaging skjer via lokal{" "}
+            <a href="https://github.com/ScrapeGraphAI/Scrapegraph-ai">
+              ScrapeGraphAI
+            </a>{" "}
+            (selv-hostet) som spør DuckDuckGo etter relevante artikler. Ekstraksjon og AI-analyse
+            kjøres på en privat MLX-instans i Norge; trafikken passerer
+            Cloudflare Tunnel for autentisering, men prompt-innhold logges ikke.
+            Ingen artikkeltekst sendes til amerikanske kommersielle AI-leverandører.
+          </p>
+          {SOURCE_CATEGORY_ORDER.map((cat) => {
+            const list = sourcesByCategory[cat];
+            if (!list || list.length === 0) return null;
+            return (
+              <div key={cat} className="kw-cat-block">
+                <h3 style={{ fontSize: "0.95rem", fontWeight: 500, margin: "1rem 0 0.5rem" }}>
+                  {SOURCE_CATEGORY_LABEL[cat] ?? cat} ({list.length})
+                </h3>
+                <div className="kw-grid">
+                  {list.map((s) => (
+                    <span key={s.domain} className="kw-chip" title={s.domain}>
+                      {s.name}
+                      <small style={{ marginLeft: "0.4rem", color: "var(--muted)" }}>
+                        · {s.domain}
+                      </small>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </>
+      )}
 
       <p className="meta" style={{ marginTop: "3rem" }}>
         Kildekode:{" "}
