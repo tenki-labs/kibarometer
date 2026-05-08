@@ -47,7 +47,7 @@ const KIBAROMETRE: Kibarometer[] = [
 
 export function SiteNav() {
   return (
-    <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur">
+    <header className="sticky top-0 z-30">
       <div className="flex h-14 w-full items-center justify-between px-4 sm:px-6">
         {/* Left: brand mark + Tenki Labs attribution */}
         <div className="flex items-center gap-3">
@@ -79,7 +79,12 @@ export function SiteNav() {
         </div>
 
         {/* Right: desktop NavigationMenu */}
-        <NavigationMenu className="hidden sm:flex">
+        <NavigationMenu
+          className="hidden sm:flex"
+          viewport={false}
+          delayDuration={150}
+          skipDelayDuration={0}
+        >
           <NavigationMenuList>
             <NavigationMenuItem>
               <NavigationMenuTrigger className="font-mono text-xs uppercase tracking-[0.14em]">
