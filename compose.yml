@@ -136,3 +136,26 @@ services:
        echo '0 3 * * * /backup.sh' | crontab - &&
        crond -f -l 2"
     mem_limit: 64m
+
+  # PR scrapegraph-sidecar — Python service that wraps scrapegraphai
+  # (URL discovery via DuckDuckGo + LLM-driven extraction via the local
+  # MLX cluster). Internal-only on the kiba network; never exposed to
+  # the edge. kiba-web posts to http://kiba-scraper:8000/{discover,extract}.
+  kiba-scraper:
+    container_name: kiba-scraper
+    build:
+      context: docker/scraper
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      # Reuses MLX_BASE_URL + MLX_API_KEY already in the kiba-web env.
+      # Same secret, no new env file.
+      - /opt/kibarometer/env/.env.production
+    networks: [default]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).status==200 else 1)"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    mem_limit: 1g

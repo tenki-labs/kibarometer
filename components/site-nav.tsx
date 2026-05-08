@@ -7,7 +7,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
@@ -32,11 +31,6 @@ const NAV_ITEMS: NavItem[] = [
     href: "/media",
     label: "Media-barometer",
     description: "Hvordan mediene dekker AI",
-  },
-  {
-    href: "/metode",
-    label: "Metode",
-    description: "Hvordan vi måler",
   },
   {
     href: "/docs",
@@ -94,19 +88,6 @@ export function SiteNav() {
                 </Link>
               </DropdownMenuItem>
             ))}
-            <DropdownMenuSeparator className="my-2" />
-            <DropdownMenuItem
-              asChild
-              className="cursor-pointer rounded-md px-3 py-2 focus:bg-accent data-[highlighted]:bg-accent"
-            >
-              <a
-                href="/api/v1/headline"
-                className="flex items-center justify-between font-mono text-[0.7rem] uppercase tracking-[0.22em] text-muted-foreground"
-              >
-                <span>API</span>
-                <span aria-hidden="true">→</span>
-              </a>
-            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

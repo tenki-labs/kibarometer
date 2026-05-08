@@ -119,7 +119,7 @@ export default async function MediaSourcesPage({ searchParams }: Props) {
       <PageHeader
         eyebrow="Medie-dekning"
         title="Kilder & artikler"
-        description="Norske medieoutletter pipelinen poller, og artiklene de leverer. Aktiver én kilde etter at search_config er sjekket via tørrtest."
+        description="Norske medieoutletter pipelinen poller, og artiklene de leverer. Nye kilder bør bruke scrapegraph-metoden — ingen per-outlet konfig nødvendig."
         action={
           <Button asChild>
             <Link href="/admin/media/sources/new">
@@ -143,9 +143,11 @@ export default async function MediaSourcesPage({ searchParams }: Props) {
           hint="Daglig discover-cron poller disse"
         />
         <StatCard
-          label="Med search_config"
-          value={totalForStats.filter((s) => s.search_config).length}
-          hint="Klar for backfill"
+          label="Scrapegraph-metode"
+          value={
+            totalForStats.filter((s) => s.backfill_method === "scrapegraph").length
+          }
+          hint="Bruker kiba-scraper-sidecar"
         />
       </div>
 

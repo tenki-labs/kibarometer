@@ -32,6 +32,11 @@ const schema = z.object({
   // "not configured" state when MLX_API_KEY is unset.
   MLX_BASE_URL: z.string().url().optional(),
   MLX_API_KEY: z.string().optional(),
+  // PR scrapegraph-sidecar — kiba-scraper internal HTTP URL. Optional
+  // so the marketing-site build passes without it; lib/admin/legacy/
+  // media-scraper-client.js throws a clear "ikke konfigurert" error
+  // at first use when unset.
+  SCRAPER_URL: z.string().url().optional(),
 });
 
 export type Env = z.infer<typeof schema>;

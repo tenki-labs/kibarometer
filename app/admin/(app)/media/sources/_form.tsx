@@ -38,6 +38,7 @@ export type SourceFormShape = {
   requires_render?: boolean;
   crawl_delay_ms?: number;
   is_active?: boolean;
+  category?: string | null;
   notes?: string | null;
 };
 
@@ -52,7 +53,21 @@ function jsonOrEmpty(v: unknown | null | undefined): string {
 
 // Shared field set used by both /new and /[id]/edit. Renders nothing on its
 // own — the parent supplies <form action={…}> and submit buttons.
+//
+// Field strategy after PR #scrapegraph-sidecar:
+//   - Always-visible "core" fields are the ones every backfill_method needs.
+//   - Legacy fields (search_config, sitemap_*, extractor_config) only
+//     appear inside an <details> disclosure and only for backfill_method
+//     in {site_search, sitemap}. New scrapegraph sources don't see them.
+//     The disclosure is server-rendered: the server action passes the
+//     persisted backfill_method value. After saving, the page reloads
+//     and the disclosure rerenders with the new selection. (This trades
+//     instant client toggling for keeping _form.tsx a server component.)
 export function SourceFields({ initial = {} }: { initial?: SourceFormShape }) {
+  const backfillMethod = initial.backfill_method ?? "scrapegraph";
+  const showLegacyAdvanced =
+    backfillMethod === "site_search" || backfillMethod === "sitemap";
+
   return (
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -121,82 +136,54 @@ export function SourceFields({ initial = {} }: { initial?: SourceFormShape }) {
           <Label htmlFor="backfill_method">Backfill-metode</Label>
           <Select
             name="backfill_method"
-            defaultValue={initial.backfill_method ?? "site_search"}
+            defaultValue={backfillMethod}
           >
             <SelectTrigger id="backfill_method">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="site_search">site_search</SelectItem>
-              <SelectItem value="sitemap">sitemap</SelectItem>
+              <SelectItem value="scrapegraph">scrapegraph (anbefalt)</SelectItem>
+              <SelectItem value="rss_only">rss_only</SelectItem>
+              <SelectItem value="site_search">site_search (legacy)</SelectItem>
+              <SelectItem value="sitemap">sitemap (legacy)</SelectItem>
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            <code className="font-mono">site_search</code> driver søkesidens AI-spørringer; brukes når kilden har søkefunksjon.{" "}
-            <code className="font-mono">sitemap</code> går gjennom sitemap-indeksen og bruker post-fetch-filtrering (kostbar for ikke-AI-tunge kilder).
+            <code className="font-mono">scrapegraph</code> driver
+            URL-oppdaging via DuckDuckGo + Playwright +
+            lokal MLX-LLM (kiba-scraper-sidecar). Krever ingen
+            per-kilde-konfigurasjon.{" "}
+            <code className="font-mono">rss_only</code> bruker bare RSS-feeden.{" "}
+            <code className="font-mono">site_search</code> og{" "}
+            <code className="font-mono">sitemap</code> er beholdt for
+            bakoverkompatibilitet med tidlige seeds (Digi.no, Kode24).
           </p>
         </div>
         <div className="flex flex-col gap-2">
-          <Label htmlFor="sitemap_url">sitemap_url</Label>
-          <Input
-            id="sitemap_url"
-            name="sitemap_url"
-            placeholder="https://www.example.no/sitemap.xml"
-            className="font-mono"
-            defaultValue={initial.sitemap_url ?? ""}
-          />
-          <label className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-            <Checkbox
-              id="sitemap_index"
-              name="sitemap_index"
-              defaultChecked={initial.sitemap_index ?? false}
-            />
-            <span>
-              <code className="font-mono">sitemap.xml</code> er en indeks (peker på månedlige sitemaps)
-            </span>
-          </label>
+          <Label htmlFor="category">Kategori (for /metode-publisering)</Label>
+          <Select
+            name="category"
+            defaultValue={initial.category ?? "other"}
+          >
+            <SelectTrigger id="category">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="mainstream">Mainstream daglig/ukentlig</SelectItem>
+              <SelectItem value="tech">Tech / IT-presse</SelectItem>
+              <SelectItem value="business">Næringsliv / finans</SelectItem>
+              <SelectItem value="policy">Politikk / spesialist</SelectItem>
+              <SelectItem value="other">Annet</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Vises i <code className="font-mono">/metode</code> (Kilder-seksjonen)
+            for redaksjonell åpenhet om hvilke outletter som er dekket.
+          </p>
         </div>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="search_config">search_config (JSON)</Label>
-        <Textarea
-          id="search_config"
-          name="search_config"
-          rows={10}
-          spellCheck={false}
-          className="font-mono text-xs"
-          placeholder={SEARCH_CONFIG_PLACEHOLDER}
-          defaultValue={jsonOrEmpty(initial.search_config)}
-        />
-        <p className="text-xs text-muted-foreground">
-          Brukes av backfill-orkestratoren til å iterere{" "}
-          <code className="font-mono">queries × pages</code>. Søkeordene
-          hentes fra <code className="font-mono">/admin/keywords</code> (rader
-          med <code className="font-mono">domain</code> i{" "}
-          <code className="font-mono">media</code>/<code className="font-mono">any</code>) —
-          ikke list dem her. La feltet stå tomt for å bruke sitemap-fallback.
-        </p>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="extractor_config">extractor_config (JSON, valgfri)</Label>
-        <Textarea
-          id="extractor_config"
-          name="extractor_config"
-          rows={8}
-          spellCheck={false}
-          className="font-mono text-xs"
-          placeholder={EXTRACTOR_CONFIG_PLACEHOLDER}
-          defaultValue={jsonOrEmpty(initial.extractor_config)}
-        />
-        <p className="text-xs text-muted-foreground">
-          Per-kilde-overstyringer på ekstraksjons-tieren. La stå tom for å
-          bruke standard rekkefølge (jsonld → readability → og-only).
-        </p>
-      </div>
-
-      <div className="flex flex-col gap-3 sm:flex-row sm:gap-6">
+      <div className="flex flex-col gap-3">
         <label className="flex items-center gap-2 text-sm">
           <Checkbox
             id="is_active"
@@ -204,14 +191,6 @@ export function SourceFields({ initial = {} }: { initial?: SourceFormShape }) {
             defaultChecked={initial.is_active ?? false}
           />
           <span>Aktiv (poll og backfill kjører)</span>
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <Checkbox
-            id="requires_render"
-            name="requires_render"
-            defaultChecked={initial.requires_render ?? false}
-          />
-          <span>requires_render (headless fallback — v1.1)</span>
         </label>
       </div>
 
@@ -225,6 +204,71 @@ export function SourceFields({ initial = {} }: { initial?: SourceFormShape }) {
           defaultValue={initial.notes ?? ""}
         />
       </div>
+
+      {showLegacyAdvanced ? (
+        <details className="rounded-md border border-dashed border-muted-foreground/30 p-4">
+          <summary className="cursor-pointer text-sm font-medium text-muted-foreground">
+            Avansert: legacy-konfig (kun for site_search / sitemap)
+          </summary>
+          <div className="mt-4 flex flex-col gap-6">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="sitemap_url">sitemap_url</Label>
+              <Input
+                id="sitemap_url"
+                name="sitemap_url"
+                placeholder="https://www.example.no/sitemap.xml"
+                className="font-mono"
+                defaultValue={initial.sitemap_url ?? ""}
+              />
+              <label className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                <Checkbox
+                  id="sitemap_index"
+                  name="sitemap_index"
+                  defaultChecked={initial.sitemap_index ?? false}
+                />
+                <span>
+                  <code className="font-mono">sitemap.xml</code> er en indeks
+                  (peker på månedlige sitemaps)
+                </span>
+              </label>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="search_config">search_config (JSON)</Label>
+              <Textarea
+                id="search_config"
+                name="search_config"
+                rows={10}
+                spellCheck={false}
+                className="font-mono text-xs"
+                placeholder={SEARCH_CONFIG_PLACEHOLDER}
+                defaultValue={jsonOrEmpty(initial.search_config)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Per-outlet søk-template. Brukt av <code className="font-mono">site_search</code>-adapteren.
+                For nye kilder, bruk <code className="font-mono">scrapegraph</code> i stedet.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="extractor_config">extractor_config (JSON, valgfri)</Label>
+              <Textarea
+                id="extractor_config"
+                name="extractor_config"
+                rows={8}
+                spellCheck={false}
+                className="font-mono text-xs"
+                placeholder={EXTRACTOR_CONFIG_PLACEHOLDER}
+                defaultValue={jsonOrEmpty(initial.extractor_config)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Per-kilde-overstyringer på ekstraksjons-tieren. La stå tom for å
+                bruke standard rekkefølge (jsonld → readability → og-only).
+              </p>
+            </div>
+          </div>
+        </details>
+      ) : null}
     </div>
   );
 }

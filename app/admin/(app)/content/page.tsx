@@ -28,8 +28,11 @@ type ContentRow = {
 
 const PUBLIC_PATH: Record<string, string> = {
   om: "/om",
-  metode: "/metode",
+  docs: "/docs",
   media: "/media",
+  "docs-jobbmarked": "/docs/jobbmarked",
+  "docs-media": "/docs/media",
+  "docs-oppstart": "/docs/oppstart",
 };
 
 type Props = {
@@ -50,7 +53,7 @@ export default async function ContentListPage({ searchParams }: Props) {
       <PageHeader
         eyebrow="Innsikt"
         title="Innhold"
-        description="Rediger statisk markdown-tekst på de offentlige sidene uten å re-deploye. Live nøkkelordliste på /metode bygges fra nøkkelord-tabellen og er ikke editerbar her."
+        description="Rediger statisk markdown-tekst på de offentlige sidene uten å re-deploye. Levende nøkkelordlister, kategorier og medie-kilder vises på /docs/nokkelord og er ikke editerbare her."
       />
 
       <Card className="gap-0 p-0">
