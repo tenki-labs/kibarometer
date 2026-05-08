@@ -9,22 +9,14 @@ import { extractArticle } from "@/lib/admin/legacy/media-extract.js";
 import { parseRssFeed } from "@/lib/admin/legacy/media-discover.js";
 import { runMediaBackfill } from "@/lib/admin/legacy/media-backfill.js";
 import { discoverUrls as scraperDiscoverUrls } from "@/lib/admin/legacy/media-scraper-client.js";
+import { loadActiveMediaKeywords } from "@/lib/admin/legacy/media-processor.js";
+
+import { BACKFILL_METHODS, SOURCE_CATEGORIES } from "./_constants";
 
 const LIST = "/admin/media/sources";
 
-const VALID_BACKFILL = new Set([
-  "scrapegraph",
-  "rss_only",
-  "site_search",
-  "sitemap",
-]);
-const VALID_CATEGORY = new Set([
-  "mainstream",
-  "tech",
-  "business",
-  "policy",
-  "other",
-]);
+const VALID_BACKFILL = new Set<string>(BACKFILL_METHODS);
+const VALID_CATEGORY = new Set<string>(SOURCE_CATEGORIES);
 
 // SourcePatch only includes the fields that were actually present in the
 // submitted form. Fields rendered conditionally (search_config etc. for
@@ -275,11 +267,8 @@ export async function dryRunAction(id: string, formData: FormData) {
     if (target === "scrapegraph") {
       // Pull one keyword from the central catalogue and ask the kiba-scraper
       // sidecar for top 5 URLs against this source's domain. Cheap probe.
-      const kwRows = await sbFetch<Array<{ term: string }>>(
-        "/keywords?status=in.(canonical,trial)&domain=in.(media,any)&select=term&limit=1",
-        { service: true },
-      );
-      const term = kwRows[0]?.term;
+      const kwRows = await loadActiveMediaKeywords(sbFetch);
+      const term = (Array.isArray(kwRows) ? kwRows : [])[0]?.term;
       if (!term) {
         throw new Error("Ingen aktive keywords for media — sjekk /admin/keywords");
       }

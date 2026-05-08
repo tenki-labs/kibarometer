@@ -24,7 +24,6 @@ import os
 import time
 from contextlib import asynccontextmanager
 from typing import Optional
-from urllib.parse import urlparse
 
 import httpx
 from fastapi import FastAPI, HTTPException, status
@@ -88,10 +87,12 @@ _ready = {
 }
 
 
+_PROBE_TTL_SECONDS = 300.0
+
+
 async def _probe_mlx(timeout_s: float = 5.0) -> bool:
-    """HEAD the MLX endpoint with the bearer to confirm it's reachable
-    and the token is accepted. Caches the result for 60s — the probe
-    runs cheaply so don't let healthz hammer it."""
+    """GET the MLX /models endpoint with the bearer to confirm it's reachable
+    and the token is accepted. Caller is responsible for caching."""
     try:
         async with httpx.AsyncClient(timeout=timeout_s) as cli:
             r = await cli.get(
@@ -116,31 +117,15 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="kiba-scraper", lifespan=lifespan)
 
 
-# ---- helpers ----------------------------------------------------------
-
-
-def _outlet_domain(url: str) -> Optional[str]:
-    try:
-        host = urlparse(url).hostname or ""
-        return host.removeprefix("www.") if host else None
-    except Exception:  # noqa: BLE001
-        return None
-
-
-def _build_query(term: str, site: Optional[str]) -> str:
-    term = term.strip()
-    if site:
-        return f"site:{site} {term}"
-    return term
-
-
 # ---- endpoints --------------------------------------------------------
 
 
 @app.get("/healthz")
 async def healthz():
-    # Cache the MLX probe for 60s.
-    if time.time() - _ready["checked_at"] > 60:
+    # Compose's healthcheck interval is 60s; using a 60s TTL would let
+    # clock-drift miss the cache ~50% of the time. 5 min is plenty for
+    # an availability probe.
+    if time.time() - _ready["checked_at"] > _PROBE_TTL_SECONDS:
         _ready["mlx"] = await _probe_mlx()
         _ready["checked_at"] = time.time()
 
@@ -164,7 +149,8 @@ async def discover(req: DiscoverRequest):
     stopped = "completed"
 
     for term in req.queries:
-        q = _build_query(term, req.site)
+        cleaned = term.strip()
+        q = f"site:{req.site} {cleaned}" if req.site else cleaned
         prompt = (
             f"Find recent Norwegian news articles matching: {q}. "
             "Return ONLY a JSON object with a 'urls' array of full "

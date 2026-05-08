@@ -20,13 +20,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# Layer order matters for cache hits on rebuild:
+#  1. Install Playwright runtime + apt deps via a tiny pip install.
+#     This layer only invalidates if the playwright pin moves.
+#  2. Install the rest of the Python deps.
+#  3. Copy server source.
+RUN pip install --no-cache-dir 'playwright==1.59.0' && \
+    playwright install --with-deps chromium
+
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Chromium-headless-shell + its system runtime deps. Use --with-deps so
-# Playwright installs apt packages it needs; we rely on the upstream
-# script to track that list rather than maintaining our own.
-RUN playwright install --with-deps chromium
 
 COPY server.py schemas.py ./
 

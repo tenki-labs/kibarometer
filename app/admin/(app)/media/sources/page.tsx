@@ -30,6 +30,28 @@ import { backfillSourceAction, toggleActiveAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
+// Kjør availability per backfill_method:
+//   scrapegraph → always (sidecar handles everything)
+//   sitemap     → always (walks sitemap_url)
+//   site_search → only if legacy search_config is set
+//   rss_only    → never (relies on daily RSS-discover cron)
+function backfillButtonState(s: {
+  backfill_method: string;
+  search_config: unknown | null;
+}): { disabled: boolean; hint: string } {
+  const m = s.backfill_method;
+  if (m === "rss_only") {
+    return { disabled: true, hint: "rss_only — bruker daglig RSS-discover-cron" };
+  }
+  if (m === "site_search" && !s.search_config) {
+    return {
+      disabled: true,
+      hint: "site_search krever search_config — eller bytt til scrapegraph",
+    };
+  }
+  return { disabled: false, hint: `Tikk backfill (${m})` };
+}
+
 type Source = {
   id: string;
   name: string;
@@ -348,24 +370,23 @@ function SourcesSection({
                     </form>
                   </TableCell>
                   <TableCell className="text-right">
-                    <form action={backfillSourceAction.bind(null, s.id)}>
-                      <SubmitButton
-                        variant="outline"
-                        size="sm"
-                        pendingLabel="Kjører…"
-                        disabled={
-                          !s.search_config && s.backfill_method !== "sitemap"
-                        }
-                        title={
-                          !s.search_config && s.backfill_method !== "sitemap"
-                            ? "Sett search_config eller bytt til sitemap først"
-                            : `Tikk backfill (${s.backfill_method})`
-                        }
-                      >
-                        <Download />
-                        Kjør
-                      </SubmitButton>
-                    </form>
+                    {(() => {
+                      const { disabled, hint } = backfillButtonState(s);
+                      return (
+                        <form action={backfillSourceAction.bind(null, s.id)}>
+                          <SubmitButton
+                            variant="outline"
+                            size="sm"
+                            pendingLabel="Kjører…"
+                            disabled={disabled}
+                            title={hint}
+                          >
+                            <Download />
+                            Kjør
+                          </SubmitButton>
+                        </form>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell className="text-right">
                     <Link
