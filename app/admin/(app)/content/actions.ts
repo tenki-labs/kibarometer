@@ -6,6 +6,14 @@ import { redirect } from "next/navigation";
 import { sbFetch } from "@/lib/admin/sb";
 import { flashQs } from "@/lib/admin/flash";
 
+// Slugs whose live page lives at a non-flat path. The default is `/<slug>` —
+// these need explicit mapping so an admin save purges the right ISR cache.
+const SLUG_REVALIDATE_PATHS: Record<string, string> = {
+  "docs-jobbmarked": "/docs/jobbmarked",
+  "docs-media": "/docs/media",
+  "docs-oppstart": "/docs/oppstart",
+};
+
 export async function updateAction(slug: string, formData: FormData) {
   const title = String(formData.get("title") ?? "").trim();
   const body_md = String(formData.get("body_md") ?? "");
@@ -29,7 +37,7 @@ export async function updateAction(slug: string, formData: FormData) {
     // Purge the live route's ISR cache so the next request renders fresh
     // copy instead of waiting up to 60s for the per-fetch revalidate
     // window (lib/supabase.ts sb() default).
-    revalidatePath(`/${slug}`);
+    revalidatePath(SLUG_REVALIDATE_PATHS[slug] ?? `/${slug}`);
     redirect(`/admin/content/${slug}${flashQs({ ok: "Lagret" })}`);
   } catch (err) {
     if (isRedirect(err)) throw err;

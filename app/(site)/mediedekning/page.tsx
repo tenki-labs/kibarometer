@@ -159,7 +159,6 @@ export default async function MediedekningPage() {
 
   return (
     <main className="metode">
-      <span className="eyebrow">· Medietemperatur</span>
       <h1 className="title">{title}</h1>
 
       {/* Hero — Kibarometer-indeks */}

@@ -77,7 +77,6 @@ export default async function MetodePage() {
 
   return (
     <main className="metode">
-      <span className="eyebrow">· Metode</span>
       <h1 className="title">{title}</h1>
 
       {/* Editable prose. Keyword count interpolation has been removed —

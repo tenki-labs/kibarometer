@@ -419,3 +419,87 @@
   color: var(--muted-foreground);
   text-decoration: none;
 }
+
+.docs-index {
+  list-style: none;
+  padding: 0;
+  margin: 1.5rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.docs-index-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 0.25rem 1rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  text-decoration: none;
+  color: inherit;
+}
+.docs-index-card:hover {
+  border-color: var(--muted-foreground);
+}
+.docs-index-card-title {
+  grid-column: 1;
+  grid-row: 1;
+  font-size: 1.05rem;
+  font-weight: 500;
+}
+.docs-index-card-desc {
+  grid-column: 1;
+  grid-row: 2;
+  font-size: 0.9rem;
+  color: var(--muted-foreground);
+}
+.docs-index-card-arrow {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  color: var(--muted-foreground);
+}
+
+.tech-stack {
+  margin: 2rem 0 0;
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+.tech-stack > summary {
+  cursor: pointer;
+  font: 500 0.7rem/1 var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--muted-foreground);
+  padding: 0.25rem 0;
+}
+.tech-stack[open] > summary {
+  margin-bottom: 0.75rem;
+}
+.tech-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.tech-table th,
+.tech-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.tech-table th {
+  font-weight: 500;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  width: 30%;
+}
+.tech-table code {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.85em;
+}
+.tech-table tr:last-child th,
+.tech-table tr:last-child td {
+  border-bottom: none;
+}
