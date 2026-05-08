@@ -20,12 +20,15 @@ import type {
 } from "@/lib/supabase";
 
 import { AnomalyFeed } from "./anomaly-feed";
+import { CategoryHeatmap } from "./category-heatmap";
 import { CategoryList } from "./category-list";
 import { Hero } from "./hero";
 import { IndexBar } from "./index-bar";
+import { VolumeBar } from "./volume-bar";
 
 type Props = {
   latest: MediaSnapshotIndex | null;
+  prior: MediaSnapshotIndex | null;
   indexHistory: MediaSnapshotIndex[];
   categoryDaily: MediaSnapshotCategoryDaily[];
   categories: MediaCategory[];
@@ -92,6 +95,7 @@ function buildCategorySeries(
 
 export function Scroller({
   latest,
+  prior,
   indexHistory,
   categoryDaily,
   categories,
@@ -160,7 +164,7 @@ export function Scroller({
       "
     >
       <section className="snap-segment sm:snap-start sm:snap-always">
-        <Hero latest={latest} />
+        <Hero latest={latest} prior={prior} />
       </section>
 
       <section className="snap-segment sm:snap-start sm:snap-always">
@@ -203,6 +207,39 @@ export function Scroller({
               taxonomy={taxonomyAdapter}
               variant="skill"
             />
+          </div>
+        </div>
+      </section>
+
+      <section className="snap-segment sm:snap-start sm:snap-always">
+        <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
+          <h2 className="text-lg font-medium tracking-tight sm:text-xl">
+            Temperatur per kategori (siste 12 uker)
+          </h2>
+          <p className="max-w-[60ch] text-sm text-muted-foreground">
+            Grønt = entusiastisk dekning, rødt = bekymret, grått = balansert
+            eller ingen data. Ukenummer på toppen.
+          </p>
+          <div className="min-h-0 flex-1 overflow-auto">
+            <CategoryHeatmap
+              rows={categoryDaily}
+              categories={categories}
+              nowMs={nowMs}
+            />
+          </div>
+        </div>
+      </section>
+
+      <section className="snap-segment sm:snap-start sm:snap-always">
+        <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
+          <h2 className="text-lg font-medium tracking-tight sm:text-xl">
+            Antall AI-artikler per dag (siste 90 dager)
+          </h2>
+          <p className="max-w-[60ch] text-sm text-muted-foreground">
+            Daglig totalvolum av AI-relaterte artikler på tvers av alle kilder.
+          </p>
+          <div className="min-h-0 flex-1">
+            <VolumeBar rows={categoryDaily} nowMs={nowMs} />
           </div>
         </div>
       </section>

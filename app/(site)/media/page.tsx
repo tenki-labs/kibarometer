@@ -41,32 +41,43 @@ const jsonLd = {
 };
 
 export default async function MediaPage() {
-  const [latestRows, indexHistory, categoryDaily, categories, anomalies] =
-    await Promise.all([
-      sb<MediaSnapshotIndex[]>(
-        "/media_snapshot_index?order=date.desc&limit=1",
-      ),
-      sb<MediaSnapshotIndex[]>(
-        "/media_snapshot_index?order=date.asc",
-      ),
-      sb<MediaSnapshotCategoryDaily[]>(
-        "/media_snapshot_category_daily?order=published_on.asc",
-      ),
-      sb<MediaCategory[]>(
-        "/media_categories?is_active=is.true&select=slug,label_no,label_en,description&order=slug.asc",
-      ),
-      sb<MediaAnomalyDaily[]>(
-        "/media_anomaly_daily?is_spike=is.true&order=date.desc,z_score.desc&limit=10",
-      ),
-    ]);
+  const [
+    latestRows,
+    priorRows,
+    indexHistory,
+    categoryDaily,
+    categories,
+    anomalies,
+  ] = await Promise.all([
+    sb<MediaSnapshotIndex[]>(
+      "/media_snapshot_index?order=date.desc&limit=1",
+    ),
+    sb<MediaSnapshotIndex[]>(
+      "/media_snapshot_index?order=date.desc&offset=7&limit=1",
+    ),
+    sb<MediaSnapshotIndex[]>(
+      "/media_snapshot_index?order=date.asc",
+    ),
+    sb<MediaSnapshotCategoryDaily[]>(
+      "/media_snapshot_category_daily?order=published_on.asc",
+    ),
+    sb<MediaCategory[]>(
+      "/media_categories?is_active=is.true&select=slug,label_no,label_en,description&order=slug.asc",
+    ),
+    sb<MediaAnomalyDaily[]>(
+      "/media_anomaly_daily?is_spike=is.true&order=date.desc,z_score.desc&limit=10",
+    ),
+  ]);
 
   const latest = latestRows[0] ?? null;
+  const prior = priorRows[0] ?? null;
 
   return (
     <>
       <Suspense fallback={null}>
         <Scroller
           latest={latest}
+          prior={prior}
           indexHistory={indexHistory}
           categoryDaily={categoryDaily}
           categories={categories}
