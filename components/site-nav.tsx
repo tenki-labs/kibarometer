@@ -43,11 +43,6 @@ const KIBAROMETRE: Kibarometer[] = [
     title: "Media",
     description: "Kibarometer-indeks for medieklimaet",
   },
-  {
-    href: "/mediedekning",
-    title: "Mediedekning",
-    description: "Rå dekning fra norske medier",
-  },
 ];
 
 export function SiteNav() {
@@ -91,7 +86,7 @@ export function SiteNav() {
                 Kibarometre
               </NavigationMenuTrigger>
               <NavigationMenuContent>
-                <ul className="grid w-[20rem] gap-1 p-2 sm:w-[26rem] sm:grid-cols-2">
+                <ul className="grid w-[20rem] gap-1 p-2">
                   {KIBAROMETRE.map((item) => (
                     <li key={item.href}>
                       <NavigationMenuLink asChild>
