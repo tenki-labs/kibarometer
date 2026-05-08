@@ -4,6 +4,8 @@ import type { MediaSnapshotIndex } from "@/lib/supabase";
 
 type Props = {
   latest: MediaSnapshotIndex | null;
+  /** Index value 7 rows back, used to render the +/- delta vs last week. */
+  prior: MediaSnapshotIndex | null;
 };
 
 const NB = new Intl.NumberFormat("nb-NO");
@@ -26,8 +28,13 @@ function indexLabel(value: number): string {
   return "Bekymret tilt";
 }
 
-export function Hero({ latest }: Props) {
+export function Hero({ latest, prior }: Props) {
   const indexValue = latest?.index_value ?? null;
+  const priorIndex = prior?.index_value ?? null;
+  const indexDelta =
+    indexValue !== null && priorIndex !== null
+      ? indexValue - priorIndex
+      : null;
   const aiArticles7d = latest?.ai_article_count_7d ?? 0;
   const total7d = latest?.article_count_7d ?? 0;
   const aboveWater = latest?.categories_above_water ?? 0;
@@ -55,7 +62,11 @@ export function Hero({ latest }: Props) {
           value={indexValue !== null ? String(indexValue) : "—"}
           hint={
             indexValue !== null
-              ? `${indexLabel(indexValue)} (50 = balansert)`
+              ? `${indexLabel(indexValue)}${
+                  indexDelta !== null
+                    ? ` · ${indexDelta >= 0 ? "+" : ""}${indexDelta} vs forrige uke`
+                    : " (50 = balansert)"
+                }`
               : "Ingen data ennå"
           }
           big

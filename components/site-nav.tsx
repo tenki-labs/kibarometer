@@ -90,7 +90,7 @@ export function SiteNav() {
               <NavigationMenuTrigger className="font-mono text-xs uppercase tracking-[0.14em]">
                 Kibarometre
               </NavigationMenuTrigger>
-              <NavigationMenuContent>
+              <NavigationMenuContent className="left-auto right-0 w-auto">
                 <ul className="grid w-[20rem] gap-1 p-2">
                   {KIBAROMETRE.map((item) => (
                     <li key={item.href}>

@@ -15,6 +15,12 @@ const nextConfig: NextConfig = {
         destination: "/jobbmarked",
         permanent: true,
       },
+      // /mediedekning content merged into /media (one page per kibarometer).
+      {
+        source: "/mediedekning",
+        destination: "/media",
+        permanent: true,
+      },
       // Admin URL slug standardization (PR 1 of admin restructure).
       // English dev slugs everywhere; sidebar labels stay Norwegian.
       // 308 permanent — bookmarks update on next hit; middleware
