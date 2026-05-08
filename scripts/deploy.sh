@@ -167,6 +167,13 @@ sudo cp "$INCOMING/compose.boot.yml"                       "$WEBSITE/compose.boo
 sudo cp "$INCOMING/compose.prod.yml"                       "$WEBSITE/compose.prod.yml"
 sudo cp "$INCOMING/docker/supabase/docker-compose.yml"     "$WEBSITE/docker/supabase/docker-compose.yml"
 
+# kiba-scraper sidecar (PR #79) — compose.yml has `build: context: docker/scraper`
+# so the build context must exist under $WEBSITE/docker/scraper at compose-up
+# time. install -d is idempotent; cp -r mirrors the source tree.
+sudo install -d -o deploy -g deploy "$WEBSITE/docker/scraper"
+sudo cp -r "$INCOMING/docker/scraper/." "$WEBSITE/docker/scraper/"
+sudo chown -R deploy:deploy "$WEBSITE/docker/scraper"
+
 echo "== apply idempotent migrations =="
 # Add new filenames here as you write them. They MUST be idempotent.
 PGPW=$(grep '^POSTGRES_PASSWORD=' /opt/kibarometer/env/supabase.env | cut -d= -f2)
