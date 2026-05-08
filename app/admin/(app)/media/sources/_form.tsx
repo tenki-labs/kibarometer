@@ -10,6 +10,28 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
+import {
+  BACKFILL_METHODS,
+  SOURCE_CATEGORIES,
+  type BackfillMethod,
+  type SourceCategory,
+} from "./_constants";
+
+const BACKFILL_LABEL: Record<BackfillMethod, string> = {
+  scrapegraph: "scrapegraph (anbefalt)",
+  rss_only: "rss_only",
+  site_search: "site_search (legacy)",
+  sitemap: "sitemap (legacy)",
+};
+
+const CATEGORY_LABEL: Record<SourceCategory, string> = {
+  mainstream: "Mainstream daglig/ukentlig",
+  tech: "Tech / IT-presse",
+  business: "Næringsliv / finans",
+  policy: "Politikk / spesialist",
+  other: "Annet",
+};
+
 const SEARCH_CONFIG_PLACEHOLDER = `{
   "url_template": "https://www.example.no/sok?q={q}&page={page}",
   "result_selector": "article a",
@@ -142,10 +164,9 @@ export function SourceFields({ initial = {} }: { initial?: SourceFormShape }) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="scrapegraph">scrapegraph (anbefalt)</SelectItem>
-              <SelectItem value="rss_only">rss_only</SelectItem>
-              <SelectItem value="site_search">site_search (legacy)</SelectItem>
-              <SelectItem value="sitemap">sitemap (legacy)</SelectItem>
+              {BACKFILL_METHODS.map((m) => (
+                <SelectItem key={m} value={m}>{BACKFILL_LABEL[m]}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
@@ -169,11 +190,9 @@ export function SourceFields({ initial = {} }: { initial?: SourceFormShape }) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="mainstream">Mainstream daglig/ukentlig</SelectItem>
-              <SelectItem value="tech">Tech / IT-presse</SelectItem>
-              <SelectItem value="business">Næringsliv / finans</SelectItem>
-              <SelectItem value="policy">Politikk / spesialist</SelectItem>
-              <SelectItem value="other">Annet</SelectItem>
+              {SOURCE_CATEGORIES.map((c) => (
+                <SelectItem key={c} value={c}>{CATEGORY_LABEL[c]}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
