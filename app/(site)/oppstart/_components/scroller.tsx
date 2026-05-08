@@ -3,9 +3,15 @@
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
+import {
+  StackedAreaChart,
+  type Series,
+} from "@/app/(site)/_components/stacked-area-chart";
+import {
+  TimeRangeToggle,
+  type Range,
+} from "@/app/(site)/_components/time-range-toggle";
 import { NorwayMap } from "@/app/(site)/jobbmarked/_components/norway-map";
-import { RangeToggle, type Range } from "@/app/(site)/jobbmarked/_components/range-toggle";
-import { StackedArea, type Series } from "@/app/(site)/jobbmarked/_components/stacked-area";
 import type {
   BrregSnapshotCohort,
   BrregSnapshotDaily,
@@ -16,7 +22,7 @@ import type {
 } from "@/lib/supabase";
 
 import { CategoryList, type NaceCategoryLabel } from "./category-list";
-import { CohortSurvival } from "./cohort-survival";
+import { CohortBars } from "./cohort-bars";
 import { Hero } from "./hero";
 
 type Props = {
@@ -130,8 +136,7 @@ export function Scroller({
     [daily, range, nowMs],
   );
 
-  // Adapter: feed nace_categories into StackedArea via the occupation variant.
-  // colorForCategory hashes the slug, so brreg slugs get stable colors.
+  // Adapter: feed nace_categories into StackedAreaChart via the occupation variant.
   const taxonomyAdapter = useMemo<TaxonomyCategory[]>(
     () =>
       categories.map((c, i) => ({
@@ -174,7 +179,7 @@ export function Scroller({
             <h2 className="text-lg font-medium tracking-tight sm:text-xl">
               Nye foretak per næringskategori
             </h2>
-            <RangeToggle value={range} onChange={onRangeChange} />
+            <TimeRangeToggle value={range} onChange={onRangeChange} />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
             Daglige registreringer fra Brønnøysundregistrene, gruppert etter
@@ -182,7 +187,7 @@ export function Scroller({
             bånd nederst.
           </p>
           <div className="min-h-0 flex-1">
-            <StackedArea
+            <StackedAreaChart
               series={volumeSeries}
               aiBandValues={aiBand}
               taxonomy={taxonomyAdapter}
@@ -203,7 +208,7 @@ export function Scroller({
             kontroll-gruppe.
           </p>
           <div className="min-h-0 flex-1">
-            <CohortSurvival rows={cohort} />
+            <CohortBars rows={cohort} />
           </div>
         </div>
       </section>

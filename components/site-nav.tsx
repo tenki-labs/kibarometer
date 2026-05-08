@@ -7,59 +7,143 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  NavigationMenu,
+  NavigationMenuContent,
+  NavigationMenuItem,
+  NavigationMenuLink,
+  NavigationMenuList,
+  NavigationMenuTrigger,
+  navigationMenuTriggerStyle,
+} from "@/components/ui/navigation-menu";
+import { cn } from "@/lib/utils";
 
-type NavItem = {
+type Kibarometer = {
   href: string;
-  label: string;
+  title: string;
   description: string;
 };
 
-const NAV_ITEMS: NavItem[] = [
+const KIBAROMETRE: Kibarometer[] = [
   {
     href: "/jobbmarked",
-    label: "Jobbmarked",
-    description: "Daglig oppdaterte tall fra NAV",
+    title: "Jobbmarked",
+    description: "AI-stillinger fra NAVs feed",
   },
   {
     href: "/oppstart",
-    label: "Oppstart",
-    description: "Nye norske foretak fra Brønnøysundregistrene",
+    title: "Oppstart",
+    description: "Nye foretak fra Brønnøysundregistrene",
   },
   {
     href: "/media",
-    label: "Media-barometer",
-    description: "Hvordan mediene dekker AI",
+    title: "Media",
+    description: "Kibarometer-indeks for medieklimaet",
   },
   {
-    href: "/docs",
-    label: "Dokumentasjon",
-    description: "Slik fungerer hver pipeline",
-  },
-  {
-    href: "/om",
-    label: "Om",
-    description: "Bak prosjektet",
+    href: "/mediedekning",
+    title: "Mediedekning",
+    description: "Rå dekning fra norske medier",
   },
 ];
 
 export function SiteNav() {
   return (
-    <header className="sticky top-0 z-30 bg-background">
-      <div className="flex h-14 w-full items-center justify-between px-4">
-        <Link
-          href="/"
-          className="text-sm tracking-tight text-foreground hover:text-muted-foreground"
-        >
-          kibarometer
-        </Link>
+    <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur">
+      <div className="flex h-14 w-full items-center justify-between px-4 sm:px-6">
+        {/* Left: brand mark + Tenki Labs attribution */}
+        <div className="flex items-center gap-3">
+          <NavigationMenu className="flex-none" viewport={false}>
+            <NavigationMenuList>
+              <NavigationMenuItem>
+                <NavigationMenuLink
+                  asChild
+                  className={cn(
+                    "font-mono text-sm font-medium uppercase tracking-[0.18em] hover:bg-transparent focus:bg-transparent data-[active=true]:bg-transparent",
+                  )}
+                >
+                  <Link href="/">KIBAROMETER</Link>
+                </NavigationMenuLink>
+              </NavigationMenuItem>
+            </NavigationMenuList>
+          </NavigationMenu>
+          <span className="hidden text-xs text-muted-foreground sm:inline">
+            drevet av{" "}
+            <a
+              href="https://tenki.no"
+              target="_blank"
+              rel="noopener"
+              className="hover:text-foreground hover:underline"
+            >
+              Tenki Labs
+            </a>
+          </span>
+        </div>
+
+        {/* Right: desktop NavigationMenu */}
+        <NavigationMenu className="hidden sm:flex">
+          <NavigationMenuList>
+            <NavigationMenuItem>
+              <NavigationMenuTrigger className="font-mono text-xs uppercase tracking-[0.14em]">
+                Kibarometre
+              </NavigationMenuTrigger>
+              <NavigationMenuContent>
+                <ul className="grid w-[20rem] gap-1 p-2 sm:w-[26rem] sm:grid-cols-2">
+                  {KIBAROMETRE.map((item) => (
+                    <li key={item.href}>
+                      <NavigationMenuLink asChild>
+                        <Link href={item.href} className="block">
+                          <span className="text-sm font-medium leading-none">
+                            {item.title}
+                          </span>
+                          <span className="mt-1 text-xs text-muted-foreground">
+                            {item.description}
+                          </span>
+                        </Link>
+                      </NavigationMenuLink>
+                    </li>
+                  ))}
+                </ul>
+              </NavigationMenuContent>
+            </NavigationMenuItem>
+
+            <NavigationMenuItem>
+              <NavigationMenuLink
+                asChild
+                className={cn(
+                  navigationMenuTriggerStyle(),
+                  "font-mono text-xs uppercase tracking-[0.14em]",
+                )}
+              >
+                <Link href="/docs">Docs</Link>
+              </NavigationMenuLink>
+            </NavigationMenuItem>
+
+            <NavigationMenuItem>
+              <NavigationMenuLink
+                asChild
+                className={cn(
+                  navigationMenuTriggerStyle(),
+                  "font-mono text-xs uppercase tracking-[0.14em]",
+                )}
+              >
+                <Link href="/om">Om</Link>
+              </NavigationMenuLink>
+            </NavigationMenuItem>
+          </NavigationMenuList>
+        </NavigationMenu>
+
+        {/* Right: mobile burger (DropdownMenu) */}
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+          <DropdownMenuTrigger asChild className="sm:hidden">
             <Button
               variant="ghost"
               size="sm"
-              className="cursor-pointer font-mono text-xs uppercase tracking-[0.18em]"
+              className="font-mono text-xs uppercase tracking-[0.18em]"
             >
               Menu
             </Button>
@@ -67,27 +151,41 @@ export function SiteNav() {
           <DropdownMenuContent
             align="end"
             sideOffset={12}
-            className="w-[min(24rem,calc(100vw-2rem))] p-2"
+            className="w-[min(22rem,calc(100vw-2rem))] p-2"
           >
-            {NAV_ITEMS.map((item) => (
-              <DropdownMenuItem
-                key={item.href}
-                asChild
-                className="cursor-pointer rounded-md px-3 py-3 focus:bg-accent data-[highlighted]:bg-accent"
-              >
+            <DropdownMenuLabel className="px-2 py-1 font-mono text-[0.62rem] uppercase tracking-[0.16em] text-muted-foreground">
+              Kibarometre
+            </DropdownMenuLabel>
+            {KIBAROMETRE.map((item) => (
+              <DropdownMenuItem key={item.href} asChild className="cursor-pointer">
                 <Link
                   href={item.href}
-                  className="flex flex-col items-start gap-1"
+                  className="flex flex-col items-start gap-0.5 px-3 py-2"
                 >
-                  <span className="text-xl font-medium tracking-tight text-foreground">
-                    {item.label}
-                  </span>
+                  <span className="text-sm font-medium">{item.title}</span>
                   <span className="text-xs text-muted-foreground">
                     {item.description}
                   </span>
                 </Link>
               </DropdownMenuItem>
             ))}
+            <DropdownMenuSeparator className="my-2" />
+            <DropdownMenuItem asChild className="cursor-pointer">
+              <Link
+                href="/docs"
+                className="px-3 py-2 font-mono text-xs uppercase tracking-[0.14em]"
+              >
+                Docs
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild className="cursor-pointer">
+              <Link
+                href="/om"
+                className="px-3 py-2 font-mono text-xs uppercase tracking-[0.14em]"
+              >
+                Om
+              </Link>
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

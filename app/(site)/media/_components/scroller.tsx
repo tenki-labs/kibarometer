@@ -3,8 +3,14 @@
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { RangeToggle, type Range } from "@/app/(site)/jobbmarked/_components/range-toggle";
-import { StackedArea, type Series } from "@/app/(site)/jobbmarked/_components/stacked-area";
+import {
+  StackedAreaChart,
+  type Series,
+} from "@/app/(site)/_components/stacked-area-chart";
+import {
+  TimeRangeToggle,
+  type Range,
+} from "@/app/(site)/_components/time-range-toggle";
 import type {
   MediaAnomalyDaily,
   MediaCategory,
@@ -16,7 +22,7 @@ import type {
 import { AnomalyFeed } from "./anomaly-feed";
 import { CategoryList } from "./category-list";
 import { Hero } from "./hero";
-import { IndexLine } from "./index-line";
+import { IndexBar } from "./index-bar";
 
 type Props = {
   latest: MediaSnapshotIndex | null;
@@ -130,9 +136,8 @@ export function Scroller({
     [categoryDaily, range, nowMs],
   );
 
-  // Adapt media_categories into the TaxonomyCategory shape StackedArea expects.
-  // colorForSkillSlug ignores the slug (uses index), and bandDescription pulls
-  // definition_md when variant === "skill" — both work with our adapter.
+  // Adapt media_categories into the TaxonomyCategory shape StackedAreaChart
+  // expects (bandDescription pulls definition_md for variant="skill").
   const taxonomyAdapter = useMemo<TaxonomyCategory[]>(
     () =>
       categories.map((c, i) => ({
@@ -164,14 +169,14 @@ export function Scroller({
             <h2 className="text-lg font-medium tracking-tight sm:text-xl">
               Kibarometer-indeks over tid
             </h2>
-            <RangeToggle value={range} onChange={onRangeChange} />
+            <TimeRangeToggle value={range} onChange={onRangeChange} />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
             7-dagers rullerende stemning fra 0 (bekymret) til 100 (begeistret).
             50 markerer balansert dekning.
           </p>
           <div className="min-h-0 flex-1">
-            <IndexLine
+            <IndexBar
               rows={indexHistory}
               cutoffMs={indexCutoffMs}
               monthly={indexMonthly}
@@ -186,14 +191,14 @@ export function Scroller({
             <h2 className="text-lg font-medium tracking-tight sm:text-xl">
               Volum per mediekategori
             </h2>
-            <RangeToggle value={range} onChange={onRangeChange} />
+            <TimeRangeToggle value={range} onChange={onRangeChange} />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
             AI-artikler per dag, gruppert etter kategori. En artikkel kan høre
             til flere kategorier samtidig.
           </p>
           <div className="min-h-0 flex-1">
-            <StackedArea
+            <StackedAreaChart
               series={categorySeries}
               taxonomy={taxonomyAdapter}
               variant="skill"

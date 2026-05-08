@@ -12,11 +12,18 @@ import type {
   TaxonomyCategory,
 } from "@/lib/supabase";
 
+import {
+  StackedAreaChart,
+  type Series,
+} from "@/app/(site)/_components/stacked-area-chart";
+import {
+  TimeRangeToggle,
+  type Range,
+} from "@/app/(site)/_components/time-range-toggle";
+
 import { Hero } from "./hero";
 import { KeywordList } from "./keyword-list";
 import { NorwayMap } from "./norway-map";
-import { RangeToggle, type Range } from "./range-toggle";
-import { StackedArea, type Series } from "./stacked-area";
 
 type Props = {
   headline: SnapshotHeadline | null;
@@ -180,14 +187,14 @@ export function Scroller({
             <h2 className="text-lg font-medium tracking-tight sm:text-xl">
               Norsk arbeidsmarked
             </h2>
-            <RangeToggle value={range} onChange={onRangeChange} />
+            <TimeRangeToggle value={range} onChange={onRangeChange} />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
             Stillinger fra NAVs feed gruppert etter yrkeskategori. AI-relaterte
             stillinger ligger som eget bånd nederst.
           </p>
           <div className="min-h-0 flex-1">
-            <StackedArea
+            <StackedAreaChart
               series={occupationSeries}
               aiBandValues={aiBandValues}
               taxonomy={taxonomy}
@@ -203,14 +210,14 @@ export function Scroller({
             <h2 className="text-lg font-medium tracking-tight sm:text-xl">
               AI-stillinger etter ferdighet
             </h2>
-            <RangeToggle value={range} onChange={onRangeChange} />
+            <TimeRangeToggle value={range} onChange={onRangeChange} />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
             AI-stillinger klassifisert av en språkmodell etter
             ferdighetskategori. Én stilling kan tilhøre flere kategorier.
           </p>
           <div className="min-h-0 flex-1">
-            <StackedArea
+            <StackedAreaChart
               series={skillSeries}
               taxonomy={taxonomy}
               variant="skill"
