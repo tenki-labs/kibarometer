@@ -152,6 +152,7 @@ export function Scroller({
         flex flex-col
         sm:h-[calc(100svh-3.5rem)] sm:overflow-y-scroll
         sm:snap-y sm:snap-mandatory
+        sm:scroll-pt-14
       "
     >
       <section className="snap-segment sm:snap-start sm:snap-always">
