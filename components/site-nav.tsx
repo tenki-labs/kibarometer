@@ -7,7 +7,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -153,16 +152,19 @@ export function SiteNav() {
             sideOffset={12}
             className="w-[min(22rem,calc(100vw-2rem))] p-2"
           >
-            <DropdownMenuLabel className="px-2 py-1 font-mono text-[0.62rem] uppercase tracking-[0.16em] text-muted-foreground">
-              Kibarometre
-            </DropdownMenuLabel>
             {KIBAROMETRE.map((item) => (
-              <DropdownMenuItem key={item.href} asChild className="cursor-pointer">
+              <DropdownMenuItem
+                key={item.href}
+                asChild
+                className="cursor-pointer rounded-md focus:bg-accent data-[highlighted]:bg-accent"
+              >
                 <Link
                   href={item.href}
-                  className="flex flex-col items-start gap-0.5 px-3 py-2"
+                  className="flex flex-col items-start gap-1 px-3 py-3"
                 >
-                  <span className="text-sm font-medium">{item.title}</span>
+                  <span className="text-sm font-medium leading-none">
+                    {item.title}
+                  </span>
                   <span className="text-xs text-muted-foreground">
                     {item.description}
                   </span>
@@ -170,20 +172,32 @@ export function SiteNav() {
               </DropdownMenuItem>
             ))}
             <DropdownMenuSeparator className="my-2" />
-            <DropdownMenuItem asChild className="cursor-pointer">
+            <DropdownMenuItem
+              asChild
+              className="cursor-pointer rounded-md focus:bg-accent data-[highlighted]:bg-accent"
+            >
               <Link
                 href="/docs"
-                className="px-3 py-2 font-mono text-xs uppercase tracking-[0.14em]"
+                className="flex flex-col items-start gap-1 px-3 py-3"
               >
-                Docs
+                <span className="text-sm font-medium leading-none">Docs</span>
+                <span className="text-xs text-muted-foreground">
+                  Slik fungerer hver pipeline
+                </span>
               </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem asChild className="cursor-pointer">
+            <DropdownMenuItem
+              asChild
+              className="cursor-pointer rounded-md focus:bg-accent data-[highlighted]:bg-accent"
+            >
               <Link
                 href="/om"
-                className="px-3 py-2 font-mono text-xs uppercase tracking-[0.14em]"
+                className="flex flex-col items-start gap-1 px-3 py-3"
               >
-                Om
+                <span className="text-sm font-medium leading-none">Om</span>
+                <span className="text-xs text-muted-foreground">
+                  Bak prosjektet
+                </span>
               </Link>
             </DropdownMenuItem>
           </DropdownMenuContent>
