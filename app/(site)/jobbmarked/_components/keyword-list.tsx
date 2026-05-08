@@ -31,7 +31,7 @@ export function KeywordList({ rows }: { rows: SnapshotKeyword[] }) {
           return (
             <tr key={k.keyword} className={lowSample ? "low-sample" : undefined}>
               <td>
-                <a href={`/metode#kw-${encodeURIComponent(k.keyword)}`}>
+                <a href={`/docs/nokkelord#kw-${encodeURIComponent(k.keyword)}`}>
                   {k.keyword}
                 </a>
               </td>

@@ -103,7 +103,7 @@ export default async function CategoryEditPage({ params, searchParams }: Props) 
             referes fra{" "}
             <code className="font-mono">nav_postings.llm_categories</code>.{" "}
             Markdown i definisjonen rendres på{" "}
-            <code className="font-mono">/metode</code>.
+            <code className="font-mono">/docs/nokkelord</code>.
           </>
         }
         action={
@@ -166,7 +166,7 @@ export default async function CategoryEditPage({ params, searchParams }: Props) 
               <p className="text-xs text-muted-foreground">
                 Brukes både i Tier 2-prompten (LLM-en leser definisjonen for å
                 klassifisere stillinger) og rendres på den offentlige{" "}
-                <code className="font-mono">/metode</code>-siden.
+                <code className="font-mono">/docs/nokkelord</code>-siden.
               </p>
             </div>
 
@@ -205,7 +205,7 @@ export default async function CategoryEditPage({ params, searchParams }: Props) 
               Mykt slett — slug-en lever videre i{" "}
               <code className="font-mono">nav_postings.llm_categories</code>{" "}
               som audit, men kategorien forsvinner fra Tier 2-prompten og{" "}
-              <code className="font-mono">/metode</code>. Kan ikke angres via
+              <code className="font-mono">/docs/nokkelord</code>. Kan ikke angres via
               UI-en (slug-en kan aldri gjenbrukes).
             </CardDescription>
           </CardHeader>
@@ -227,7 +227,7 @@ export default async function CategoryEditPage({ params, searchParams }: Props) 
               {cat.retired_at ? fmtDateTime(cat.retired_at) : "tidligere"}
             </CardTitle>
             <CardDescription>
-              Skjult fra Tier 2 og <code className="font-mono">/metode</code>.
+              Skjult fra Tier 2 og <code className="font-mono">/docs/nokkelord</code>.
               {postingCount > 0
                 ? ` ${postingCount.toLocaleString("nb-NO")} stilling${postingCount === 1 ? "" : "er"} er fortsatt merket med denne slug-en (audit).`
                 : ""}

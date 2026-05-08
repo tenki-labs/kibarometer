@@ -27,8 +27,11 @@ type ContentRow = {
 
 const PUBLIC_PATH: Record<string, string> = {
   om: "/om",
-  metode: "/metode",
+  docs: "/docs",
   media: "/media",
+  "docs-jobbmarked": "/docs/jobbmarked",
+  "docs-media": "/docs/media",
+  "docs-oppstart": "/docs/oppstart",
 };
 
 type Props = {

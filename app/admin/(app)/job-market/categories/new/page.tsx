@@ -117,7 +117,7 @@ export default async function CategoryNewPage({ searchParams }: Props) {
               />
               <p className="text-xs text-muted-foreground">
                 Brukes i Tier 2-prompten og rendres på{" "}
-                <code className="font-mono">/metode</code>.
+                <code className="font-mono">/docs/nokkelord</code>.
               </p>
             </div>
 

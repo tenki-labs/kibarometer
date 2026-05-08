@@ -269,7 +269,7 @@ export function SkillCategoriesList({ rows, taxonomy }: SkillCategoriesListProps
       rows={ordered.map((r) => ({
         label: titleBySlug.get(r.slug) ?? r.slug,
         value: r.ai_count_30d,
-        href: `/metode#cat-${encodeURIComponent(r.slug)}`,
+        href: `/docs/nokkelord#cat-${encodeURIComponent(r.slug)}`,
         badge:
           r.share_pct !== null
             ? `${r.share_pct.toFixed(1).replace(".", ",")} %`

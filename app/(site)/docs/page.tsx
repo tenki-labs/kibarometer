@@ -1,9 +1,26 @@
-// app/(site)/docs/page.tsx — landing for the /docs section. Three cards,
-// one per pipeline. Hardcoded copy: this page is just a router, not editorial
-// surface, so it does not read from site_content.
+// app/(site)/docs/page.tsx — landing for the /docs section. Three pipeline
+// cards, then an editable "Sammendrag" markdown section sourced from
+// public.site_content (slug = docs), then footer links to /docs/nokkelord
+// and /docs/api.
 
 import Link from "next/link";
 import type { Metadata } from "next";
+
+import { sb } from "@/lib/supabase";
+import { renderMarkdown } from "@/lib/admin/markdown";
+
+type SiteContent = {
+  slug: string;
+  title: string;
+  body_md: string;
+};
+
+const FALLBACK = {
+  title: "Sammendrag",
+  body_md: `Kibarometeret er et uavhengig dashbord som sporer hvordan kunstig intelligens påvirker norsk arbeidsliv, mediebilde og næringsetablering. Tre datapipeliner mater dashboardene: [NAVs stillingsfeed](/docs/jobbmarked), [RSS-feeder fra norske medier](/docs/media), og [Brønnøysundregistrene](/docs/oppstart).
+
+Hver pipeline har sin egen klassifiseringslogikk og kjente begrensninger — klikk på et av kortene over for å lese hvordan den enkelte fungerer.`,
+};
 
 export const metadata: Metadata = {
   title: "Dokumentasjon — Kibarometeret",
@@ -11,6 +28,8 @@ export const metadata: Metadata = {
     "Slik fungerer hver av kibarometerets datapipeliner — fra kilde til dashboard.",
   alternates: { canonical: "/docs" },
 };
+
+export const revalidate = 60;
 
 const PIPELINES = [
   {
@@ -30,7 +49,15 @@ const PIPELINES = [
   },
 ];
 
-export default function DocsIndexPage() {
+export default async function DocsIndexPage() {
+  const rows = await sb<SiteContent[]>(
+    "/site_content?slug=eq.docs&select=slug,title,body_md",
+  ).catch(() => [] as SiteContent[]);
+
+  const row = rows[0];
+  const summaryTitle = row?.title ?? FALLBACK.title;
+  const summaryBody = row?.body_md ?? FALLBACK.body_md;
+
   return (
     <main className="metode">
       <h1 className="title">Dokumentasjon</h1>
@@ -53,9 +80,13 @@ export default function DocsIndexPage() {
         ))}
       </ul>
 
-      <p className="meta" style={{ marginTop: "3rem" }}>
-        For den meta-metodiske diskusjonen om hva «AI-relatert» betyr, se{" "}
-        <Link href="/metode">/metode</Link>.
+      <h2 style={{ marginTop: "2.5rem" }}>{summaryTitle}</h2>
+      {renderMarkdown(summaryBody)}
+
+      <p className="meta" style={{ marginTop: "2.5rem" }}>
+        Se også <Link href="/docs/nokkelord">/docs/nokkelord</Link> for
+        nøkkelordliste, AI-ferdighetskategorier og medie-kilder, og{" "}
+        <Link href="/docs/api">/docs/api</Link> for API- og embed-snippets.
       </p>
     </main>
   );
