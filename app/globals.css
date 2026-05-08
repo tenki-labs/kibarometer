@@ -128,12 +128,22 @@
 }
 
 /* /jobbmarked snap segment: each scroll-snap section fills the viewport
-   below the sticky h-14 site nav. Mobile-first (no snap), desktop adds
-   snap via Tailwind sm: utilities applied alongside this class. */
+   below the sticky h-14 site nav. Mobile-first (no snap, segments grow
+   with content); desktop pins height + clips overflow so snap-mandatory
+   has a hard ceiling and any content that exceeds it must scroll
+   internally via its own overflow-auto wrapper. */
 .snap-segment {
   display: flex;
   flex-direction: column;
   min-height: calc(100svh - 3.5rem);
+}
+
+@media (min-width: 640px) {
+  .snap-segment {
+    height: calc(100svh - 3.5rem);
+    min-height: 0;
+    overflow: hidden;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

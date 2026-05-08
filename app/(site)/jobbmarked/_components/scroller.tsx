@@ -168,7 +168,6 @@ export function Scroller({
         flex flex-col
         sm:h-[calc(100svh-3.5rem)] sm:overflow-y-scroll
         sm:snap-y sm:snap-mandatory
-        sm:scroll-pt-14
       "
     >
       <section className="snap-segment sm:snap-start sm:snap-always">
@@ -225,7 +224,9 @@ export function Scroller({
           <h2 className="text-lg font-medium tracking-tight sm:text-xl">
             Mest brukte AI-nøkkelord siste 30 dager
           </h2>
-          <KeywordList rows={keywords} />
+          <div className="min-h-0 flex-1 overflow-auto">
+            <KeywordList rows={keywords} />
+          </div>
         </div>
       </section>
 
