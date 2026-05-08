@@ -46,7 +46,6 @@ export default async function OmPage() {
 
   return (
     <main className="metode">
-      <span className="eyebrow">· Om</span>
       <h1 className="title">{title}</h1>
       {renderMarkdown(body)}
     </main>

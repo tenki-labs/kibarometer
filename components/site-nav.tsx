@@ -39,6 +39,11 @@ const NAV_ITEMS: NavItem[] = [
     description: "Hvordan vi måler",
   },
   {
+    href: "/docs",
+    label: "Dokumentasjon",
+    description: "Slik fungerer hver pipeline",
+  },
+  {
     href: "/om",
     label: "Om",
     description: "Bak prosjektet",
