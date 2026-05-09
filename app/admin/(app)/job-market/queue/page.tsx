@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/table";
 import { Flash } from "@/app/admin/_components/flash";
 import { PageHeader } from "@/app/admin/_components/page-header";
+import { StatCard } from "@/app/admin/_components/stat-card";
 import { SubmitButton } from "@/app/admin/_components/submit-button";
 import { fmtDateTime } from "@/lib/admin/flash";
 import { sbFetch } from "@/lib/admin/sb";
@@ -125,27 +126,35 @@ export default async function NavQueuePage({ searchParams }: Props) {
         description="Pågående pipeline-trinn for NAV. Cron drainer normaltilstand — disse tellingene skal trende mot null mellom kjøringer. Operasjoner-kortet under er escape hatches."
       />
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-        <StageCard label="Berikelse" count={enrichCount} hint="Cron hvert 15. min" />
-        <StageCard label="Klassifisering T1" count={t1Count} hint="Cron hvert 15. min" />
-        <StageCard label="Klassifisering T2" count={t2Count} hint="Cron hvert 15. min" />
-        <Card className="gap-2">
-          <CardContent className="pt-4">
-            <div className="font-mono text-[0.7rem] uppercase tracking-[0.14em] text-muted-foreground">
-              Kandidater
-            </div>
-            <div className="mt-1 text-2xl font-medium tabular-nums">
-              {candidatesCount.toLocaleString("nb-NO")}
-            </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          label="Berikelse"
+          value={enrichCount.toLocaleString("nb-NO")}
+          hint="Cron hvert 15. min"
+        />
+        <StatCard
+          label="Klassifisering T1"
+          value={t1Count.toLocaleString("nb-NO")}
+          hint="Cron hvert 15. min"
+        />
+        <StatCard
+          label="Klassifisering T2"
+          value={t2Count.toLocaleString("nb-NO")}
+          hint="Cron hvert 15. min"
+        />
+        <StatCard
+          label="Kandidater"
+          value={candidatesCount.toLocaleString("nb-NO")}
+          hint={
             <Link
               href="/admin/keywords/candidates"
-              className="mt-1 inline-flex items-center gap-1 text-xs text-foreground hover:opacity-80"
+              className="inline-flex items-center gap-1 text-foreground hover:opacity-80"
             >
               Gå til kandidater
               <ArrowRight className="size-3.5" />
             </Link>
-          </CardContent>
-        </Card>
+          }
+        />
       </div>
 
       <Card className="mt-6 gap-3">
@@ -225,30 +234,6 @@ export default async function NavQueuePage({ searchParams }: Props) {
         emptyLabel="Ingen rader venter på Tier 2-klassifisering."
       />
     </>
-  );
-}
-
-function StageCard({
-  label,
-  count,
-  hint,
-}: {
-  label: string;
-  count: number;
-  hint: string;
-}) {
-  return (
-    <Card className="gap-2">
-      <CardContent className="pt-4">
-        <div className="font-mono text-[0.7rem] uppercase tracking-[0.14em] text-muted-foreground">
-          {label}
-        </div>
-        <div className="mt-1 text-2xl font-medium tabular-nums">
-          {count.toLocaleString("nb-NO")}
-        </div>
-        <div className="mt-1 text-xs text-muted-foreground">{hint}</div>
-      </CardContent>
-    </Card>
   );
 }
 

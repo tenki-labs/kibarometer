@@ -274,11 +274,10 @@ export async function backfillAction() {
   );
 }
 
-// Brreg-only snapshot refresh. Mirror of media's refreshSnapshotsAction
-// — operators may want to re-snapshot just brreg after a re-tag or a
-// taxonomy change without paying the cost of re-running NAV + media
-// snapshots too. Cross-domain "Refresh snapshots (alle)" still lives
-// on /admin/processes.
+// Brreg-only snapshot refresh. Operators may want to re-snapshot just
+// brreg after a re-tag or taxonomy change without paying the cost of
+// re-running NAV + media snapshots too. Cross-domain "Refresh snapshots
+// (alle)" still lives on /admin/processes.
 export async function refreshSnapshotsAction() {
   try {
     await sbFetch("/rpc/refresh_all_brreg_snapshots", {
