@@ -77,6 +77,7 @@ export async function runMediaTier1(args: {
   const candidates = await sb<Article[]>(
     `/media_articles?is_ai_related=is.true&tier1_completed_at=is.null` +
       `&deleted_at=is.null&llm_retry_count=lt.${RETRY_LIMIT}` +
+      `&ingest_mode=eq.live` +
       `&select=id,headline&order=created_at.desc&limit=${k}`,
     { service: true },
   );

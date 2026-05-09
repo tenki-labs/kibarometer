@@ -98,6 +98,7 @@ describe("buildArticleRow", () => {
       extracted,
       matchers,
       discoveredAt: "2026-04-15T09:00:00Z",
+      ingestMode: "live",
     });
 
     expect(row.url).toBe("https://digi.no/article/123");
@@ -113,6 +114,7 @@ describe("buildArticleRow", () => {
     expect(row.wire_cluster_id).toBeNull();
     expect(row.last_seen_at).toBe("2026-04-15T09:00:00Z");
     expect(row.published_at).toBe("2026-04-15T08:00:00Z");
+    expect(row.ingest_mode).toBe("live");
   });
 
   it("sets is_ai_related=false and match_method=null when nothing matches", () => {
@@ -135,6 +137,7 @@ describe("buildArticleRow", () => {
       sourceId: "22222222-2222-2222-2222-222222222222",
       extracted,
       matchers,
+      ingestMode: "live",
     });
     expect(row.is_ai_related).toBe(false);
     expect(row.matched_keywords).toEqual([]);
@@ -153,6 +156,7 @@ describe("buildArticleRow", () => {
       sourceId: "33333333-3333-3333-3333-333333333333",
       extracted,
       matchers,
+      ingestMode: "live",
     });
     expect(row.language).toBe("no");
   });

@@ -84,6 +84,7 @@ export async function runDiscover(args: {
 
   const candidates = await sb<Posting[]>(
     `/nav_postings?tier1_completed_at=is.null&llm_retry_count=lt.${RETRY_LIMIT}` +
+      `&ingest_mode=eq.live` +
       `&select=id,title,description&order=posted_at.desc&limit=${K_PER_TICK}`,
     { service: true },
   );
