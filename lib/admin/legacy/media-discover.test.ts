@@ -236,4 +236,74 @@ describe("runDiscover", () => {
     expect(r.enqueued).toBe(0);
     expect(r.errors[0]?.error).toBe("robots_disallow");
   });
+
+  it("bails between sources when maxWallMs is exceeded", async () => {
+    const { sb } = makeSb([
+      {
+        path: /^\/media_sources\?is_active=eq\.true/,
+        reply: [
+          {
+            id: "11111111-1111-1111-1111-111111111111",
+            name: "First",
+            domain: "first.example.no",
+            rss_url: "https://first.example.no/rss",
+            crawl_delay_ms: 0,
+          },
+          {
+            id: "22222222-2222-2222-2222-222222222222",
+            name: "Second",
+            domain: "second.example.no",
+            rss_url: "https://second.example.no/rss",
+            crawl_delay_ms: 0,
+          },
+        ],
+      },
+      { path: /^\/keywords\?/, reply: [] },
+      { path: /^\/jobs$/, reply: [{ id: "job-1" }] },
+      { path: /^\/media_url_queue$/, reply: [] },
+    ]);
+
+    // Fetcher records every URL it sees so we can prove the second source
+    // was never asked for. The first source returns an empty feed so it
+    // completes quickly; the wall-time check happens at the top of the
+    // next iteration.
+    const seen: string[] = [];
+    const fetcher = async (url: string) => {
+      seen.push(url);
+      if (url.endsWith("/robots.txt")) {
+        return new Response("", { status: 404 });
+      }
+      return new Response("<rss><channel></channel></rss>", {
+        status: 200,
+        headers: { "content-type": "application/rss+xml" },
+      });
+    };
+
+    // The orchestrator calls now() at startMs (returns 0), then again at
+    // the top of each loop iteration. Pinning the second reading at 10
+    // (still < maxWallMs=50) lets the first source through; the third
+    // reading jumps to 100 so the second iteration check trips and the
+    // second source is never fetched.
+    const ts = [0, 10, 100];
+    let i = 0;
+    const now = () => ts[Math.min(i++, ts.length - 1)];
+
+    const r: any = await (runDiscover as any)({
+      sb,
+      fetcher,
+      now,
+      maxWallMs: 50,
+      trigger: "manual",
+    });
+
+    expect(r.status).toBe("success");
+    // Only the first source was contacted (robots.txt + rss). The second
+    // source's domain must never appear in the recorded fetches.
+    expect(seen.some((u) => u.startsWith("https://first.example.no/"))).toBe(
+      true,
+    );
+    expect(seen.some((u) => u.startsWith("https://second.example.no/"))).toBe(
+      false,
+    );
+  });
 });
