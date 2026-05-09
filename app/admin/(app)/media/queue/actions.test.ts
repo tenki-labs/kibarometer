@@ -63,10 +63,12 @@ describe("runDiscoverAction", () => {
   it("flashes sources/enqueued/skipped counts on success", async () => {
     runDiscoverSpy.mockResolvedValue({
       status: "success",
+      job_id: "test-job-1",
       sources: 2,
       items_seen: 30,
       items_matched: 5,
       enqueued: 3,
+      errors: [],
     });
 
     // The action always finishes by calling redirect(), which our mock
@@ -87,10 +89,12 @@ describe("runDiscoverAction", () => {
   it("omits the skipped clause when items_seen === items_matched", async () => {
     runDiscoverSpy.mockResolvedValue({
       status: "success",
+      job_id: "test-job-2",
       sources: 1,
       items_seen: 4,
       items_matched: 4,
       enqueued: 4,
+      errors: [],
     });
 
     await expect(runDiscoverAction()).rejects.toThrow();
@@ -105,6 +109,7 @@ describe("runDiscoverAction", () => {
     runDiscoverSpy.mockResolvedValue({
       status: "noop",
       reason: "no_active_rss_sources",
+      job_id: "test-job-3",
     });
 
     await expect(runDiscoverAction()).rejects.toThrow();
