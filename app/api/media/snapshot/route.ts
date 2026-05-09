@@ -75,7 +75,6 @@ export async function GET() {
           date: latest.date,
           value: latest.index_value,
           window: "7d",
-          article_count: latest.article_count_7d,
           ai_article_count: latest.ai_article_count_7d,
           categories_above_water: latest.categories_above_water,
           categories_below_water: latest.categories_below_water,
