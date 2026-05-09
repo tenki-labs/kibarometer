@@ -91,7 +91,7 @@ export default async function MediaQueuePage({ searchParams }: Props) {
       { service: true, headers: { Prefer: "count=exact" } },
     ).catch(() => null),
     sbFetch<CountRow[] | { count: number }>(
-      `/media_articles?deleted_at=is.null&is_ai_related=is.true&tier1_completed_at=is.null&select=count`,
+      `/media_articles?deleted_at=is.null&is_ai_related=is.true&tier1_completed_at=is.null&ingest_mode=eq.live&select=count`,
       { service: true, headers: { Prefer: "count=exact" } },
     ).catch(() => null),
     sbFetch<CountRow[] | { count: number }>(

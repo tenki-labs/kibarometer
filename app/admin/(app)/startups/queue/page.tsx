@@ -96,7 +96,7 @@ export default async function QueuePage({ searchParams }: Props) {
     countRows("brreg_url_queue", "status=eq.failed"),
     countRows(
       "brreg_companies",
-      "is_ai_relevant=is.true&tier1_completed_at=is.null&llm_retry_count=lt.3",
+      "is_ai_relevant=is.true&tier1_completed_at=is.null&llm_retry_count=lt.3&ingest_mode=eq.live",
     ),
     countRows(
       "brreg_companies",
