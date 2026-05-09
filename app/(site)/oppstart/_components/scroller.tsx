@@ -6,8 +6,17 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { StackedBarChart } from "@/app/(site)/_components/stacked-bar-chart";
 import type { Series } from "@/app/(site)/_components/stacked-area-chart";
 import { TimeRangeToggle } from "@/app/(site)/_components/time-range-toggle";
-import { NorwayMap } from "@/app/(site)/jobbmarked/_components/norway-map";
+import {
+  NorwayMap,
+  type NorwayMapUnit,
+} from "@/app/(site)/jobbmarked/_components/norway-map";
 import type { NorwayFylkePath } from "@/lib/norway-paths";
+
+const MAP_UNIT: NorwayMapUnit = {
+  ariaLabel: "Kart over nye AI-relevante foretak per fylke",
+  itemNoun: "AI-relevante foretak",
+  shareNoun: "AI-foretakene",
+};
 import type {
   BrregSnapshotDaily,
   BrregSnapshotFounderAgeYearly,
@@ -257,7 +266,12 @@ export function Scroller({
             Siste 30 dager. Kartet farges etter AI-andel per fylke.
           </p>
           <div className="min-h-0 flex-1">
-            <NorwayMap geography={geoForMap} paths={norwayPaths} viewBox={norwayViewBox} />
+            <NorwayMap
+              geography={geoForMap}
+              paths={norwayPaths}
+              viewBox={norwayViewBox}
+              unit={MAP_UNIT}
+            />
           </div>
         </div>
       </section>
