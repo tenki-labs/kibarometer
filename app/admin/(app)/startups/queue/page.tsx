@@ -90,6 +90,7 @@ export default async function QueuePage({ searchParams }: Props) {
     fetched,
     failed,
     tier1Pending,
+    tier2Pending,
     oldestPending,
     recentFailed,
     reprocessDrain,
@@ -100,6 +101,10 @@ export default async function QueuePage({ searchParams }: Props) {
     countRowsBrreg(
       "brreg_companies",
       "is_ai_relevant=is.true&tier1_completed_at=is.null&llm_retry_count=lt.3",
+    ),
+    countRowsBrreg(
+      "brreg_companies",
+      "is_ai_relevant=is.true&tier1_completed_at=not.is.null&tier2_completed_at=is.null&llm_retry_count=lt.3",
     ),
     sbFetch<QueueRow[]>(
       "/brreg_url_queue?status=eq.pending&order=enqueued_at.asc&limit=10&select=orgnr,status,enqueued_at,attempts,last_error",
@@ -204,8 +209,13 @@ export default async function QueuePage({ searchParams }: Props) {
               </SubmitButton>
             </form>
             <form action={runTier2Action}>
-              <SubmitButton variant="outline" size="sm" pendingLabel="Starter…">
-                Kjør Tier 2
+              <SubmitButton
+                variant="outline"
+                size="sm"
+                pendingLabel="Starter…"
+                disabled={tier2Pending === 0}
+              >
+                Kjør Tier 2 ({tier2Pending.toLocaleString("nb-NO")})
               </SubmitButton>
             </form>
             <form action={refreshSnapshotsAction}>

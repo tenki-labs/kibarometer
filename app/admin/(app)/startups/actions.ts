@@ -203,6 +203,10 @@ export async function runTier1Action() {
   );
 }
 
+// Tier 2 burst — K=20, 4-min wall budget (mirror of media's
+// burstTier2Action). The default-K=4 still applies to the cron
+// schedule; this UI button is sized for an operator who wants to drain
+// a backlog after a re-tag or taxonomy change, not nibble at it.
 export async function runTier2Action() {
   const skip = await llmPreflight("tier2");
   if (skip) {
@@ -210,14 +214,19 @@ export async function runTier2Action() {
   }
   after(async () => {
     try {
-      await runBrregTier2({ sb: sbFetch, trigger: "manual" });
+      await runBrregTier2({
+        sb: sbFetch,
+        trigger: "manual",
+        k: 20,
+        wallTimeMs: 4 * 60_000,
+      });
     } catch {
       // runBrregTier2 writes its own failure PATCH to the jobs row.
     }
   });
   redirect(
     `/admin/startups${flashQs({
-      ok: "Tier 2-batch startet — følg progresjon på /admin/processes.",
+      ok: "Tier 2-burst startet — følg progresjon på /admin/processes.",
     })}`,
   );
 }

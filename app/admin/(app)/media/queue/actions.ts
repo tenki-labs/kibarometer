@@ -8,6 +8,7 @@ import { sbFetch } from "@/lib/admin/sb";
 import { runMediaTier1 } from "@/lib/admin/llm-media-tier1";
 import { runMediaTier2 } from "@/lib/admin/llm-media-tier2";
 import { runFetchClassify } from "@/lib/admin/legacy/media-fetch-classify.js";
+import { runDiscover } from "@/lib/admin/legacy/media-discover.js";
 
 const LIST = "/admin/media/queue";
 
@@ -26,6 +27,44 @@ const SKIP_LABEL: Record<string, string> = {
 // Pipelinedybde card — same orchestrators, different surface. Operators
 // who land on the queue page after a backfill drain can flush the queue
 // without bouncing back to the hub.
+
+// Pull every active RSS feed once. Same orchestrator the cron runs at
+// :02,:17,:32,:47 — the button just lets an operator force a tick after
+// flipping a source active or after a feed glitch. Sync await: discover
+// is fast (~5-30 s for the seeded sources) and the operator wants to
+// see how many new URLs landed in the queue.
+export async function runDiscoverAction() {
+  try {
+    const r = (await runDiscover({
+      sb: sbFetch,
+      trigger: "manual",
+    })) as {
+      status: string;
+      reason?: string;
+      sources?: number;
+      items_seen?: number;
+      items_matched?: number;
+      enqueued?: number;
+    };
+    if (r.status === "noop") {
+      redirect(
+        `${LIST}${flashQs({ ok: `Discover hoppet over: ${r.reason ?? "ingen kilder"}` })}`,
+      );
+    }
+    const seen = r.items_seen ?? 0;
+    const matched = r.items_matched ?? 0;
+    const skipped = Math.max(0, seen - matched);
+    const parts = [
+      `Discover: ${r.sources ?? 0} kilder sjekket`,
+      r.enqueued != null ? `${r.enqueued} URL-er lagt i kø` : null,
+      skipped > 0 ? `${skipped} hoppet over (keyword-filter)` : null,
+    ].filter(Boolean);
+    redirect(`${LIST}${flashQs({ ok: parts.join(" · ") })}`);
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    redirect(`${LIST}${flashQs({ error: msg(err) })}`);
+  }
+}
 
 export async function burstFetchClassifyAction() {
   try {
