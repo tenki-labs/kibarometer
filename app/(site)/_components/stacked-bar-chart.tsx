@@ -33,6 +33,9 @@ type Props = {
   aiBandValues?: Map<string, number>;
   taxonomy: TaxonomyCategory[];
   variant: Variant;
+  /** When true, each bar is normalised to fill 100 % of the chart height —
+   *  segments show the share of the bucket rather than absolute counts. */
+  normalize?: boolean;
 };
 
 const AI_KEY = "__ai__";
@@ -43,6 +46,7 @@ export function StackedBarChart({
   aiBandValues,
   taxonomy,
   variant,
+  normalize = false,
 }: Props) {
   const visualKeys = useMemo<string[]>(() => {
     if (variant === "occupation" && aiBandValues) {
@@ -127,7 +131,11 @@ export function StackedBarChart({
 
   return (
     <ChartContainer config={chartConfig} className="h-full w-full">
-      <BarChart data={data} margin={{ left: 8, right: 8, top: 8, bottom: 0 }}>
+      <BarChart
+        data={data}
+        margin={{ left: 8, right: 8, top: 8, bottom: 0 }}
+        stackOffset={normalize ? "expand" : undefined}
+      >
         <CartesianGrid vertical={false} strokeDasharray="3 3" />
         <XAxis
           dataKey="date"
@@ -137,7 +145,19 @@ export function StackedBarChart({
           minTickGap={32}
           tickFormatter={formatBucketShort}
         />
-        <YAxis hide />
+        {normalize ? (
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            tickMargin={4}
+            width={36}
+            domain={[0, 1]}
+            ticks={[0, 0.25, 0.5, 0.75, 1]}
+            tickFormatter={(v) => `${Math.round((v as number) * 100)} %`}
+          />
+        ) : (
+          <YAxis hide />
+        )}
         <ChartTooltip
           cursor={false}
           content={

@@ -113,23 +113,25 @@ export function NorwayMap({ geography, paths, viewBox, unit }: Props) {
                   strokeWidth={0.5}
                   strokeLinejoin="round"
                 />
-                <text
-                  x={p.labelX}
-                  y={p.labelY}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  className="fill-foreground"
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 500,
-                    paintOrder: "stroke",
-                    stroke: "white",
-                    strokeWidth: 2.5,
-                    pointerEvents: "none",
-                  }}
-                >
-                  {p.fylke}
-                </text>
+                {data.ai > 0 ? (
+                  <text
+                    x={p.labelX}
+                    y={p.labelY}
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    className="fill-foreground"
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 500,
+                      paintOrder: "stroke",
+                      stroke: "white",
+                      strokeWidth: 2.5,
+                      pointerEvents: "none",
+                    }}
+                  >
+                    {data.ai.toLocaleString("nb-NO")}
+                  </text>
+                ) : null}
               </g>
             );
           })}

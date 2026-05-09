@@ -16,6 +16,7 @@ import {
   StackedAreaChart,
   type Series,
 } from "@/app/(site)/_components/stacked-area-chart";
+import { StackedBarChart } from "@/app/(site)/_components/stacked-bar-chart";
 import {
   TimeRangeToggle,
   type Range,
@@ -225,13 +226,16 @@ export function Scroller({
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
             AI-stillinger klassifisert av en språkmodell etter
-            ferdighetskategori. Én stilling kan tilhøre flere kategorier.
+            ferdighetskategori. Hver søyle viser kategorienes andel av
+            periodens AI-tilordninger — én stilling kan tilhøre flere
+            kategorier, så søylen summerer 100 %.
           </p>
           <div className="min-h-0 flex-1">
-            <StackedAreaChart
+            <StackedBarChart
               series={skillSeries}
               taxonomy={taxonomy}
               variant="skill"
+              normalize
             />
           </div>
         </div>
