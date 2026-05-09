@@ -2,8 +2,8 @@
 
 import { useMemo } from "react";
 import {
-  Area,
-  AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
   XAxis,
   YAxis,
@@ -22,19 +22,14 @@ import { descriptionFor } from "@/lib/occupation-descriptions";
 import type { TaxonomyCategory } from "@/lib/supabase";
 
 import { formatBucket, formatBucketShort } from "./bucket-format";
-
-export type Series = {
-  dates: string[];
-  keys: string[];
-  values: number[][]; // values[bucket][keyIdx]
-};
+import type { Series } from "./stacked-area-chart";
 
 type Variant = "occupation" | "skill";
 
 type Props = {
   series: Series;
   /** Synthetic AI band values keyed by date bucket. Only used when
-   * variant === "occupation" (the AI band layers at the bottom). */
+   * variant === "occupation" (the AI band layers at the bottom of each bar). */
   aiBandValues?: Map<string, number>;
   taxonomy: TaxonomyCategory[];
   variant: Variant;
@@ -43,14 +38,12 @@ type Props = {
 const AI_KEY = "__ai__";
 const AI_LABEL = "AI-stillinger";
 
-export function StackedAreaChart({
+export function StackedBarChart({
   series,
   aiBandValues,
   taxonomy,
   variant,
 }: Props) {
-  // Visual key order: AI band first (bottom of stack) for occupation, taxonomy
-  // sort order for skill, fallback to natural order otherwise.
   const visualKeys = useMemo<string[]>(() => {
     if (variant === "occupation" && aiBandValues) {
       return [AI_KEY, ...series.keys];
@@ -64,8 +57,6 @@ export function StackedAreaChart({
     return series.keys;
   }, [series.keys, variant, taxonomy, aiBandValues]);
 
-  // Pivot values[bucket][keyIdx] into row-of-objects shape Recharts expects:
-  // [{ date: '2026-04-01', __ai__: 12, accountant: 5, ... }, ...]
   const data = useMemo(() => {
     const skillIdxBySlug = new Map(series.keys.map((k, i) => [k, i]));
     return series.dates.map((date, bucketIdx) => {
@@ -95,7 +86,7 @@ export function StackedAreaChart({
 
   function bandDescription(key: string): string | null {
     if (key === AI_KEY) {
-      return "Alle stillinger der NAV-feeden inneholder AI-relaterte nøkkelord. Vises som eget bånd nederst i grafen.";
+      return "Alle stillinger der NAV-feeden inneholder AI-relaterte nøkkelord. Vises som eget bånd nederst i hver søyle.";
     }
     if (variant === "skill") {
       const c = taxonomy.find((t) => t.slug === key);
@@ -106,7 +97,6 @@ export function StackedAreaChart({
 
   function colorForKey(key: string, idx: number): string {
     if (key === AI_KEY) return AI_COLOR;
-    // chart-1..12 rotation
     const slot = (idx % 12) + 1;
     return `var(--chart-${slot})`;
   }
@@ -131,9 +121,13 @@ export function StackedAreaChart({
     );
   }
 
+  // Round only the topmost bar's top corners. The topmost is the last
+  // entry in visualKeys (Recharts stacks in array order from bottom up).
+  const topKey = visualKeys[visualKeys.length - 1];
+
   return (
     <ChartContainer config={chartConfig} className="h-full w-full">
-      <AreaChart data={data} margin={{ left: 8, right: 8, top: 8, bottom: 0 }}>
+      <BarChart data={data} margin={{ left: 8, right: 8, top: 8, bottom: 0 }}>
         <CartesianGrid vertical={false} strokeDasharray="3 3" />
         <XAxis
           dataKey="date"
@@ -149,14 +143,32 @@ export function StackedAreaChart({
           content={
             <ChartTooltipContent
               indicator="dot"
-              labelFormatter={(value) =>
-                typeof value === "string" ? formatBucket(value) : String(value)
-              }
+              labelFormatter={(value, payload) => {
+                const dateLabel =
+                  typeof value === "string"
+                    ? formatBucket(value)
+                    : String(value);
+                const p = payload?.[0]?.payload as
+                  | Record<string, number>
+                  | undefined;
+                if (!p) return dateLabel;
+                let total = 0;
+                for (const k of visualKeys) total += Number(p[k] ?? 0);
+                const aiVolume = Number(p[AI_KEY] ?? 0);
+                const aiShare = total > 0 ? aiVolume / total : 0;
+                if (!aiBandValues || total === 0) return dateLabel;
+                return `${dateLabel} · AI-andel ${(aiShare * 100)
+                  .toFixed(1)
+                  .replace(".", ",")} %`;
+              }}
               formatter={(value, name, item) => {
                 const key = String(name);
-                const numeric = typeof value === "number" ? value : Number(value) || 0;
+                const numeric =
+                  typeof value === "number" ? value : Number(value) || 0;
                 const total = (() => {
-                  const p = item.payload as Record<string, number> | undefined;
+                  const p = item.payload as
+                    | Record<string, number>
+                    | undefined;
                   if (!p) return 0;
                   let sum = 0;
                   for (const k of visualKeys) sum += Number(p[k] ?? 0);
@@ -175,7 +187,7 @@ export function StackedAreaChart({
                       </span>
                     </div>
                     <span className="font-mono text-[0.65rem] uppercase tracking-[0.16em] text-muted-foreground">
-                      {(share * 100).toFixed(1).replace(".", ",")} % av dagen
+                      {(share * 100).toFixed(1).replace(".", ",")} % av perioden
                     </span>
                     {desc ? (
                       <p className="mt-1 max-w-[18rem] text-[0.7rem] leading-snug text-muted-foreground">
@@ -190,18 +202,16 @@ export function StackedAreaChart({
         />
         <ChartLegend content={<ChartLegendContent />} />
         {visualKeys.map((key) => (
-          <Area
+          <Bar
             key={key}
             dataKey={key}
-            type="monotone"
             stackId="a"
-            stroke={`var(--color-${key})`}
             fill={`var(--color-${key})`}
-            fillOpacity={0.7}
+            radius={key === topKey ? [4, 4, 0, 0] : [0, 0, 0, 0]}
             isAnimationActive={false}
           />
         ))}
-      </AreaChart>
+      </BarChart>
     </ChartContainer>
   );
 }

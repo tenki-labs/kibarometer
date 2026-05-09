@@ -8,11 +8,10 @@
 // (NAV's full drain, brreg's full registry load — both now called
 // Backfill rather than mixing Bootstrap and Backfill).
 //
-// Streams brreg's daily JSON dump (~200 MB compressed). The legacy
-// floor-date filter (app_settings.brreg_bootstrap_floor_date) was
-// deprecated in migration 0033 — backfill now loads the full registry
-// by default. The ?floor=YYYY-MM-DD query param still works for
-// callers who want a one-off filter (e.g. CI testing), but no UI
+// Streams brreg's daily JSON dump (~200 MB compressed). Floors at
+// app_settings.brreg_bootstrap_floor_date (2018-01-01 by default per
+// migration 0047). The ?floor=YYYY-MM-DD query param still works for
+// callers who want a one-off override (e.g. CI testing), but no UI
 // surfaces it anymore.
 // Idempotent on orgnr; safe to re-run.
 

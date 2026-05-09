@@ -47,7 +47,10 @@ export default async function OppstartPage() {
       "/brreg_snapshot_headline?order=computed_for.desc&limit=1",
     ),
     sb<BrregSnapshotDaily[]>(
-      "/brreg_snapshot_daily?order=registrert_dato.asc",
+      "/brreg_snapshot_daily" +
+        "?registrert_dato=gte.2018-01-01" +
+        "&order=registrert_dato.asc" +
+        "&limit=200000",
     ),
     sb<BrregSnapshotCohort[]>(
       "/brreg_snapshot_cohort?order=cohort_quarter.asc",
