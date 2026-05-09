@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -46,8 +47,25 @@ const KIBAROMETRE: Kibarometer[] = [
 ];
 
 export function SiteNav() {
+  const [mobileOpen, setMobileOpen] = React.useState(false);
+  const [desktopValue, setDesktopValue] = React.useState("");
+
+  // Close menus when crossing the sm breakpoint. Without this, an open Portal
+  // anchored to a now-`display: none` trigger snaps to (0, 0) — Radix reads
+  // a zeroed getBoundingClientRect from the hidden trigger.
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mql = window.matchMedia("(min-width: 640px)");
+    const handler = (e: MediaQueryListEvent) => {
+      if (e.matches) setMobileOpen(false);
+      else setDesktopValue("");
+    };
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, []);
+
   return (
-    <header className="sticky top-0 z-30">
+    <header className="sticky top-0 z-30 bg-background">
       <div className="flex h-14 w-full items-center justify-between px-4 sm:px-6">
         {/* Left: brand mark + Tenki Labs attribution */}
         <div className="flex items-center gap-3">
@@ -60,7 +78,7 @@ export function SiteNav() {
                     "font-mono text-sm font-medium uppercase tracking-[0.18em] hover:bg-transparent focus:bg-transparent data-[active=true]:bg-transparent",
                   )}
                 >
-                  <Link href="/">KIBAROMETER</Link>
+                  <Link href="/">KI BAROMETERET</Link>
                 </NavigationMenuLink>
               </NavigationMenuItem>
             </NavigationMenuList>
@@ -84,9 +102,11 @@ export function SiteNav() {
           viewport={false}
           delayDuration={150}
           skipDelayDuration={0}
+          value={desktopValue}
+          onValueChange={setDesktopValue}
         >
           <NavigationMenuList>
-            <NavigationMenuItem>
+            <NavigationMenuItem value="kibarometre">
               <NavigationMenuTrigger className="font-mono text-xs uppercase tracking-[0.14em]">
                 Kibarometre
               </NavigationMenuTrigger>
@@ -137,7 +157,7 @@ export function SiteNav() {
         </NavigationMenu>
 
         {/* Right: mobile burger (DropdownMenu) */}
-        <DropdownMenu>
+        <DropdownMenu open={mobileOpen} onOpenChange={setMobileOpen}>
           <DropdownMenuTrigger asChild className="sm:hidden">
             <Button
               variant="ghost"

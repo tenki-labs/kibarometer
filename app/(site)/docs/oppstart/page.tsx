@@ -6,6 +6,14 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import { sb } from "@/lib/supabase";
 import { renderMarkdown } from "@/lib/admin/markdown";
 
@@ -50,6 +58,26 @@ export default async function DocsOppstartPage() {
 
   return (
     <main className="metode">
+      <Breadcrumb className="mb-6">
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <Link href="/">Hjem</Link>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <Link href="/docs">Dokumentasjon</Link>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>Oppstart</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
       <h1 className="title">{title}</h1>
 
       {renderMarkdown(body)}
@@ -134,10 +162,6 @@ export default async function DocsOppstartPage() {
           </tbody>
         </table>
       </details>
-
-      <p className="meta" style={{ marginTop: "2.5rem" }}>
-        <Link href="/oppstart">← Tilbake til Oppstart</Link>
-      </p>
     </main>
   );
 }

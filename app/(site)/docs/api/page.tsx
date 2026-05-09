@@ -5,6 +5,15 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
+
 export const metadata: Metadata = {
   title: "API + embed — Dokumentasjon",
   description:
@@ -23,6 +32,26 @@ const EMBED_SNIPPETS = `<iframe src="https://kibarometer.no/embed/headline"
 export default function ApiDocsPage() {
   return (
     <main className="metode">
+      <Breadcrumb className="mb-6">
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <Link href="/">Hjem</Link>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <Link href="/docs">Dokumentasjon</Link>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>API</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
       <h1 className="title">API + embed</h1>
 
       <h2>JSON-snapshots</h2>
@@ -60,9 +89,6 @@ export default function ApiDocsPage() {
         {EMBED_SNIPPETS}
       </pre>
 
-      <p className="meta" style={{ marginTop: "2.5rem" }}>
-        <Link href="/docs">← Tilbake til Dokumentasjon</Link>
-      </p>
     </main>
   );
 }

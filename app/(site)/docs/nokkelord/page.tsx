@@ -11,6 +11,14 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
+import {
   sb,
   type Keyword,
   type TaxonomyCategory,
@@ -85,6 +93,26 @@ export default async function NokkelordPage() {
 
   return (
     <main className="metode">
+      <Breadcrumb className="mb-6">
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <Link href="/">Hjem</Link>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <Link href="/docs">Dokumentasjon</Link>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>Nøkkelord</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
       <h1 className="title">Nøkkelord, kategorier og kilder</h1>
       <p>
         Levende lister fra kibarometerets klassifiserings-pipeliner. Disse
@@ -199,9 +227,6 @@ export default async function NokkelordPage() {
         </>
       )}
 
-      <p className="meta" style={{ marginTop: "2.5rem" }}>
-        <Link href="/docs">← Tilbake til Dokumentasjon</Link>
-      </p>
     </main>
   );
 }
