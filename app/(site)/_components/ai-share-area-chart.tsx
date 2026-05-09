@@ -27,11 +27,13 @@ export type AIShareBucket = {
 
 type Props = {
   buckets: AIShareBucket[];
+  /** Unit shown in the tooltip footer ("av N stillinger" / "av N foretak"). */
+  unitLabel?: string;
 };
 
 const SHARE_KEY = "share";
 
-export function AIShareAreaChart({ buckets }: Props) {
+export function AIShareAreaChart({ buckets, unitLabel = "stillinger" }: Props) {
   const data = useMemo(
     () =>
       buckets
@@ -108,7 +110,7 @@ export function AIShareAreaChart({ buckets }: Props) {
                     </div>
                     <span className="font-mono text-[0.65rem] uppercase tracking-[0.16em] text-muted-foreground">
                       {p.aiCount.toLocaleString("nb-NO")} av{" "}
-                      {p.totalCount.toLocaleString("nb-NO")} stillinger
+                      {p.totalCount.toLocaleString("nb-NO")} {unitLabel}
                     </span>
                   </div>
                 );
