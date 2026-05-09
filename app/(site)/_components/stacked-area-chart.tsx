@@ -38,6 +38,9 @@ type Props = {
   aiBandValues?: Map<string, number>;
   taxonomy: TaxonomyCategory[];
   variant: Variant;
+  /** When true, each bucket is normalised to fill 100 % of the chart height —
+   *  bands show the share of the bucket rather than absolute counts. */
+  normalize?: boolean;
 };
 
 const AI_KEY = "__ai__";
@@ -48,6 +51,7 @@ export function StackedAreaChart({
   aiBandValues,
   taxonomy,
   variant,
+  normalize = false,
 }: Props) {
   // Visual key order: AI band first (bottom of stack) for occupation, taxonomy
   // sort order for skill, fallback to natural order otherwise.
@@ -133,7 +137,11 @@ export function StackedAreaChart({
 
   return (
     <ChartContainer config={chartConfig} className="h-full w-full">
-      <AreaChart data={data} margin={{ left: 8, right: 8, top: 8, bottom: 0 }}>
+      <AreaChart
+        data={data}
+        margin={{ left: 8, right: 8, top: 8, bottom: 0 }}
+        stackOffset={normalize ? "expand" : undefined}
+      >
         <CartesianGrid vertical={false} strokeDasharray="3 3" />
         <XAxis
           dataKey="date"
@@ -143,7 +151,19 @@ export function StackedAreaChart({
           minTickGap={32}
           tickFormatter={formatBucketShort}
         />
-        <YAxis hide />
+        {normalize ? (
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            tickMargin={4}
+            width={36}
+            domain={[0, 1]}
+            ticks={[0, 0.25, 0.5, 0.75, 1]}
+            tickFormatter={(v) => `${Math.round((v as number) * 100)} %`}
+          />
+        ) : (
+          <YAxis hide />
+        )}
         <ChartTooltip
           cursor={false}
           content={
