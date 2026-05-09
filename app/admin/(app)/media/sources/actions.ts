@@ -211,15 +211,44 @@ export async function backfillSourceAction(id: string) {
         ok:
           `Backfill ${result.domain}: ${result.urls_found} URL-er funnet, ` +
           `${result.enqueued} nye i kø` +
-          (result.stopped && result.stopped !== "completed"
-            ? ` (stoppet: ${result.stopped})`
-            : ""),
+          backfillFlashSuffix(result),
       })}`,
     );
   } catch (err) {
     if (isRedirect(err)) throw err;
     redirect(`${LIST}${flashQs({ error: msg(err) })}`);
   }
+}
+
+// When urls_found is 0, the default "Backfill X: 0 URL-er funnet" reads
+// like a successful no-op even when the adapter actually misbehaved.
+// Append whatever signal we have (stopped reason, scrapegraph result
+// shape, off-domain drop count) so the operator can tell apart "search
+// returned nothing" from "search returned things our parser dropped".
+// Full metadata still lives on /admin/processes/{job_id}.
+function backfillFlashSuffix(result: {
+  urls_found?: number;
+  stopped?: string;
+  result_shapes?: unknown;
+  dropped_off_domain?: number;
+}): string {
+  const bits: string[] = [];
+  if (result.stopped && result.stopped !== "completed") {
+    bits.push(`stoppet: ${result.stopped}`);
+  }
+  if ((result.urls_found ?? 0) === 0) {
+    if (Array.isArray(result.result_shapes) && result.result_shapes.length > 0) {
+      const shapes = (result.result_shapes as unknown[])
+        .map((s) => String(s))
+        .slice(0, 3)
+        .join(" | ");
+      bits.push(`resultat-form: ${shapes}`);
+    }
+    if (typeof result.dropped_off_domain === "number" && result.dropped_off_domain > 0) {
+      bits.push(`${result.dropped_off_domain} forkastet utenfor domenet`);
+    }
+  }
+  return bits.length > 0 ? ` (${bits.join("; ")})` : "";
 }
 
 // Dry-run: fetch the source's RSS once and parse it, OR fetch a sample URL
