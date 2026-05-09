@@ -30,6 +30,7 @@ import {
   burstTier2Action,
   discardOldFailedAction,
   retryQueueAction,
+  runDiscoverAction,
 } from "./actions";
 import {
   refreshSnapshotsAction,
@@ -181,6 +182,11 @@ export default async function MediaQueuePage({ searchParams }: Props) {
           <form action={reprocessKeywordsAction}>
             <SubmitButton variant="outline" size="sm" pendingLabel="Starter…">
               Keyword-mapping
+            </SubmitButton>
+          </form>
+          <form action={runDiscoverAction}>
+            <SubmitButton variant="outline" size="sm" pendingLabel="Henter…">
+              Hent fra RSS
             </SubmitButton>
           </form>
           <form action={burstFetchClassifyAction}>
