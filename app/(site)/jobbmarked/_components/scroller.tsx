@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 import type {
   SnapshotCategoryDaily,
@@ -13,10 +13,13 @@ import type {
 } from "@/lib/supabase";
 
 import {
+  AIShareAreaChart,
+  type AIShareBucket,
+} from "@/app/(site)/_components/ai-share-area-chart";
+import {
   StackedAreaChart,
   type Series,
 } from "@/app/(site)/_components/stacked-area-chart";
-import { StackedBarChart } from "@/app/(site)/_components/stacked-bar-chart";
 import {
   TimeRangeToggle,
   type Range,
@@ -122,18 +125,24 @@ export function Scroller({
   norwayPaths,
   norwayViewBox,
 }: Props) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const initialRange = parseRange(searchParams.get("range"));
   const [range, setRange] = useState<Range>(initialRange);
 
+  // Sync the URL via history.replaceState rather than Next.js router.replace
+  // so the snap-scroll container's scroll position is never perturbed — the
+  // router path can interact subtly with the segment layout and bounce the
+  // user back to the hero on each click.
   function onRangeChange(next: Range) {
     setRange(next);
     const params = new URLSearchParams(searchParams.toString());
     if (next === "1m") params.delete("range");
     else params.set("range", next);
     const qs = params.toString();
-    router.replace(qs ? `/jobbmarked?${qs}` : "/jobbmarked", { scroll: false });
+    const url = qs ? `/jobbmarked?${qs}` : "/jobbmarked";
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", url);
+    }
   }
 
   // Reference "now" derived from the data — the latest posted_on across the
@@ -152,31 +161,32 @@ export function Scroller({
     return latest || 0;
   }, [categoryDaily, skillCategoryDaily]);
 
-  const occupationSeries = useMemo(
-    () => buildSeries(categoryDaily, range, (r) => r.category, "total", nowMs),
-    [categoryDaily, range, nowMs],
-  );
-
   const skillSeries = useMemo(
     () => buildSeries(skillCategoryDaily, range, (r) => r.slug, "ai", nowMs),
     [skillCategoryDaily, range, nowMs],
   );
 
-  // Build a synthetic "AI" band layered at the bottom of segment 2: its values
-  // are the per-bucket sum of ai_count across all categories.
-  const aiBandValues = useMemo(() => {
+  // Per-bucket (ai_count, total_count) for segment 2's AI-share area chart.
+  // Sums ai_count and total_count across all categories within each bucket so
+  // the chart can render the AI share as ai/total over time.
+  const aiShareBuckets = useMemo<AIShareBucket[]>(() => {
     const cutoffDays = rangeToCutoffDays(range);
     const monthly = shouldBucketMonthly(range);
-    const cutoffMs = cutoffDays === null ? -Infinity : nowMs - cutoffDays * 86_400_000;
-    const buckets = new Map<string, number>();
+    const cutoffMs =
+      cutoffDays === null ? -Infinity : nowMs - cutoffDays * 86_400_000;
+    const buckets = new Map<string, { ai: number; total: number }>();
     for (const row of categoryDaily) {
       const t = new Date(row.posted_on + "T00:00:00Z").getTime();
       if (t < cutoffMs) continue;
-      if (row.ai_count === 0) continue;
       const bucket = dateKey(row.posted_on, monthly);
-      buckets.set(bucket, (buckets.get(bucket) ?? 0) + row.ai_count);
+      const cur = buckets.get(bucket) ?? { ai: 0, total: 0 };
+      cur.ai += row.ai_count;
+      cur.total += row.total_count;
+      buckets.set(bucket, cur);
     }
-    return buckets;
+    return [...buckets.entries()]
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([date, v]) => ({ date, aiCount: v.ai, totalCount: v.total }));
   }, [categoryDaily, range, nowMs]);
 
   // Container is a snap scroller from sm: up. On mobile we let normal page
@@ -202,16 +212,11 @@ export function Scroller({
             <TimeRangeToggle value={range} onChange={onRangeChange} />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
-            Stillinger fra NAVs feed gruppert etter yrkeskategori. AI-relaterte
-            stillinger ligger som eget bånd nederst.
+            Andelen AI-relaterte stillinger av alle utlyste stillinger fra
+            NAVs feed, gruppert per dag eller måned.
           </p>
           <div className="min-h-0 flex-1">
-            <StackedAreaChart
-              series={occupationSeries}
-              aiBandValues={aiBandValues}
-              taxonomy={taxonomy}
-              variant="occupation"
-            />
+            <AIShareAreaChart buckets={aiShareBuckets} />
           </div>
         </div>
       </section>
@@ -220,18 +225,18 @@ export function Scroller({
         <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
           <div className="flex items-baseline justify-between gap-4">
             <h2 className="text-lg font-medium tracking-tight sm:text-xl">
-              AI-stillinger etter ferdighet
+              KI-jobber i kategorier
             </h2>
             <TimeRangeToggle value={range} onChange={onRangeChange} />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
             AI-stillinger klassifisert av en språkmodell etter
-            ferdighetskategori. Hver søyle viser kategorienes andel av
-            periodens AI-tilordninger — én stilling kan tilhøre flere
-            kategorier, så søylen summerer 100 %.
+            ferdighetskategori. Grafen viser kategorienes andel av periodens
+            AI-tilordninger — én stilling kan tilhøre flere kategorier, så
+            området summerer 100 %.
           </p>
           <div className="min-h-0 flex-1">
-            <StackedBarChart
+            <StackedAreaChart
               series={skillSeries}
               taxonomy={taxonomy}
               variant="skill"

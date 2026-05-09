@@ -17,6 +17,16 @@ function fillForShare(share: number): string {
   return "oklch(0.45 0.22 250)";
 }
 
+// Pulls labels for the south-east cluster (Oslo/Akershus/Vestfold/Østfold)
+// out into open space and draws a thin leader line back to the centroid.
+// Values are in viewBox units (400×600). Tune by eye if a fylke regresses.
+const LABEL_OFFSETS: Partial<Record<Fylke, { dx: number; dy: number }>> = {
+  Oslo: { dx: 60, dy: -16 },
+  Akershus: { dx: 78, dy: 10 },
+  Østfold: { dx: 64, dy: 36 },
+  Vestfold: { dx: -36, dy: 48 },
+};
+
 // Unit-of-measure copy threaded in by the page so the same component can
 // label NAV-job-posting data on /jobbmarked and brreg-company data on
 // /oppstart without leaking either's terminology into the other.
@@ -87,17 +97,20 @@ export function NorwayMap({ geography, paths, viewBox, unit }: Props) {
   return (
     <>
       {/* Desktop: real geographic choropleth */}
-      <div className="relative hidden h-full w-full sm:block">
+      <div className="relative hidden h-full w-full flex-col sm:flex">
         <svg
           viewBox={viewBox}
           preserveAspectRatio="xMidYMid meet"
-          className="h-full max-h-[60svh] w-full"
+          className="min-h-0 w-full flex-1"
           role="img"
           aria-label={unit.ariaLabel}
         >
           {paths.map((p) => {
             const data = aggregated.get(p.fylke)!;
             const share = grandTotalAi > 0 ? data.ai / grandTotalAi : 0;
+            const offset = LABEL_OFFSETS[p.fylke];
+            const tx = offset ? p.labelX + offset.dx : p.labelX;
+            const ty = offset ? p.labelY + offset.dy : p.labelY;
             return (
               <g
                 key={p.fylke}
@@ -113,10 +126,30 @@ export function NorwayMap({ geography, paths, viewBox, unit }: Props) {
                   strokeWidth={0.5}
                   strokeLinejoin="round"
                 />
+                {data.ai > 0 && offset ? (
+                  <>
+                    <line
+                      x1={p.labelX}
+                      y1={p.labelY}
+                      x2={tx}
+                      y2={ty}
+                      stroke="rgba(0,0,0,0.45)"
+                      strokeWidth={0.5}
+                      pointerEvents="none"
+                    />
+                    <circle
+                      cx={p.labelX}
+                      cy={p.labelY}
+                      r={1.5}
+                      fill="rgba(0,0,0,0.6)"
+                      pointerEvents="none"
+                    />
+                  </>
+                ) : null}
                 {data.ai > 0 ? (
                   <text
-                    x={p.labelX}
-                    y={p.labelY}
+                    x={tx}
+                    y={ty}
                     textAnchor="middle"
                     dominantBaseline="middle"
                     className="fill-foreground"
@@ -137,7 +170,7 @@ export function NorwayMap({ geography, paths, viewBox, unit }: Props) {
           })}
         </svg>
 
-        <p className="mt-2 text-[0.65rem] uppercase tracking-[0.16em] text-muted-foreground">
+        <p className="mt-auto pt-2 text-[0.65rem] uppercase tracking-[0.16em] text-muted-foreground">
           Fylkesgrenser: © Kartverket (NLOD 2.0) via{" "}
           <a
             href="https://github.com/robhop/fylker-og-kommuner"
