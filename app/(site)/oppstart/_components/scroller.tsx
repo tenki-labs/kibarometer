@@ -3,14 +3,9 @@
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import {
-  StackedAreaChart,
-  type Series,
-} from "@/app/(site)/_components/stacked-area-chart";
-import {
-  TimeRangeToggle,
-  type Range,
-} from "@/app/(site)/_components/time-range-toggle";
+import { StackedBarChart } from "@/app/(site)/_components/stacked-bar-chart";
+import type { Series } from "@/app/(site)/_components/stacked-area-chart";
+import { TimeRangeToggle } from "@/app/(site)/_components/time-range-toggle";
 import { NorwayMap } from "@/app/(site)/jobbmarked/_components/norway-map";
 import type {
   BrregSnapshotCohort,
@@ -21,9 +16,17 @@ import type {
   TaxonomyCategory,
 } from "@/lib/supabase";
 
+import { AiShareBars } from "./ai-share-bars";
 import { CategoryList, type NaceCategoryLabel } from "./category-list";
 import { CohortBars } from "./cohort-bars";
 import { Hero } from "./hero";
+import {
+  OPPSTART_RANGE_OPTIONS,
+  parseOppstartRange,
+  rangeToCutoffMs,
+  shouldBucketMonthly,
+  type OppstartRange,
+} from "./range-utils";
 
 type Props = {
   headline: BrregSnapshotHeadline | null;
@@ -33,37 +36,17 @@ type Props = {
   categories: NaceCategoryLabel[];
 };
 
-const VALID_RANGES: Range[] = ["1m", "1q", "1y", "max"];
-
-function parseRange(raw: string | null): Range {
-  return VALID_RANGES.includes(raw as Range) ? (raw as Range) : "1m";
-}
-
-function rangeToCutoffDays(r: Range): number | null {
-  switch (r) {
-    case "1m": return 30;
-    case "1q": return 90;
-    case "1y": return 365;
-    case "max": return null;
-  }
-}
-
-function shouldBucketMonthly(r: Range): boolean {
-  return r === "1y" || r === "max";
-}
-
 function dateKey(iso: string, monthly: boolean): string {
   return monthly ? iso.slice(0, 7) : iso.slice(0, 10);
 }
 
 function buildVolumeSeries(
   rows: BrregSnapshotDaily[],
-  range: Range,
+  range: OppstartRange,
   nowMs: number,
 ): { series: Series; aiBand: Map<string, number> } {
-  const cutoffDays = rangeToCutoffDays(range);
+  const cutoffMs = rangeToCutoffMs(range, nowMs);
   const monthly = shouldBucketMonthly(range);
-  const cutoffMs = cutoffDays === null ? -Infinity : nowMs - cutoffDays * 86_400_000;
 
   const buckets = new Map<string, Map<string, number>>();
   const aiBand = new Map<string, number>();
@@ -110,13 +93,13 @@ export function Scroller({
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialRange = parseRange(searchParams.get("range"));
-  const [range, setRange] = useState<Range>(initialRange);
+  const initialRange = parseOppstartRange(searchParams.get("range"));
+  const [range, setRange] = useState<OppstartRange>(initialRange);
 
-  function onRangeChange(next: Range) {
+  function onRangeChange(next: OppstartRange) {
     setRange(next);
     const params = new URLSearchParams(searchParams.toString());
-    if (next === "1m") params.delete("range");
+    if (next === "12m") params.delete("range");
     else params.set("range", next);
     const qs = params.toString();
     router.replace(qs ? `/oppstart?${qs}` : "/oppstart", { scroll: false });
@@ -136,7 +119,6 @@ export function Scroller({
     [daily, range, nowMs],
   );
 
-  // Adapter: feed nace_categories into StackedAreaChart via the occupation variant.
   const taxonomyAdapter = useMemo<TaxonomyCategory[]>(
     () =>
       categories.map((c, i) => ({
@@ -150,7 +132,6 @@ export function Scroller({
 
   const categoryListCutoffMs = nowMs - 30 * 86_400_000;
 
-  // Adapt brreg geography into the NAV NorwayMap's prop shape.
   const geoForMap = useMemo<SnapshotGeography[]>(
     () =>
       geography.map((g) => ({
@@ -179,20 +160,48 @@ export function Scroller({
             <h2 className="text-lg font-medium tracking-tight sm:text-xl">
               Nye foretak per næringskategori
             </h2>
-            <TimeRangeToggle value={range} onChange={onRangeChange} />
+            <TimeRangeToggle<OppstartRange>
+              value={range}
+              onChange={onRangeChange}
+              options={OPPSTART_RANGE_OPTIONS}
+            />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
             Daglige registreringer fra Brønnøysundregistrene, gruppert etter
             kibarometer-NACE-kategorier. AI-relevante foretak ligger som eget
-            bånd nederst.
+            bånd nederst i hver søyle.
           </p>
           <div className="min-h-0 flex-1">
-            <StackedAreaChart
+            <StackedBarChart
               series={volumeSeries}
               aiBandValues={aiBand}
               taxonomy={taxonomyAdapter}
               variant="occupation"
             />
+          </div>
+        </div>
+      </section>
+
+      <section className="snap-segment sm:snap-start sm:snap-always">
+        <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
+          <div className="flex items-baseline justify-between gap-4">
+            <h2 className="text-lg font-medium tracking-tight sm:text-xl">
+              AI-andel av nye foretak
+            </h2>
+            <TimeRangeToggle<OppstartRange>
+              value={range}
+              onChange={onRangeChange}
+              options={OPPSTART_RANGE_OPTIONS}
+            />
+          </div>
+          <p className="max-w-[60ch] text-sm text-muted-foreground">
+            Andel nyregistrerte foretak fra Brønnøysundregistrene som
+            klassifiseres som AI-relevante. Hver søyle går fra 0 til 100 % —
+            det oransje feltet viser AI-andelen, det grå alt annet. Søyler
+            med færre enn 25 foretak er svakere fargelagt.
+          </p>
+          <div className="min-h-0 flex-1">
+            <AiShareBars rows={daily} range={range} nowMs={nowMs} />
           </div>
         </div>
       </section>
