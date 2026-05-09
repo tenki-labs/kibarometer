@@ -2,8 +2,8 @@
 
 import { useMemo } from "react";
 import {
-  Bar,
-  BarChart,
+  Area,
+  AreaChart,
   CartesianGrid,
   XAxis,
   YAxis,
@@ -17,32 +17,19 @@ import {
 } from "@/components/ui/chart";
 import type { MediaSnapshotCategoryDaily } from "@/lib/supabase";
 
+import {
+  formatBucket,
+  formatBucketShort,
+} from "@/app/(site)/_components/bucket-format";
+import { dateKey } from "@/app/(site)/_lib/range";
+
 type Props = {
   rows: MediaSnapshotCategoryDaily[];
-  /** Reference "now" anchored to the latest published_on across rows. */
-  nowMs: number;
-  /** How far back to render in days. Defaults to 90. */
-  days?: number;
+  cutoffMs: number | null;
+  monthly: boolean;
 };
 
 const NB = new Intl.NumberFormat("nb-NO");
-
-const NO_DATE_FMT_FULL = new Intl.DateTimeFormat("nb-NO", {
-  day: "2-digit",
-  month: "long",
-  year: "numeric",
-});
-
-function formatBucket(bucket: string): string {
-  return NO_DATE_FMT_FULL.format(new Date(bucket + "T00:00:00Z"));
-}
-
-function formatBucketShort(bucket: string): string {
-  return new Intl.DateTimeFormat("nb-NO", {
-    day: "2-digit",
-    month: "short",
-  }).format(new Date(bucket + "T00:00:00Z"));
-}
 
 const chartConfig = {
   count: {
@@ -51,46 +38,52 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-export function VolumeBar({ rows, nowMs, days = 90 }: Props) {
+export function VolumeArea({ rows, cutoffMs, monthly }: Props) {
   const data = useMemo(() => {
-    const byDay = new Map<string, number>();
+    // Each row in `rows` is one (published_on, category_slug) — sum across
+    // categories per bucket to get the daily/monthly total AI count. Drops
+    // distinct-story dedup since the public chart wants raw volume.
+    const byBucket = new Map<string, number>();
+    const cutoff = cutoffMs ?? -Infinity;
     for (const r of rows) {
-      byDay.set(r.published_on, (byDay.get(r.published_on) ?? 0) + r.ai_count);
+      const t = new Date(r.published_on + "T00:00:00Z").getTime();
+      if (t < cutoff) continue;
+      if (r.ai_count === 0) continue;
+      const key = dateKey(r.published_on, monthly);
+      byBucket.set(key, (byBucket.get(key) ?? 0) + r.ai_count);
     }
-    const out: { date: string; count: number }[] = [];
-    for (let i = days - 1; i >= 0; i -= 1) {
-      const date = new Date(nowMs - i * 86_400_000)
-        .toISOString()
-        .slice(0, 10);
-      out.push({ date, count: byDay.get(date) ?? 0 });
-    }
-    return out;
-  }, [rows, nowMs, days]);
+    return [...byBucket.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, count]) => ({ date, count }));
+  }, [rows, cutoffMs, monthly]);
 
-  if (data.every((d) => d.count === 0)) {
+  if (data.length === 0) {
     return (
       <div className="flex h-full min-h-[200px] items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">
-        Ingen klassifiserte artikler ennå.
+        Ingen data i denne perioden.
       </div>
     );
   }
 
   return (
     <ChartContainer config={chartConfig} className="h-full w-full">
-      <BarChart data={data} margin={{ left: 8, right: 8, top: 8, bottom: 0 }}>
+      <AreaChart
+        data={data}
+        margin={{ left: 8, right: 8, top: 8, bottom: 0 }}
+      >
         <CartesianGrid vertical={false} strokeDasharray="3 3" />
         <XAxis
           dataKey="date"
           tickLine={false}
           axisLine={false}
           tickMargin={8}
-          minTickGap={48}
+          minTickGap={32}
           tickFormatter={formatBucketShort}
         />
         <YAxis
           tickLine={false}
           axisLine={false}
-          width={28}
+          width={32}
           allowDecimals={false}
         />
         <ChartTooltip
@@ -99,10 +92,13 @@ export function VolumeBar({ rows, nowMs, days = 90 }: Props) {
             <ChartTooltipContent
               indicator="dot"
               labelFormatter={(value) =>
-                typeof value === "string" ? formatBucket(value) : String(value)
+                typeof value === "string"
+                  ? formatBucket(value)
+                  : String(value)
               }
               formatter={(value) => {
-                const numeric = typeof value === "number" ? value : Number(value) || 0;
+                const numeric =
+                  typeof value === "number" ? value : Number(value) || 0;
                 return (
                   <div className="flex w-full items-center justify-between gap-3">
                     <span className="text-muted-foreground">AI-artikler</span>
@@ -115,13 +111,16 @@ export function VolumeBar({ rows, nowMs, days = 90 }: Props) {
             />
           }
         />
-        <Bar
+        <Area
           dataKey="count"
+          type="monotone"
+          stroke="var(--color-count)"
           fill="var(--color-count)"
-          radius={[3, 3, 0, 0]}
+          fillOpacity={0.55}
+          strokeWidth={2}
           isAnimationActive={false}
         />
-      </BarChart>
+      </AreaChart>
     </ChartContainer>
   );
 }

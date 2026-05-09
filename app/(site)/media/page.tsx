@@ -65,7 +65,7 @@ export default async function MediaPage() {
       "/media_categories?is_active=is.true&select=slug,label_no,label_en,description&order=slug.asc",
     ),
     sb<MediaAnomalyDaily[]>(
-      "/media_anomaly_daily?is_spike=is.true&order=date.desc,z_score.desc&limit=10",
+      "/media_anomaly_daily?is_spike=is.true&order=date.desc,z_score.desc&limit=500",
     ),
   ]);
 

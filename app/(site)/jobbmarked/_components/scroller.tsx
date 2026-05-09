@@ -24,6 +24,12 @@ import {
   TimeRangeToggle,
   type Range,
 } from "@/app/(site)/_components/time-range-toggle";
+import {
+  dateKey,
+  parseRange,
+  rangeToCutoffDays,
+  shouldBucketMonthly,
+} from "@/app/(site)/_lib/range";
 
 import { Hero } from "./hero";
 import { KeywordList } from "./keyword-list";
@@ -46,30 +52,6 @@ type Props = {
   norwayPaths: readonly NorwayFylkePath[];
   norwayViewBox: string;
 };
-
-const VALID_RANGES: Range[] = ["1m", "1q", "1y", "max"];
-
-function parseRange(raw: string | null): Range {
-  return VALID_RANGES.includes(raw as Range) ? (raw as Range) : "1m";
-}
-
-function rangeToCutoffDays(r: Range): number | null {
-  switch (r) {
-    case "1m": return 30;
-    case "1q": return 90;
-    case "1y": return 365;
-    case "max": return null;
-  }
-}
-
-// For 1y/max we bucket to month so the chart stays readable.
-function shouldBucketMonthly(r: Range): boolean {
-  return r === "1y" || r === "max";
-}
-
-function dateKey(iso: string, monthly: boolean): string {
-  return monthly ? iso.slice(0, 7) : iso.slice(0, 10); // YYYY-MM vs YYYY-MM-DD
-}
 
 // Slice + bucket the per-day snapshots into a Series the chart can render.
 // `getKey` projects each row to its bucket key (category or slug). `nowMs`

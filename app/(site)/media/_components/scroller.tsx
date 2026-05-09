@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 import {
   StackedAreaChart,
@@ -11,6 +11,12 @@ import {
   TimeRangeToggle,
   type Range,
 } from "@/app/(site)/_components/time-range-toggle";
+import {
+  dateKey,
+  parseRange,
+  rangeCutoffMs,
+  shouldBucketMonthly,
+} from "@/app/(site)/_lib/range";
 import type {
   MediaAnomalyDaily,
   MediaCategory,
@@ -20,11 +26,10 @@ import type {
 } from "@/lib/supabase";
 
 import { AnomalyFeed } from "./anomaly-feed";
-import { CategoryHeatmap } from "./category-heatmap";
-import { CategoryList } from "./category-list";
+import { CategoryTemperatureList } from "./category-temperature-list";
 import { Hero } from "./hero";
-import { IndexBar } from "./index-bar";
-import { VolumeBar } from "./volume-bar";
+import { IndexLine } from "./index-line";
+import { VolumeArea } from "./volume-area";
 
 type Props = {
   latest: MediaSnapshotIndex | null;
@@ -35,38 +40,11 @@ type Props = {
   anomalies: MediaAnomalyDaily[];
 };
 
-const VALID_RANGES: Range[] = ["1m", "1q", "1y", "max"];
-
-function parseRange(raw: string | null): Range {
-  return VALID_RANGES.includes(raw as Range) ? (raw as Range) : "1m";
-}
-
-function rangeToCutoffDays(r: Range): number | null {
-  switch (r) {
-    case "1m": return 30;
-    case "1q": return 90;
-    case "1y": return 365;
-    case "max": return null;
-  }
-}
-
-function shouldBucketMonthly(r: Range): boolean {
-  return r === "1y" || r === "max";
-}
-
-function dateKey(iso: string, monthly: boolean): string {
-  return monthly ? iso.slice(0, 7) : iso.slice(0, 10);
-}
-
 function buildCategorySeries(
   rows: MediaSnapshotCategoryDaily[],
-  range: Range,
-  nowMs: number,
+  cutoffMs: number,
+  monthly: boolean,
 ): Series {
-  const cutoffDays = rangeToCutoffDays(range);
-  const monthly = shouldBucketMonthly(range);
-  const cutoffMs = cutoffDays === null ? -Infinity : nowMs - cutoffDays * 86_400_000;
-
   const buckets = new Map<string, Map<string, number>>();
   const keys = new Set<string>();
 
@@ -78,7 +56,10 @@ function buildCategorySeries(
     keys.add(row.category_slug);
     if (!buckets.has(bucket)) buckets.set(bucket, new Map());
     const inner = buckets.get(bucket)!;
-    inner.set(row.category_slug, (inner.get(row.category_slug) ?? 0) + row.ai_count);
+    inner.set(
+      row.category_slug,
+      (inner.get(row.category_slug) ?? 0) + row.ai_count,
+    );
   }
 
   const sortedDates = [...buckets.keys()].sort();
@@ -101,20 +82,29 @@ export function Scroller({
   categories,
   anomalies,
 }: Props) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const initialRange = parseRange(searchParams.get("range"));
   const [range, setRange] = useState<Range>(initialRange);
 
+  // Sync the URL via history.replaceState rather than Next.js router.replace
+  // so the snap-scroll container's scroll position is never perturbed — the
+  // router path can interact subtly with the segment layout and bounce the
+  // user back to the hero on each click. Mirrors /jobbmarked's scroller.
   function onRangeChange(next: Range) {
     setRange(next);
     const params = new URLSearchParams(searchParams.toString());
     if (next === "1m") params.delete("range");
     else params.set("range", next);
     const qs = params.toString();
-    router.replace(qs ? `/media?${qs}` : "/media", { scroll: false });
+    const url = qs ? `/media?${qs}` : "/media";
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", url);
+    }
   }
 
+  // Reference "now" derived from the data — the latest published_on / index
+  // date across the snapshots. Avoids Date.now() during render and gives
+  // stable cutoffs whether the page renders at 03:59 or 04:01.
   const nowMs = useMemo(() => {
     let latestMs = 0;
     for (const row of indexHistory) {
@@ -128,16 +118,13 @@ export function Scroller({
     return latestMs || 0;
   }, [indexHistory, categoryDaily]);
 
-  const indexCutoffMs = useMemo(() => {
-    const days = rangeToCutoffDays(range);
-    return days === null ? null : nowMs - days * 86_400_000;
-  }, [range, nowMs]);
-
-  const indexMonthly = shouldBucketMonthly(range);
+  const cutoffMs = useMemo(() => rangeCutoffMs(range, nowMs), [range, nowMs]);
+  const monthly = shouldBucketMonthly(range);
+  const indexCutoffMs = cutoffMs === -Infinity ? null : cutoffMs;
 
   const categorySeries = useMemo(
-    () => buildCategorySeries(categoryDaily, range, nowMs),
-    [categoryDaily, range, nowMs],
+    () => buildCategorySeries(categoryDaily, cutoffMs, monthly),
+    [categoryDaily, cutoffMs, monthly],
   );
 
   // Adapt media_categories into the TaxonomyCategory shape StackedAreaChart
@@ -152,8 +139,6 @@ export function Scroller({
       })),
     [categories],
   );
-
-  const categoryListCutoffMs = nowMs - 30 * 86_400_000;
 
   return (
     <div
@@ -176,14 +161,15 @@ export function Scroller({
             <TimeRangeToggle value={range} onChange={onRangeChange} />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
-            7-dagers rullerende stemning fra 0 (bekymret) til 100 (begeistret).
-            50 markerer balansert dekning.
+            7-dagers rullerende stemning fra 0 (bekymret) til 100
+            (begeistret). Fargen følger temperaturen — blå nederst, rød
+            øverst, balansert ved 50.
           </p>
           <div className="min-h-0 flex-1">
-            <IndexBar
+            <IndexLine
               rows={indexHistory}
               cutoffMs={indexCutoffMs}
-              monthly={indexMonthly}
+              monthly={monthly}
             />
           </div>
         </div>
@@ -193,19 +179,21 @@ export function Scroller({
         <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
           <div className="flex items-baseline justify-between gap-4">
             <h2 className="text-lg font-medium tracking-tight sm:text-xl">
-              Volum per mediekategori
+              Andel per mediekategori
             </h2>
             <TimeRangeToggle value={range} onChange={onRangeChange} />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
-            AI-artikler per dag, gruppert etter kategori. En artikkel kan høre
-            til flere kategorier samtidig.
+            Andel av AI-artikler per dag, fordelt på kategori. Hver
+            tidsperiode summerer til 100 %. En artikkel kan høre til flere
+            kategorier samtidig.
           </p>
           <div className="min-h-0 flex-1">
             <StackedAreaChart
               series={categorySeries}
               taxonomy={taxonomyAdapter}
               variant="skill"
+              normalize
             />
           </div>
         </div>
@@ -213,18 +201,23 @@ export function Scroller({
 
       <section className="snap-segment sm:snap-start sm:snap-always">
         <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
-          <h2 className="text-lg font-medium tracking-tight sm:text-xl">
-            Temperatur per kategori (siste 12 uker)
-          </h2>
+          <div className="flex items-baseline justify-between gap-4">
+            <h2 className="text-lg font-medium tracking-tight sm:text-xl">
+              Temperatur per kategori
+            </h2>
+            <TimeRangeToggle value={range} onChange={onRangeChange} />
+          </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
-            Grønt = entusiastisk dekning, rødt = bekymret, grått = balansert
-            eller ingen data. Ukenummer på toppen.
+            Hver kategori med snitt-temperatur og utvikling over perioden.
+            Sortert etter antall AI-artikler. Negativ = bekymret, positiv =
+            begeistret.
           </p>
           <div className="min-h-0 flex-1 overflow-auto">
-            <CategoryHeatmap
+            <CategoryTemperatureList
               rows={categoryDaily}
               categories={categories}
-              nowMs={nowMs}
+              cutoffMs={indexCutoffMs}
+              monthly={monthly}
             />
           </div>
         </div>
@@ -232,33 +225,21 @@ export function Scroller({
 
       <section className="snap-segment sm:snap-start sm:snap-always">
         <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
-          <h2 className="text-lg font-medium tracking-tight sm:text-xl">
-            Antall AI-artikler per dag (siste 90 dager)
-          </h2>
+          <div className="flex items-baseline justify-between gap-4">
+            <h2 className="text-lg font-medium tracking-tight sm:text-xl">
+              Antall AI-artikler per dag
+            </h2>
+            <TimeRangeToggle value={range} onChange={onRangeChange} />
+          </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
-            Daglig totalvolum av AI-relaterte artikler på tvers av alle kilder.
+            Daglig totalvolum av AI-relaterte artikler på tvers av alle
+            kilder.
           </p>
           <div className="min-h-0 flex-1">
-            <VolumeBar rows={categoryDaily} nowMs={nowMs} />
-          </div>
-        </div>
-      </section>
-
-      <section className="snap-segment sm:snap-start sm:snap-always">
-        <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
-          <h2 className="text-lg font-medium tracking-tight sm:text-xl">
-            Topp mediekategorier siste 30 dager
-          </h2>
-          <p className="max-w-[60ch] text-sm text-muted-foreground">
-            Rangert etter antall AI-artikler. Temperatur-kolonnen viser
-            gjennomsnittlig holdning per kategori (negativ = bekymret, positiv
-            = begeistret).
-          </p>
-          <div className="min-h-0 flex-1 overflow-auto">
-            <CategoryList
+            <VolumeArea
               rows={categoryDaily}
-              categories={categories}
-              cutoffMs={categoryListCutoffMs}
+              cutoffMs={indexCutoffMs}
+              monthly={monthly}
             />
           </div>
         </div>
@@ -266,15 +247,23 @@ export function Scroller({
 
       <section className="snap-segment sm:snap-start sm:snap-always">
         <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
-          <h2 className="text-lg font-medium tracking-tight sm:text-xl">
-            Anomalier — kategori-spiker
-          </h2>
+          <div className="flex items-baseline justify-between gap-4">
+            <h2 className="text-lg font-medium tracking-tight sm:text-xl">
+              Anomalier — kategori-spiker
+            </h2>
+            <TimeRangeToggle value={range} onChange={onRangeChange} />
+          </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
             Dager hvor en kategori hadde uvanlig høyt volum mot 28-dagers
             rullerende baseline. Z-skår 2 eller mer, minst 5 artikler.
           </p>
           <div className="min-h-0 flex-1 overflow-auto">
-            <AnomalyFeed rows={anomalies} categories={categories} />
+            <AnomalyFeed
+              rows={anomalies}
+              categoryDaily={categoryDaily}
+              categories={categories}
+              cutoffMs={indexCutoffMs}
+            />
           </div>
         </div>
       </section>
