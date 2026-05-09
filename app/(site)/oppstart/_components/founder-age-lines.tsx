@@ -23,11 +23,12 @@ import {
 } from "@/app/(site)/_components/bucket-format";
 import type { BrregSnapshotFounderAgeMonthly } from "@/lib/supabase";
 
-import { rangeToCutoffMs, type OppstartRange } from "./range-utils";
+import type { Range } from "@/app/(site)/_components/time-range-toggle";
+import { rangeCutoffMs } from "@/app/(site)/_lib/range";
 
 type Props = {
   rows: BrregSnapshotFounderAgeMonthly[];
-  range: OppstartRange;
+  range: Range;
   nowMs: number;
 };
 
@@ -59,7 +60,7 @@ function fmtAge(v: number | null): string {
 
 export function FounderAgeLines({ rows, range, nowMs }: Props) {
   const points = useMemo<Point[]>(() => {
-    const cutoffMs = rangeToCutoffMs(range, nowMs);
+    const cutoffMs = rangeCutoffMs(range, nowMs);
     const byMonth = new Map<string, Point>();
     for (const r of rows) {
       const monthMs = new Date(r.reg_month + "T00:00:00Z").getTime();
