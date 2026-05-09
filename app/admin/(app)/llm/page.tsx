@@ -256,7 +256,7 @@ export default async function LlmStatusPage({ searchParams }: Props) {
   ] = await Promise.all([
     readMlxHealth(),
     sbFetch<CountRow[] | { count: number }>(
-      `/nav_postings?tier1_completed_at=is.null&llm_retry_count=lt.3&select=count`,
+      `/nav_postings?tier1_completed_at=is.null&llm_retry_count=lt.3&ingest_mode=eq.live&select=count`,
       { service: true, headers: { Prefer: "count=exact" } },
     ).catch(() => [] as CountRow[]),
     sbFetch<CountRow[] | { count: number }>(
@@ -268,7 +268,7 @@ export default async function LlmStatusPage({ searchParams }: Props) {
       { service: true, headers: { Prefer: "count=exact" } },
     ).catch(() => [] as CountRow[]),
     sbFetch<CountRow[] | { count: number }>(
-      `/media_articles?deleted_at=is.null&is_ai_related=is.true&tier1_completed_at=is.null&llm_retry_count=lt.3&select=count`,
+      `/media_articles?deleted_at=is.null&is_ai_related=is.true&tier1_completed_at=is.null&llm_retry_count=lt.3&ingest_mode=eq.live&select=count`,
       { service: true, headers: { Prefer: "count=exact" } },
     ).catch(() => [] as CountRow[]),
     sbFetch<CountRow[] | { count: number }>(
@@ -280,7 +280,7 @@ export default async function LlmStatusPage({ searchParams }: Props) {
       { service: true, headers: { Prefer: "count=exact" } },
     ).catch(() => [] as CountRow[]),
     sbFetch<CountRow[] | { count: number }>(
-      `/brreg_companies?is_ai_relevant=is.true&tier1_completed_at=is.null&llm_retry_count=lt.3&select=count`,
+      `/brreg_companies?is_ai_relevant=is.true&tier1_completed_at=is.null&llm_retry_count=lt.3&ingest_mode=eq.live&select=count`,
       { service: true, headers: { Prefer: "count=exact" } },
     ).catch(() => [] as CountRow[]),
     sbFetch<CountRow[] | { count: number }>(

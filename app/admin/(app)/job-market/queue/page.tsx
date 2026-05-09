@@ -87,7 +87,7 @@ export default async function NavQueuePage({ searchParams }: Props) {
   // Klassifisering T2: tier2_completed_at IS NULL AND tier1_completed_at IS NOT NULL.
   //   Tier 2 only runs after Tier 1 succeeded.
   const ENRICH_FILTER = "status=eq.ACTIVE&detail_fetched_at=is.null";
-  const T1_FILTER = "tier1_completed_at=is.null&detail_fetched_at=not.is.null";
+  const T1_FILTER = "tier1_completed_at=is.null&detail_fetched_at=not.is.null&ingest_mode=eq.live";
   const T2_FILTER = "tier2_completed_at=is.null&tier1_completed_at=not.is.null";
 
   const [
