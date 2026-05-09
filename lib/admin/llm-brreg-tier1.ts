@@ -79,6 +79,7 @@ export async function runBrregTier1(args: {
   const candidates = await sb<Company[]>(
     `/brreg_companies?is_ai_relevant=is.true&tier1_completed_at=is.null` +
       `&llm_retry_count=lt.${RETRY_LIMIT}` +
+      `&ingest_mode=eq.live` +
       `&select=orgnr,aktivitet&order=registrert_dato.desc&limit=${k}`,
     { service: true },
   );
