@@ -17,13 +17,28 @@ function fillForShare(share: number): string {
   return "oklch(0.45 0.22 250)";
 }
 
+// Unit-of-measure copy threaded in by the page so the same component can
+// label NAV-job-posting data on /jobbmarked and brreg-company data on
+// /oppstart without leaking either's terminology into the other.
+export type NorwayMapUnit = {
+  /** SVG aria-label, e.g. "Kart over AI-stillinger per fylke". */
+  ariaLabel: string;
+  /** Plural noun for the item being counted, used after the number on the
+   *  tooltip's first line: `"{n} {itemNoun} av {m} totalt"`. */
+  itemNoun: string;
+  /** Definite plural form, used after the percentage on the tooltip's second
+   *  line: `"{x} % av {shareNoun}"`. */
+  shareNoun: string;
+};
+
 type Props = {
   geography: SnapshotGeography[];
   paths: readonly NorwayFylkePath[];
   viewBox: string;
+  unit: NorwayMapUnit;
 };
 
-export function NorwayMap({ geography, paths, viewBox }: Props) {
+export function NorwayMap({ geography, paths, viewBox, unit }: Props) {
   const aggregated = useMemo(() => {
     const m = new Map<Fylke, { ai: number; total: number }>();
     for (const f of FYLKER) m.set(f, { ai: 0, total: 0 });
@@ -78,7 +93,7 @@ export function NorwayMap({ geography, paths, viewBox }: Props) {
           preserveAspectRatio="xMidYMid meet"
           className="h-full max-h-[60svh] w-full"
           role="img"
-          aria-label="Kart over AI-stillinger per fylke"
+          aria-label={unit.ariaLabel}
         >
           {paths.map((p) => {
             const data = aggregated.get(p.fylke)!;
@@ -132,7 +147,7 @@ export function NorwayMap({ geography, paths, viewBox }: Props) {
                 {hover.fylke}
               </div>
               <div className="mt-2 tabular-nums">
-                {data.ai.toLocaleString("nb-NO")} AI-stillinger
+                {data.ai.toLocaleString("nb-NO")} {unit.itemNoun}
                 {data.total > 0 ? (
                   <>
                     {" "}
@@ -142,7 +157,7 @@ export function NorwayMap({ geography, paths, viewBox }: Props) {
               </div>
               {grandTotalAi > 0 ? (
                 <div className="mt-1 text-muted-foreground">
-                  {(share * 100).toFixed(1).replace(".", ",")} % av AI-stillingene
+                  {(share * 100).toFixed(1).replace(".", ",")} % av {unit.shareNoun}
                 </div>
               ) : null}
             </div>

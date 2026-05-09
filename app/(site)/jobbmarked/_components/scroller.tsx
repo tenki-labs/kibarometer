@@ -23,8 +23,14 @@ import {
 
 import { Hero } from "./hero";
 import { KeywordList } from "./keyword-list";
-import { NorwayMap } from "./norway-map";
+import { NorwayMap, type NorwayMapUnit } from "./norway-map";
 import type { NorwayFylkePath } from "@/lib/norway-paths";
+
+const MAP_UNIT: NorwayMapUnit = {
+  ariaLabel: "Kart over AI-stillinger per fylke",
+  itemNoun: "AI-stillinger",
+  shareNoun: "AI-stillingene",
+};
 
 type Props = {
   headline: SnapshotHeadline | null;
@@ -252,7 +258,12 @@ export function Scroller({
             normalisert til dagens 15 fylker.
           </p>
           <div className="min-h-0 flex-1">
-            <NorwayMap geography={geography} paths={norwayPaths} viewBox={norwayViewBox} />
+            <NorwayMap
+              geography={geography}
+              paths={norwayPaths}
+              viewBox={norwayViewBox}
+              unit={MAP_UNIT}
+            />
           </div>
         </div>
       </section>
