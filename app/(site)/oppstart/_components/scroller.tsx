@@ -7,6 +7,7 @@ import { StackedBarChart } from "@/app/(site)/_components/stacked-bar-chart";
 import type { Series } from "@/app/(site)/_components/stacked-area-chart";
 import { TimeRangeToggle } from "@/app/(site)/_components/time-range-toggle";
 import { NorwayMap } from "@/app/(site)/jobbmarked/_components/norway-map";
+import type { NorwayFylkePath } from "@/lib/norway-paths";
 import type {
   BrregSnapshotDaily,
   BrregSnapshotFounderAgeYearly,
@@ -34,6 +35,8 @@ type Props = {
   founderAge: BrregSnapshotFounderAgeYearly[];
   geography: BrregSnapshotGeography[];
   categories: NaceCategoryLabel[];
+  norwayPaths: readonly NorwayFylkePath[];
+  norwayViewBox: string;
 };
 
 function dateKey(iso: string, monthly: boolean): string {
@@ -90,6 +93,8 @@ export function Scroller({
   founderAge,
   geography,
   categories,
+  norwayPaths,
+  norwayViewBox,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -252,7 +257,7 @@ export function Scroller({
             Siste 30 dager. Kartet farges etter AI-andel per fylke.
           </p>
           <div className="min-h-0 flex-1">
-            <NorwayMap geography={geoForMap} />
+            <NorwayMap geography={geoForMap} paths={norwayPaths} viewBox={norwayViewBox} />
           </div>
         </div>
       </section>

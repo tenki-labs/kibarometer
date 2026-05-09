@@ -4,33 +4,8 @@ import { useMemo, useState } from "react";
 
 import { HBarList } from "@/app/_components/charts";
 import { FYLKER, type Fylke, normalizeFylke } from "@/lib/fylke";
+import type { NorwayFylkePath } from "@/lib/norway-paths";
 import type { SnapshotGeography } from "@/lib/supabase";
-
-// Cartogram positions for the 15 fylker — each cell is one rect on a 5-col x
-// 7-row grid that very roughly mirrors Norway's shape (Finnmark top-right,
-// Agder bottom-left, etc.). NOT a geographically accurate map; the goal is
-// to give viewers a spatial frame for the choropleth ranking. Swap to a real
-// SVG when we ship one.
-const CELLS: Record<Fylke, { row: number; col: number }> = {
-  Finnmark: { row: 0, col: 4 },
-  Troms: { row: 1, col: 3 },
-  Nordland: { row: 2, col: 3 },
-  Trøndelag: { row: 3, col: 2 },
-  "Møre og Romsdal": { row: 3, col: 1 },
-  Innlandet: { row: 4, col: 3 },
-  Vestland: { row: 4, col: 1 },
-  Akershus: { row: 5, col: 3 },
-  Oslo: { row: 5, col: 4 },
-  Buskerud: { row: 5, col: 2 },
-  Rogaland: { row: 6, col: 0 },
-  Agder: { row: 6, col: 1 },
-  Telemark: { row: 6, col: 2 },
-  Vestfold: { row: 6, col: 3 },
-  Østfold: { row: 6, col: 4 },
-};
-
-const COLS = 5;
-const ROWS = 7;
 
 function fillForShare(share: number): string {
   // share in [0,1]. Five-bin scale ramping from very light to saturated.
@@ -42,8 +17,13 @@ function fillForShare(share: number): string {
   return "oklch(0.45 0.22 250)";
 }
 
-export function NorwayMap({ geography }: { geography: SnapshotGeography[] }) {
-  // Aggregate raw NAV `county` strings to today's fylker.
+type Props = {
+  geography: SnapshotGeography[];
+  paths: readonly NorwayFylkePath[];
+  viewBox: string;
+};
+
+export function NorwayMap({ geography, paths, viewBox }: Props) {
   const aggregated = useMemo(() => {
     const m = new Map<Fylke, { ai: number; total: number }>();
     for (const f of FYLKER) m.set(f, { ai: 0, total: 0 });
@@ -91,61 +71,50 @@ export function NorwayMap({ geography }: { geography: SnapshotGeography[] }) {
 
   return (
     <>
-      {/* Desktop: cartogram grid */}
+      {/* Desktop: real geographic choropleth */}
       <div className="relative hidden h-full w-full sm:block">
         <svg
-          viewBox={`0 0 ${COLS * 100} ${ROWS * 100}`}
+          viewBox={viewBox}
           preserveAspectRatio="xMidYMid meet"
           className="h-full max-h-[60svh] w-full"
           role="img"
-          aria-label="Kartogram over AI-stillinger per fylke"
+          aria-label="Kart over AI-stillinger per fylke"
         >
-          {FYLKER.map((f) => {
-            const { row, col } = CELLS[f];
-            const data = aggregated.get(f)!;
+          {paths.map((p) => {
+            const data = aggregated.get(p.fylke)!;
             const share = grandTotalAi > 0 ? data.ai / grandTotalAi : 0;
-            const x = col * 100 + 4;
-            const y = row * 100 + 4;
             return (
               <g
-                key={f}
-                onPointerEnter={(e) => trackPointer(e, f)}
-                onPointerMove={(e) => trackPointer(e, f)}
+                key={p.fylke}
+                onPointerEnter={(e) => trackPointer(e, p.fylke)}
+                onPointerMove={(e) => trackPointer(e, p.fylke)}
                 onPointerLeave={() => setHover(null)}
                 style={{ cursor: "pointer" }}
               >
-                <rect
-                  x={x}
-                  y={y}
-                  width={92}
-                  height={92}
-                  rx={6}
+                <path
+                  d={p.d}
                   fill={fillForShare(share)}
-                  stroke="rgba(0,0,0,0.15)"
-                  strokeWidth={0.8}
+                  stroke="rgba(0,0,0,0.25)"
+                  strokeWidth={0.5}
+                  strokeLinejoin="round"
                 />
-                <text
-                  x={x + 46}
-                  y={y + 42}
-                  textAnchor="middle"
-                  className="fill-foreground"
-                  style={{ fontSize: "11px", fontWeight: 500 }}
-                >
-                  {f}
-                </text>
-                <text
-                  x={x + 46}
-                  y={y + 60}
-                  textAnchor="middle"
-                  className="fill-foreground"
-                  style={{ fontSize: "13px", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}
-                >
-                  {data.ai.toLocaleString("nb-NO")}
-                </text>
               </g>
             );
           })}
         </svg>
+
+        <p className="mt-2 text-[0.65rem] uppercase tracking-[0.16em] text-muted-foreground">
+          Fylkesgrenser: © Kartverket (NLOD 2.0) via{" "}
+          <a
+            href="https://github.com/robhop/fylker-og-kommuner"
+            target="_blank"
+            rel="noreferrer"
+            className="underline-offset-2 hover:underline"
+          >
+            robhop/fylker-og-kommuner
+          </a>{" "}
+          (CC BY 4.0)
+        </p>
 
         {hover ? (() => {
           const data = aggregated.get(hover.fylke)!;

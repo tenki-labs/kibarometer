@@ -9,6 +9,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
+import { NORWAY_FYLKE_PATHS, NORWAY_VIEWBOX } from "@/lib/norway-paths";
 import {
   sb,
   type BrregSnapshotDaily,
@@ -74,6 +75,8 @@ export default async function OppstartPage() {
           founderAge={founderAge}
           geography={geography}
           categories={categories}
+          norwayPaths={NORWAY_FYLKE_PATHS}
+          norwayViewBox={NORWAY_VIEWBOX}
         />
       </Suspense>
       <script

@@ -24,6 +24,7 @@ import {
 import { Hero } from "./hero";
 import { KeywordList } from "./keyword-list";
 import { NorwayMap } from "./norway-map";
+import type { NorwayFylkePath } from "@/lib/norway-paths";
 
 type Props = {
   headline: SnapshotHeadline | null;
@@ -32,6 +33,8 @@ type Props = {
   keywords: SnapshotKeyword[];
   geography: SnapshotGeography[];
   taxonomy: TaxonomyCategory[];
+  norwayPaths: readonly NorwayFylkePath[];
+  norwayViewBox: string;
 };
 
 const VALID_RANGES: Range[] = ["1m", "1q", "1y", "max"];
@@ -109,6 +112,8 @@ export function Scroller({
   keywords,
   geography,
   taxonomy,
+  norwayPaths,
+  norwayViewBox,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -247,7 +252,7 @@ export function Scroller({
             normalisert til dagens 15 fylker.
           </p>
           <div className="min-h-0 flex-1">
-            <NorwayMap geography={geography} />
+            <NorwayMap geography={geography} paths={norwayPaths} viewBox={norwayViewBox} />
           </div>
         </div>
       </section>
