@@ -2,10 +2,9 @@
 
 import { useMemo } from "react";
 import {
-  Bar,
-  BarChart,
   CartesianGrid,
-  Cell,
+  Line,
+  LineChart,
   XAxis,
   YAxis,
 } from "recharts";
@@ -18,14 +17,23 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import type { BrregSnapshotFounderAgeYearly } from "@/lib/supabase";
+import {
+  formatBucket,
+  formatBucketShort,
+} from "@/app/(site)/_components/bucket-format";
+import type { BrregSnapshotFounderAgeMonthly } from "@/lib/supabase";
+
+import { rangeToCutoffMs, type OppstartRange } from "./range-utils";
 
 type Props = {
-  rows: BrregSnapshotFounderAgeYearly[];
+  rows: BrregSnapshotFounderAgeMonthly[];
+  range: OppstartRange;
+  nowMs: number;
 };
 
 type Point = {
-  year: number;
+  bucket: string;                  // YYYY-MM for x-axis formatting
+  monthMs: number;
   aiMedian: number | null;
   nonAiMedian: number | null;
   aiP25: number | null;
@@ -49,14 +57,19 @@ function fmtAge(v: number | null): string {
   return v.toFixed(1).replace(".", ",") + " år";
 }
 
-export function FounderAgeBars({ rows }: Props) {
+export function FounderAgeLines({ rows, range, nowMs }: Props) {
   const points = useMemo<Point[]>(() => {
-    const byYear = new Map<number, Point>();
+    const cutoffMs = rangeToCutoffMs(range, nowMs);
+    const byMonth = new Map<string, Point>();
     for (const r of rows) {
+      const monthMs = new Date(r.reg_month + "T00:00:00Z").getTime();
+      if (monthMs < cutoffMs) continue;
+      const bucket = r.reg_month.slice(0, 7);
       const cur =
-        byYear.get(r.reg_year) ??
+        byMonth.get(bucket) ??
         ({
-          year: r.reg_year,
+          bucket,
+          monthMs,
           aiMedian: null,
           nonAiMedian: null,
           aiP25: null,
@@ -77,38 +90,47 @@ export function FounderAgeBars({ rows }: Props) {
         cur.nonAiP75 = r.p75_youngest_age;
         cur.nonAiSample = r.sample_size;
       }
-      byYear.set(r.reg_year, cur);
+      byMonth.set(bucket, cur);
     }
-    return [...byYear.values()].sort((a, b) => a.year - b.year);
-  }, [rows]);
+    return [...byMonth.values()].sort((a, b) => a.monthMs - b.monthMs);
+  }, [rows, range, nowMs]);
 
   if (points.length === 0) {
     return (
       <div className="flex h-full min-h-[200px] items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">
-        Ingen grunnlegger-data ennå.
+        Ingen grunnlegger-data i denne perioden.
       </div>
     );
   }
 
-  // Auto Y-domain. Floor at 0, but pad both ends for breathing room.
+  // Auto Y-domain. Pad both ends for breathing room; floor at 0.
   const allAges = points.flatMap((p) =>
     [p.aiMedian, p.nonAiMedian, p.aiP25, p.aiP75, p.nonAiP25, p.nonAiP75].filter(
       (v): v is number => v != null,
     ),
   );
-  const minAge = Math.max(0, Math.floor(Math.min(...allAges, 100) / 5) * 5 - 5);
-  const maxAge = Math.ceil(Math.max(...allAges, 0) / 5) * 5 + 5;
+  const minAge =
+    allAges.length === 0
+      ? 0
+      : Math.max(0, Math.floor(Math.min(...allAges) / 5) * 5 - 5);
+  const maxAge =
+    allAges.length === 0 ? 60 : Math.ceil(Math.max(...allAges) / 5) * 5 + 5;
+
+  // With a single visible point, recharts won't draw a line — force the
+  // dot back on so the chart still communicates the data point.
+  const showDots = points.length === 1;
 
   return (
     <ChartContainer config={chartConfig} className="h-full w-full">
-      <BarChart data={points} margin={{ left: 8, right: 8, top: 8, bottom: 0 }}>
+      <LineChart data={points} margin={{ left: 8, right: 8, top: 8, bottom: 0 }}>
         <CartesianGrid vertical={false} strokeDasharray="3 3" />
         <XAxis
-          dataKey="year"
+          dataKey="bucket"
           tickLine={false}
           axisLine={false}
           tickMargin={8}
-          minTickGap={16}
+          minTickGap={32}
+          tickFormatter={formatBucketShort}
         />
         <YAxis
           domain={[minAge, maxAge]}
@@ -122,6 +144,7 @@ export function FounderAgeBars({ rows }: Props) {
           content={
             <ChartTooltipContent
               indicator="dot"
+              labelFormatter={(v) => formatBucket(String(v))}
               formatter={(value, name, item) => {
                 const key = String(name);
                 const p = item.payload as Point;
@@ -164,33 +187,25 @@ export function FounderAgeBars({ rows }: Props) {
           }
         />
         <ChartLegend content={<ChartLegendContent />} />
-        <Bar
+        <Line
           dataKey="aiMedian"
-          fill="var(--color-aiMedian)"
-          radius={[4, 4, 0, 0]}
+          type="monotone"
+          stroke="var(--color-aiMedian)"
+          strokeWidth={2}
+          dot={showDots}
+          connectNulls
           isAnimationActive={false}
-        >
-          {points.map((p) => (
-            <Cell
-              key={`ai-${p.year}`}
-              fillOpacity={p.aiSample < SAMPLE_FLOOR ? 0.45 : 1}
-            />
-          ))}
-        </Bar>
-        <Bar
+        />
+        <Line
           dataKey="nonAiMedian"
-          fill="var(--color-nonAiMedian)"
-          radius={[4, 4, 0, 0]}
+          type="monotone"
+          stroke="var(--color-nonAiMedian)"
+          strokeWidth={2}
+          dot={showDots}
+          connectNulls
           isAnimationActive={false}
-        >
-          {points.map((p) => (
-            <Cell
-              key={`nonai-${p.year}`}
-              fillOpacity={p.nonAiSample < SAMPLE_FLOOR ? 0.45 : 1}
-            />
-          ))}
-        </Bar>
-      </BarChart>
+        />
+      </LineChart>
     </ChartContainer>
   );
 }

@@ -1,35 +1,35 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
-import { StackedBarChart } from "@/app/(site)/_components/stacked-bar-chart";
-import type { Series } from "@/app/(site)/_components/stacked-area-chart";
+import {
+  AIShareAreaChart,
+  type AIShareBucket,
+} from "@/app/(site)/_components/ai-share-area-chart";
+import {
+  StackedAreaChart,
+  type Series,
+} from "@/app/(site)/_components/stacked-area-chart";
 import { TimeRangeToggle } from "@/app/(site)/_components/time-range-toggle";
 import {
   NorwayMap,
   type NorwayMapUnit,
 } from "@/app/(site)/jobbmarked/_components/norway-map";
 import type { NorwayFylkePath } from "@/lib/norway-paths";
-
-const MAP_UNIT: NorwayMapUnit = {
-  ariaLabel: "Kart over nye AI-relevante foretak per fylke",
-  itemNoun: "AI-relevante foretak",
-  shareNoun: "AI-foretakene",
-};
 import type {
   BrregSnapshotDaily,
-  BrregSnapshotFounderAgeYearly,
+  BrregSnapshotFounderAgeMonthly,
   BrregSnapshotGeography,
   BrregSnapshotHeadline,
+  BrregSnapshotKeyword,
   SnapshotGeography,
   TaxonomyCategory,
 } from "@/lib/supabase";
 
-import { AiShareBars } from "./ai-share-bars";
-import { CategoryList, type NaceCategoryLabel } from "./category-list";
-import { FounderAgeBars } from "./founder-age-bars";
+import { FounderAgeLines } from "./founder-age-lines";
 import { Hero } from "./hero";
+import { KeywordList } from "./keyword-list";
 import {
   OPPSTART_RANGE_OPTIONS,
   parseOppstartRange,
@@ -38,10 +38,22 @@ import {
   type OppstartRange,
 } from "./range-utils";
 
+const MAP_UNIT: NorwayMapUnit = {
+  ariaLabel: "Kart over nye AI-relevante foretak per fylke",
+  itemNoun: "AI-relevante foretak",
+  shareNoun: "AI-foretakene",
+};
+
+export type NaceCategoryLabel = {
+  slug: string;
+  label_no: string;
+};
+
 type Props = {
   headline: BrregSnapshotHeadline | null;
   daily: BrregSnapshotDaily[];
-  founderAge: BrregSnapshotFounderAgeYearly[];
+  founderAgeMonthly: BrregSnapshotFounderAgeMonthly[];
+  keywords: BrregSnapshotKeyword[];
   geography: BrregSnapshotGeography[];
   categories: NaceCategoryLabel[];
   norwayPaths: readonly NorwayFylkePath[];
@@ -52,73 +64,103 @@ function dateKey(iso: string, monthly: boolean): string {
   return monthly ? iso.slice(0, 7) : iso.slice(0, 10);
 }
 
-function buildVolumeSeries(
+function buildAiShareBuckets(
   rows: BrregSnapshotDaily[],
   range: OppstartRange,
   nowMs: number,
-): { series: Series; aiBand: Map<string, number> } {
+): AIShareBucket[] {
   const cutoffMs = rangeToCutoffMs(range, nowMs);
   const monthly = shouldBucketMonthly(range);
-
-  const buckets = new Map<string, Map<string, number>>();
-  const aiBand = new Map<string, number>();
-  const keys = new Set<string>();
-
+  const buckets = new Map<string, { ai: number; total: number }>();
   for (const row of rows) {
     const t = new Date(row.registrert_dato + "T00:00:00Z").getTime();
     if (t < cutoffMs) continue;
-    if (row.count === 0) continue;
+    const key = dateKey(row.registrert_dato, monthly);
+    const cur = buckets.get(key) ?? { ai: 0, total: 0 };
+    cur.ai += row.ai_relevant_count;
+    cur.total += row.count;
+    buckets.set(key, cur);
+  }
+  return [...buckets.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, v]) => ({ date, aiCount: v.ai, totalCount: v.total }));
+}
+
+// Build a Series of category mix among AI-relevant new companies. Categories
+// whose AI-relevant total over the active window is 0 are filtered out, so
+// the chart and legend never show empty bands.
+function buildCategoryMixSeries(
+  rows: BrregSnapshotDaily[],
+  range: OppstartRange,
+  nowMs: number,
+): Series {
+  const cutoffMs = rangeToCutoffMs(range, nowMs);
+  const monthly = shouldBucketMonthly(range);
+  const buckets = new Map<string, Map<string, number>>();
+  const slugTotals = new Map<string, number>();
+  for (const row of rows) {
+    const t = new Date(row.registrert_dato + "T00:00:00Z").getTime();
+    if (t < cutoffMs) continue;
+    if (row.ai_relevant_count === 0) continue;
     const bucket = dateKey(row.registrert_dato, monthly);
-    keys.add(row.nace_category_slug);
     if (!buckets.has(bucket)) buckets.set(bucket, new Map());
     const inner = buckets.get(bucket)!;
     inner.set(
       row.nace_category_slug,
-      (inner.get(row.nace_category_slug) ?? 0) + row.count,
+      (inner.get(row.nace_category_slug) ?? 0) + row.ai_relevant_count,
     );
-    if (row.ai_relevant_count > 0) {
-      aiBand.set(bucket, (aiBand.get(bucket) ?? 0) + row.ai_relevant_count);
-    }
+    slugTotals.set(
+      row.nace_category_slug,
+      (slugTotals.get(row.nace_category_slug) ?? 0) + row.ai_relevant_count,
+    );
   }
-
   const sortedDates = [...buckets.keys()].sort();
-  const sortedKeys = [...keys];
+  const liveKeys = [...slugTotals.entries()]
+    .filter(([, n]) => n > 0)
+    .map(([k]) => k);
   return {
-    series: {
-      dates: sortedDates,
-      keys: sortedKeys,
-      values: sortedDates.map((d) => {
-        const inner = buckets.get(d)!;
-        return sortedKeys.map((k) => inner.get(k) ?? 0);
-      }),
-    },
-    aiBand,
+    dates: sortedDates,
+    keys: liveKeys,
+    values: sortedDates.map((d) => {
+      const inner = buckets.get(d)!;
+      return liveKeys.map((k) => inner.get(k) ?? 0);
+    }),
   };
 }
 
 export function Scroller({
   headline,
   daily,
-  founderAge,
+  founderAgeMonthly,
+  keywords,
   geography,
   categories,
   norwayPaths,
   norwayViewBox,
 }: Props) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const initialRange = parseOppstartRange(searchParams.get("range"));
   const [range, setRange] = useState<OppstartRange>(initialRange);
 
+  // Sync the URL via history.replaceState rather than Next.js router.replace
+  // so the snap-scroll container's scroll position is never perturbed — the
+  // router path can interact subtly with the segment layout and bounce the
+  // user back to the hero on each click. Mirrors /jobbmarked.
   function onRangeChange(next: OppstartRange) {
     setRange(next);
     const params = new URLSearchParams(searchParams.toString());
     if (next === "12m") params.delete("range");
     else params.set("range", next);
     const qs = params.toString();
-    router.replace(qs ? `/oppstart?${qs}` : "/oppstart", { scroll: false });
+    const url = qs ? `/oppstart?${qs}` : "/oppstart";
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", url);
+    }
   }
 
+  // Reference "now" derived from the data — the latest registrert_dato across
+  // the daily snapshot. Avoids Date.now() during render and gives stable
+  // cutoffs whether the page renders at 03:59 or 04:01.
   const nowMs = useMemo(() => {
     let latest = 0;
     for (const row of daily) {
@@ -128,8 +170,13 @@ export function Scroller({
     return latest || 0;
   }, [daily]);
 
-  const { series: volumeSeries, aiBand } = useMemo(
-    () => buildVolumeSeries(daily, range, nowMs),
+  const aiShareBuckets = useMemo(
+    () => buildAiShareBuckets(daily, range, nowMs),
+    [daily, range, nowMs],
+  );
+
+  const categoryMixSeries = useMemo(
+    () => buildCategoryMixSeries(daily, range, nowMs),
     [daily, range, nowMs],
   );
 
@@ -143,8 +190,6 @@ export function Scroller({
       })),
     [categories],
   );
-
-  const categoryListCutoffMs = nowMs - 30 * 86_400_000;
 
   const geoForMap = useMemo<SnapshotGeography[]>(
     () =>
@@ -172,34 +217,6 @@ export function Scroller({
         <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
           <div className="flex items-baseline justify-between gap-4">
             <h2 className="text-lg font-medium tracking-tight sm:text-xl">
-              Nye foretak per næringskategori
-            </h2>
-            <TimeRangeToggle<OppstartRange>
-              value={range}
-              onChange={onRangeChange}
-              options={OPPSTART_RANGE_OPTIONS}
-            />
-          </div>
-          <p className="max-w-[60ch] text-sm text-muted-foreground">
-            Daglige registreringer fra Brønnøysundregistrene, gruppert etter
-            kibarometer-NACE-kategorier. AI-relevante foretak ligger som eget
-            bånd nederst i hver søyle.
-          </p>
-          <div className="min-h-0 flex-1">
-            <StackedBarChart
-              series={volumeSeries}
-              aiBandValues={aiBand}
-              taxonomy={taxonomyAdapter}
-              variant="occupation"
-            />
-          </div>
-        </div>
-      </section>
-
-      <section className="snap-segment sm:snap-start sm:snap-always">
-        <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
-          <div className="flex items-baseline justify-between gap-4">
-            <h2 className="text-lg font-medium tracking-tight sm:text-xl">
               AI-andel av nye foretak
             </h2>
             <TimeRangeToggle<OppstartRange>
@@ -209,13 +226,39 @@ export function Scroller({
             />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
-            Andel nyregistrerte foretak fra Brønnøysundregistrene som
-            klassifiseres som AI-relevante. Hver søyle går fra 0 til 100 % —
-            det oransje feltet viser AI-andelen, det grå alt annet. Søyler
-            med færre enn 25 foretak er svakere fargelagt.
+            Andelen nyregistrerte foretak fra Brønnøysundregistrene som
+            klassifiseres som AI-relevante, gruppert per dag eller måned.
           </p>
           <div className="min-h-0 flex-1">
-            <AiShareBars rows={daily} range={range} nowMs={nowMs} />
+            <AIShareAreaChart buckets={aiShareBuckets} unitLabel="foretak" />
+          </div>
+        </div>
+      </section>
+
+      <section className="snap-segment sm:snap-start sm:snap-always">
+        <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
+          <div className="flex items-baseline justify-between gap-4">
+            <h2 className="text-lg font-medium tracking-tight sm:text-xl">
+              Topp kategorier — etter AI-andel
+            </h2>
+            <TimeRangeToggle<OppstartRange>
+              value={range}
+              onChange={onRangeChange}
+              options={OPPSTART_RANGE_OPTIONS}
+            />
+          </div>
+          <p className="max-w-[60ch] text-sm text-muted-foreground">
+            Næringskategorier blant AI-relevante nyregistreringer, normalisert
+            til 100 % per periode. Kategorier uten AI-relevante foretak i
+            valgt vindu utelates.
+          </p>
+          <div className="min-h-0 flex-1">
+            <StackedAreaChart
+              series={categoryMixSeries}
+              taxonomy={taxonomyAdapter}
+              variant="skill"
+              normalize
+            />
           </div>
         </div>
       </section>
@@ -223,35 +266,42 @@ export function Scroller({
       <section className="snap-segment sm:snap-start sm:snap-always">
         <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
           <h2 className="text-lg font-medium tracking-tight sm:text-xl">
-            Yngste grunnlegger ved registrering — AI vs ikke-AI
+            Mest brukte AI-fraser i nye foretak siste 30 dager
           </h2>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
-            Median alder på yngste registrerte rolleinnehaver ved
-            registreringstidspunktet, per år. AI-relevante mot ikke-AI som
-            kontroll-gruppe. Søyler med færre enn 25 foretak er svakere
-            fargelagt; tooltip viser kvartilavstand og utvalg.
-          </p>
-          <div className="min-h-0 flex-1">
-            <FounderAgeBars rows={founderAge} />
-          </div>
-        </div>
-      </section>
-
-      <section className="snap-segment sm:snap-start sm:snap-always">
-        <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
-          <h2 className="text-lg font-medium tracking-tight sm:text-xl">
-            Topp kategorier siste 30 dager — etter AI-andel
-          </h2>
-          <p className="max-w-[60ch] text-sm text-muted-foreground">
-            Næringskategorier rangert etter andel nyregistrerte foretak som
-            klassifiseres som AI-relevante. Kategorier med færre enn 25 foretak
-            i perioden er demped.
+            Treff mot kuraterte AI-nøkkelord i firmanavn og aktivitetsbeskrivelse
+            ved registrering. YoY sammenligner mot samme 30-dagers vindu i fjor;
+            «ny» betyr ingen treff i fjorårets vindu.
           </p>
           <div className="min-h-0 flex-1 overflow-auto">
-            <CategoryList
-              rows={daily}
-              labels={categories}
-              cutoffMs={categoryListCutoffMs}
+            <KeywordList rows={keywords} />
+          </div>
+        </div>
+      </section>
+
+      <section className="snap-segment sm:snap-start sm:snap-always">
+        <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
+          <div className="flex items-baseline justify-between gap-4">
+            <h2 className="text-lg font-medium tracking-tight sm:text-xl">
+              Median alder ved registrering — AI vs ikke-AI
+            </h2>
+            <TimeRangeToggle<OppstartRange>
+              value={range}
+              onChange={onRangeChange}
+              options={OPPSTART_RANGE_OPTIONS}
+            />
+          </div>
+          <p className="max-w-[60ch] text-sm text-muted-foreground">
+            Medianalder på yngste registrerte rolleinnehaver ved
+            registreringstidspunktet, per måned. To linjer sammenligner
+            AI-relevante foretak mot resten. Tooltip viser kvartilavstand
+            og utvalg.
+          </p>
+          <div className="min-h-0 flex-1">
+            <FounderAgeLines
+              rows={founderAgeMonthly}
+              range={range}
+              nowMs={nowMs}
             />
           </div>
         </div>

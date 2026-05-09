@@ -13,13 +13,13 @@ import { NORWAY_FYLKE_PATHS, NORWAY_VIEWBOX } from "@/lib/norway-paths";
 import {
   sb,
   type BrregSnapshotDaily,
-  type BrregSnapshotFounderAgeYearly,
+  type BrregSnapshotFounderAgeMonthly,
   type BrregSnapshotGeography,
   type BrregSnapshotHeadline,
+  type BrregSnapshotKeyword,
 } from "@/lib/supabase";
 
-import { type NaceCategoryLabel } from "./_components/category-list";
-import { Scroller } from "./_components/scroller";
+import { type NaceCategoryLabel, Scroller } from "./_components/scroller";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
@@ -43,26 +43,30 @@ const jsonLd = {
 };
 
 export default async function OppstartPage() {
-  const [headlineRows, daily, founderAge, geography, categories] = await Promise.all([
-    sb<BrregSnapshotHeadline[]>(
-      "/brreg_snapshot_headline?order=computed_for.desc&limit=1",
-    ),
-    sb<BrregSnapshotDaily[]>(
-      "/brreg_snapshot_daily" +
-        "?registrert_dato=gte.2018-01-01" +
-        "&order=registrert_dato.asc" +
-        "&limit=200000",
-    ),
-    sb<BrregSnapshotFounderAgeYearly[]>(
-      "/brreg_snapshot_founder_age_yearly?order=reg_year.asc",
-    ),
-    sb<BrregSnapshotGeography[]>(
-      "/brreg_snapshot_geography?order=count_30d.desc",
-    ),
-    sb<NaceCategoryLabel[]>(
-      "/nace_categories?taxonomy_version=eq.sn2025-09&is_active=is.true&select=slug,label_no&order=sort_order.asc",
-    ),
-  ]);
+  const [headlineRows, daily, founderAgeMonthly, keywords, geography, categories] =
+    await Promise.all([
+      sb<BrregSnapshotHeadline[]>(
+        "/brreg_snapshot_headline?order=computed_for.desc&limit=1",
+      ),
+      sb<BrregSnapshotDaily[]>(
+        "/brreg_snapshot_daily" +
+          "?registrert_dato=gte.2018-01-01" +
+          "&order=registrert_dato.asc" +
+          "&limit=200000",
+      ),
+      sb<BrregSnapshotFounderAgeMonthly[]>(
+        "/brreg_snapshot_founder_age_monthly?order=reg_month.asc",
+      ),
+      sb<BrregSnapshotKeyword[]>(
+        "/brreg_snapshot_keywords?order=rank.asc&limit=20",
+      ),
+      sb<BrregSnapshotGeography[]>(
+        "/brreg_snapshot_geography?order=count_30d.desc",
+      ),
+      sb<NaceCategoryLabel[]>(
+        "/nace_categories?taxonomy_version=eq.sn2025-09&is_active=is.true&select=slug,label_no&order=sort_order.asc",
+      ),
+    ]);
 
   const headline = headlineRows[0] ?? null;
 
@@ -72,7 +76,8 @@ export default async function OppstartPage() {
         <Scroller
           headline={headline}
           daily={daily}
-          founderAge={founderAge}
+          founderAgeMonthly={founderAgeMonthly}
+          keywords={keywords}
           geography={geography}
           categories={categories}
           norwayPaths={NORWAY_FYLKE_PATHS}

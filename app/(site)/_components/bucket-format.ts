@@ -1,6 +1,6 @@
-// Shared bucket-key formatters for the StackedAreaChart / StackedBarChart /
-// AiShareBars trio. Buckets are either YYYY-MM-DD (daily) or YYYY-MM
-// (monthly) — formatBucket detects the length and renders accordingly.
+// Shared bucket-key formatters for the chart components. Buckets are either
+// YYYY-MM-DD (daily) or YYYY-MM (monthly) — formatBucket detects the length
+// and renders accordingly.
 
 const NO_DATE_FMT_FULL = new Intl.DateTimeFormat("nb-NO", {
   day: "2-digit",

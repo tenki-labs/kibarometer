@@ -225,3 +225,21 @@ export type BrregSnapshotFounderAgeYearly = {
   p75_youngest_age: number | null;
   sample_size: number;
 };
+
+export type BrregSnapshotFounderAgeMonthly = {
+  reg_month: string;               // YYYY-MM-01
+  is_ai_relevant: boolean;
+  median_youngest_age: number | null;
+  p25_youngest_age: number | null;
+  p75_youngest_age: number | null;
+  sample_size: number;
+};
+
+export type BrregSnapshotKeyword = {
+  keyword: string;
+  category: string | null;         // tool / role / concept
+  ai_count_30d: number;
+  ai_count_30d_yoy: number;
+  yoy_growth_pct: number | null;
+  rank: number;
+};
