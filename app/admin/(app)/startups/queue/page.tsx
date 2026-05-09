@@ -60,10 +60,7 @@ type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-async function countRowsBrreg(
-  table: string,
-  filter = "",
-): Promise<number> {
+async function countRows(table: string, filter = ""): Promise<number> {
   try {
     const r = await sbFetch<CountRow[]>(
       `/${table}?select=count${filter ? `&${filter}` : ""}`,
@@ -75,8 +72,7 @@ async function countRowsBrreg(
   }
 }
 
-// Yesterday in YYYY-MM-DD — used as the placeholder for the ingest date
-// inputs. Hoisted out of the component for react-hooks/purity.
+// Hoisted out of the component for react-hooks/purity.
 function yesterdayIso(): string {
   return new Date(Date.now() - 86400000).toISOString().slice(0, 10);
 }
@@ -95,14 +91,14 @@ export default async function QueuePage({ searchParams }: Props) {
     recentFailed,
     reprocessDrain,
   ] = await Promise.all([
-    countRowsBrreg("brreg_url_queue", "status=eq.pending"),
-    countRowsBrreg("brreg_url_queue", "status=eq.fetched"),
-    countRowsBrreg("brreg_url_queue", "status=eq.failed"),
-    countRowsBrreg(
+    countRows("brreg_url_queue", "status=eq.pending"),
+    countRows("brreg_url_queue", "status=eq.fetched"),
+    countRows("brreg_url_queue", "status=eq.failed"),
+    countRows(
       "brreg_companies",
       "is_ai_relevant=is.true&tier1_completed_at=is.null&llm_retry_count=lt.3",
     ),
-    countRowsBrreg(
+    countRows(
       "brreg_companies",
       "is_ai_relevant=is.true&tier1_completed_at=not.is.null&tier2_completed_at=is.null&llm_retry_count=lt.3",
     ),
