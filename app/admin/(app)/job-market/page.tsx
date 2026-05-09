@@ -174,7 +174,7 @@ export default async function JobMarketOverviewPage({ searchParams }: Props) {
       { service: true, headers: { Prefer: "count=exact" } },
     ).catch(() => [] as CountRow[]),
     sbFetch<CountRow[] | { count: number }>(
-      `/nav_postings?is_ai_related=is.true&select=count`,
+      `/nav_postings?is_ai=is.true&select=count`,
       { service: true, headers: { Prefer: "count=exact" } },
     ).catch(() => [] as CountRow[]),
     sbFetch<CountRow[] | { count: number }>(
