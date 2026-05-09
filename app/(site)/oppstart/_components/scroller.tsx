@@ -12,6 +12,7 @@ import {
   type Range,
 } from "@/app/(site)/_components/time-range-toggle";
 import { NorwayMap } from "@/app/(site)/jobbmarked/_components/norway-map";
+import type { NorwayFylkePath } from "@/lib/norway-paths";
 import type {
   BrregSnapshotCohort,
   BrregSnapshotDaily,
@@ -31,6 +32,8 @@ type Props = {
   cohort: BrregSnapshotCohort[];
   geography: BrregSnapshotGeography[];
   categories: NaceCategoryLabel[];
+  norwayPaths: readonly NorwayFylkePath[];
+  norwayViewBox: string;
 };
 
 const VALID_RANGES: Range[] = ["1m", "1q", "1y", "max"];
@@ -107,6 +110,8 @@ export function Scroller({
   cohort,
   geography,
   categories,
+  norwayPaths,
+  norwayViewBox,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -242,7 +247,7 @@ export function Scroller({
             Siste 30 dager. Kartet farges etter AI-andel per fylke.
           </p>
           <div className="min-h-0 flex-1">
-            <NorwayMap geography={geoForMap} />
+            <NorwayMap geography={geoForMap} paths={norwayPaths} viewBox={norwayViewBox} />
           </div>
         </div>
       </section>

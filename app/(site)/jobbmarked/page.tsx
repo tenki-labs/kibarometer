@@ -11,6 +11,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
+import { NORWAY_FYLKE_PATHS, NORWAY_VIEWBOX } from "@/lib/norway-paths";
 import {
   sb,
   type SnapshotCategoryDaily,
@@ -99,6 +100,8 @@ export default async function JobbmarkedPage() {
           keywords={keywords}
           geography={geography}
           taxonomy={taxonomy}
+          norwayPaths={NORWAY_FYLKE_PATHS}
+          norwayViewBox={NORWAY_VIEWBOX}
         />
       </Suspense>
       <script
