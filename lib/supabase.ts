@@ -216,3 +216,12 @@ export type BrregSnapshotCohort = {
   konkurs_count: number;
   survival_rate_pct: number;
 };
+
+export type BrregSnapshotFounderAgeYearly = {
+  reg_year: number;
+  is_ai_relevant: boolean;
+  median_youngest_age: number | null;
+  p25_youngest_age: number | null;
+  p75_youngest_age: number | null;
+  sample_size: number;
+};
