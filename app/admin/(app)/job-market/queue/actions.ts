@@ -7,6 +7,7 @@ import { enrichNav } from "@/lib/admin/legacy/jobs.js";
 import { runClassify } from "@/lib/admin/llm-classify";
 import { runDiscover } from "@/lib/admin/llm-discover";
 import { sbFetch } from "@/lib/admin/sb";
+import { flashQs } from "@/lib/admin/flash";
 
 const LIST = "/admin/job-market/queue";
 
@@ -27,19 +28,19 @@ export async function runEnrichAction() {
     }
   });
   redirect(
-    queueRedirect("enrich", {
+    `${LIST}${flashQs({
       ok: "Berikelse-batch startet — følg progresjon på /admin/processes.",
-    }),
+    })}`,
   );
 }
 
-// Tier 1 / Tier 2 burst on the NAV LLM queues. Same orchestrators the
-// cron + the hub-page buttons (PR 2) call; just redirects back to the
-// queue page so the operator stays in the queue context.
+// Tier 1 / Tier 2 burst on the NAV LLM queues. Queue-local versions that
+// redirect back to /admin/job-market/queue (the parent's runTier1Action
+// redirects to the dashboard). Same underlying orchestrators.
 export async function runTier1Action() {
   const skip = await llmPreflight("tier1");
   if (skip) {
-    redirect(queueRedirect("tier1", { ok: skip }));
+    redirect(`${LIST}${flashQs({ ok: skip })}`);
   }
   after(async () => {
     try {
@@ -49,16 +50,16 @@ export async function runTier1Action() {
     }
   });
   redirect(
-    queueRedirect("tier1", {
+    `${LIST}${flashQs({
       ok: "Tier 1-batch startet — følg progresjon på /admin/processes.",
-    }),
+    })}`,
   );
 }
 
 export async function runTier2Action() {
   const skip = await llmPreflight("tier2");
   if (skip) {
-    redirect(queueRedirect("tier2", { ok: skip }));
+    redirect(`${LIST}${flashQs({ ok: skip })}`);
   }
   after(async () => {
     try {
@@ -68,9 +69,9 @@ export async function runTier2Action() {
     }
   });
   redirect(
-    queueRedirect("tier2", {
+    `${LIST}${flashQs({
       ok: "Tier 2-batch startet — følg progresjon på /admin/processes.",
-    }),
+    })}`,
   );
 }
 
@@ -91,17 +92,4 @@ async function llmPreflight(
     // If the probe fails, let the orchestrator handle it.
   }
   return null;
-}
-
-// Build a redirect that preserves the active tab + carries the flash QS.
-// Inlined here (vs. flashQs) because we need to add the tab param up
-// front so the page lands on the same tab the operator clicked from.
-function queueRedirect(
-  tab: "enrich" | "tier1" | "tier2",
-  flash: { ok?: string; error?: string },
-): string {
-  const qs = new URLSearchParams({ tab });
-  if (flash.ok) qs.set("flash_ok", flash.ok);
-  if (flash.error) qs.set("flash_error", flash.error);
-  return `${LIST}?${qs.toString()}`;
 }

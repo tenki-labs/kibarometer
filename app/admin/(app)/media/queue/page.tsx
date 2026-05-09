@@ -31,6 +31,10 @@ import {
   discardOldFailedAction,
   retryQueueAction,
 } from "./actions";
+import {
+  refreshSnapshotsAction,
+  reprocessKeywordsAction,
+} from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -165,14 +169,20 @@ export default async function MediaQueuePage({ searchParams }: Props) {
       <Card className="mt-6 gap-3">
         <CardHeader>
           <CardTitle className="font-mono text-[0.7rem] uppercase tracking-[0.14em]">
-            Manuelle drainere
+            Operasjoner
           </CardTitle>
           <CardDescription>
-            Samme orchestratorer som cron-tikkene + Hub-knappene. Bruk når
-            du har en backfill-pukkel og ikke vil vente på neste tikk.
+            De fem essensielle knappene for media-pipelinen. Samme
+            orchestratorer som cron — bruk når du har en backfill-pukkel
+            eller vil verifisere et taksonomi-skifte.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
+          <form action={reprocessKeywordsAction}>
+            <SubmitButton variant="outline" size="sm" pendingLabel="Starter…">
+              Keyword-mapping
+            </SubmitButton>
+          </form>
           <form action={burstFetchClassifyAction}>
             <SubmitButton
               variant="outline"
@@ -180,7 +190,7 @@ export default async function MediaQueuePage({ searchParams }: Props) {
               pendingLabel="Kjører…"
               disabled={pendingCount === 0}
             >
-              Tøm fetch+klassifiser ({pendingCount.toLocaleString("nb-NO")})
+              Backfill fetch+klassifiser ({pendingCount.toLocaleString("nb-NO")})
             </SubmitButton>
           </form>
           <form action={burstTier1Action}>
@@ -201,6 +211,11 @@ export default async function MediaQueuePage({ searchParams }: Props) {
               disabled={t2PendingCount === 0}
             >
               Kjør Tier 2 ({t2PendingCount.toLocaleString("nb-NO")})
+            </SubmitButton>
+          </form>
+          <form action={refreshSnapshotsAction}>
+            <SubmitButton variant="outline" size="sm" pendingLabel="Regner…">
+              Refresh snapshots
             </SubmitButton>
           </form>
         </CardContent>

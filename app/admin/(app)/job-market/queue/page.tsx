@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -16,7 +17,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Flash } from "@/app/admin/_components/flash";
 import { PageHeader } from "@/app/admin/_components/page-header";
 import { SubmitButton } from "@/app/admin/_components/submit-button";
@@ -28,6 +28,11 @@ import {
   runTier1Action,
   runTier2Action,
 } from "./actions";
+import {
+  fastForwardAction,
+  refreshSnapshotsAction,
+  reprocessAction,
+} from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -47,11 +52,6 @@ type QueueRow = {
 type CountRow = { count: number };
 
 type CandidateCountRow = { count: number };
-
-function single(v: string | string[] | undefined): string {
-  if (Array.isArray(v)) return v[0] ?? "";
-  return v ?? "";
-}
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -77,7 +77,6 @@ async function fetchPeek(filter: string): Promise<QueueRow[]> {
 
 export default async function NavQueuePage({ searchParams }: Props) {
   const sp = await searchParams;
-  const tab = single(sp.tab) || "enrich";
 
   // Pipeline stages — three filters that mirror the cron orchestrators.
   // Berikelse (enrichment): nav_postings.detail_fetched_at IS NULL AND status=ACTIVE.
@@ -86,12 +85,9 @@ export default async function NavQueuePage({ searchParams }: Props) {
   //   The cron runs every 15 min on detail-enriched rows.
   // Klassifisering T2: tier2_completed_at IS NULL AND tier1_completed_at IS NOT NULL.
   //   Tier 2 only runs after Tier 1 succeeded.
-  const ENRICH_FILTER =
-    "status=eq.ACTIVE&detail_fetched_at=is.null";
-  const T1_FILTER =
-    "tier1_completed_at=is.null&detail_fetched_at=not.is.null";
-  const T2_FILTER =
-    "tier2_completed_at=is.null&tier1_completed_at=not.is.null";
+  const ENRICH_FILTER = "status=eq.ACTIVE&detail_fetched_at=is.null";
+  const T1_FILTER = "tier1_completed_at=is.null&detail_fetched_at=not.is.null";
+  const T2_FILTER = "tier2_completed_at=is.null&tier1_completed_at=not.is.null";
 
   const [
     enrichCount,
@@ -126,10 +122,10 @@ export default async function NavQueuePage({ searchParams }: Props) {
       <PageHeader
         eyebrow="Jobbmarked"
         title="Kø"
-        description="Pågående pipeline-trinn for NAV. Cron drainer normaltilstand — disse tellingene skal trende mot null mellom kjøringer."
+        description="Pågående pipeline-trinn for NAV. Cron drainer normaltilstand — disse tellingene skal trende mot null mellom kjøringer. Operasjoner-kortet under er escape hatches."
       />
 
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
         <StageCard label="Berikelse" count={enrichCount} hint="Cron hvert 15. min" />
         <StageCard label="Klassifisering T1" count={t1Count} hint="Cron hvert 15. min" />
         <StageCard label="Klassifisering T2" count={t2Count} hint="Cron hvert 15. min" />
@@ -152,86 +148,83 @@ export default async function NavQueuePage({ searchParams }: Props) {
         </Card>
       </div>
 
-      <Tabs defaultValue={tab}>
-        <TabsList>
-          <TabsTrigger value="enrich">
-            Berikelse · {enrichCount.toLocaleString("nb-NO")}
-          </TabsTrigger>
-          <TabsTrigger value="tier1">
-            Tier 1 · {t1Count.toLocaleString("nb-NO")}
-          </TabsTrigger>
-          <TabsTrigger value="tier2">
-            Tier 2 · {t2Count.toLocaleString("nb-NO")}
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="enrich">
-          <DrainBar
-            label="Tøm enrich-kø"
-            description="Drainer én batch (~60s budget) av berikelses-køen — samme orchestrator som cron kjører hvert 15. min."
-            disabled={enrichCount === 0}
-            action={runEnrichAction}
-          />
-          <QueueTable
-            rows={enrichRows}
-            emptyLabel="Berikelseskøen er tom — alle aktive stillinger har detalj-payload."
-          />
-        </TabsContent>
-        <TabsContent value="tier1">
-          <DrainBar
-            label="Kjør Tier 1"
-            description="Drainer én batch av Tier 1 LLM-køen. Samme orchestrator som cron + Hub-knappen."
-            disabled={t1Count === 0}
-            action={runTier1Action}
-          />
-          <QueueTable
-            rows={t1Rows}
-            emptyLabel="Ingen rader venter på Tier 1-klassifisering."
-          />
-        </TabsContent>
-        <TabsContent value="tier2">
-          <DrainBar
-            label="Kjør Tier 2"
-            description="Drainer én batch av Tier 2 LLM-køen. Samme orchestrator som cron + Hub-knappen."
-            disabled={t2Count === 0}
-            action={runTier2Action}
-          />
-          <QueueTable
-            rows={t2Rows}
-            emptyLabel="Ingen rader venter på Tier 2-klassifisering."
-          />
-        </TabsContent>
-      </Tabs>
-    </>
-  );
-}
+      <Card className="mt-6 gap-3">
+        <CardHeader>
+          <CardTitle className="font-mono text-[0.7rem] uppercase tracking-[0.14em]">
+            Operasjoner
+          </CardTitle>
+          <CardDescription>
+            De fem essensielle knappene for NAV-pipelinen. Cron dekker
+            normaltilstand — bruk når du har en backfill-pukkel eller vil
+            verifisere et taksonomi-skifte. Backfill kjører via en
+            koordinator-jobb (~3 t) og kan stoppes fra dashboardet.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <form action={reprocessAction}>
+            <SubmitButton variant="outline" size="sm" pendingLabel="Starter…">
+              Keyword-mapping
+            </SubmitButton>
+          </form>
+          <form action={fastForwardAction}>
+            <SubmitButton variant="outline" size="sm" pendingLabel="Starter…">
+              Backfill
+            </SubmitButton>
+          </form>
+          <form action={runEnrichAction}>
+            <SubmitButton
+              variant="outline"
+              size="sm"
+              pendingLabel="Kjører…"
+              disabled={enrichCount === 0}
+            >
+              Tøm enrich-kø ({enrichCount.toLocaleString("nb-NO")})
+            </SubmitButton>
+          </form>
+          <form action={runTier1Action}>
+            <SubmitButton
+              variant="outline"
+              size="sm"
+              pendingLabel="Starter…"
+              disabled={t1Count === 0}
+            >
+              Kjør Tier 1 ({t1Count.toLocaleString("nb-NO")})
+            </SubmitButton>
+          </form>
+          <form action={runTier2Action}>
+            <SubmitButton
+              variant="outline"
+              size="sm"
+              pendingLabel="Starter…"
+              disabled={t2Count === 0}
+            >
+              Kjør Tier 2 ({t2Count.toLocaleString("nb-NO")})
+            </SubmitButton>
+          </form>
+          <form action={refreshSnapshotsAction}>
+            <SubmitButton variant="outline" size="sm" pendingLabel="Regner…">
+              Refresh snapshots
+            </SubmitButton>
+          </form>
+        </CardContent>
+      </Card>
 
-function DrainBar({
-  label,
-  description,
-  disabled,
-  action,
-}: {
-  label: string;
-  description: string;
-  disabled: boolean;
-  action: () => Promise<void>;
-}) {
-  return (
-    <Card className="mt-4 gap-3">
-      <CardContent className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
-        <p className="flex-1 text-sm text-muted-foreground">{description}</p>
-        <form action={action}>
-          <SubmitButton
-            variant="outline"
-            size="sm"
-            pendingLabel="Starter…"
-            disabled={disabled}
-          >
-            {label}
-          </SubmitButton>
-        </form>
-      </CardContent>
-    </Card>
+      <QueueSampleCard
+        title="Berikelse · sample"
+        rows={enrichRows}
+        emptyLabel="Berikelseskøen er tom — alle aktive stillinger har detalj-payload."
+      />
+      <QueueSampleCard
+        title="Tier 1 · sample"
+        rows={t1Rows}
+        emptyLabel="Ingen rader venter på Tier 1-klassifisering."
+      />
+      <QueueSampleCard
+        title="Tier 2 · sample"
+        rows={t2Rows}
+        emptyLabel="Ingen rader venter på Tier 2-klassifisering."
+      />
+    </>
   );
 }
 
@@ -259,18 +252,20 @@ function StageCard({
   );
 }
 
-function QueueTable({
+function QueueSampleCard({
+  title,
   rows,
   emptyLabel,
 }: {
+  title: string;
   rows: QueueRow[];
   emptyLabel: string;
 }) {
   return (
-    <Card className="mt-4 gap-0 p-0">
+    <Card className="mt-6 gap-0 p-0">
       <CardHeader className="px-6 py-4">
         <CardTitle className="font-mono text-[0.7rem] uppercase tracking-[0.14em]">
-          Sample (siste {PEEK_LIMIT})
+          {title} (siste {PEEK_LIMIT})
         </CardTitle>
       </CardHeader>
       <div className="overflow-x-auto">

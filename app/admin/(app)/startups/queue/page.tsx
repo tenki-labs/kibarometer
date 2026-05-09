@@ -15,6 +15,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Flash } from "@/app/admin/_components/flash";
 import { PageHeader } from "@/app/admin/_components/page-header";
 import { StatCard } from "@/app/admin/_components/stat-card";
@@ -26,6 +28,15 @@ import {
   retryFailedAction,
   rolesBurstAction,
 } from "./actions";
+import {
+  backfillAction,
+  ingestAction,
+  refreshSnapshotsAction,
+  reprocessKeywordsAction,
+  runTier1Action,
+  runTier2Action,
+  stopReprocessAction,
+} from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -39,28 +50,57 @@ type QueueRow = {
 
 type CountRow = { count: number };
 
+type ReprocessDrainRow = {
+  id: string;
+  status: string;
+  current_step: string | null;
+};
+
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-async function countRows(filter: string): Promise<number> {
+async function countRowsBrreg(
+  table: string,
+  filter = "",
+): Promise<number> {
   try {
-    const r = await sbFetch<CountRow[]>(`/brreg_url_queue?select=count&${filter}`, {
-      service: true,
-    });
+    const r = await sbFetch<CountRow[]>(
+      `/${table}?select=count${filter ? `&${filter}` : ""}`,
+      { service: true },
+    );
     return r?.[0]?.count ?? 0;
   } catch {
     return 0;
   }
 }
 
+// Yesterday in YYYY-MM-DD — used as the placeholder for the ingest date
+// inputs. Hoisted out of the component for react-hooks/purity.
+function yesterdayIso(): string {
+  return new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+}
+
 export default async function QueuePage({ searchParams }: Props) {
   const params = await searchParams;
+  const yesterday = yesterdayIso();
 
-  const [pending, fetched, failed, oldestPending, recentFailed] = await Promise.all([
-    countRows("status=eq.pending"),
-    countRows("status=eq.fetched"),
-    countRows("status=eq.failed"),
+  const [
+    pending,
+    fetched,
+    failed,
+    tier1Pending,
+    oldestPending,
+    recentFailed,
+    reprocessDrain,
+  ] = await Promise.all([
+    countRowsBrreg("brreg_url_queue", "status=eq.pending"),
+    countRowsBrreg("brreg_url_queue", "status=eq.fetched"),
+    countRowsBrreg("brreg_url_queue", "status=eq.failed"),
+    countRowsBrreg(
+      "brreg_companies",
+      "is_ai_relevant=is.true&tier1_completed_at=is.null&llm_retry_count=lt.3",
+    ),
     sbFetch<QueueRow[]>(
       "/brreg_url_queue?status=eq.pending&order=enqueued_at.asc&limit=10&select=orgnr,status,enqueued_at,attempts,last_error",
       { service: true },
@@ -69,60 +109,157 @@ export default async function QueuePage({ searchParams }: Props) {
       "/brreg_url_queue?status=eq.failed&order=enqueued_at.desc&limit=20&select=orgnr,status,enqueued_at,attempts,last_error",
       { service: true },
     ).catch(() => [] as QueueRow[]),
+    sbFetch<ReprocessDrainRow[]>(
+      "/jobs?name=eq.brreg_reprocess_drain&order=started_at.desc&limit=1&select=id,status,current_step",
+      { service: true },
+    ).catch(() => [] as ReprocessDrainRow[]),
   ]);
+
+  const reprocessRunning = reprocessDrain[0]?.status === "running";
+  const reprocessStep = reprocessDrain[0]?.current_step ?? null;
 
   return (
     <>
       <Flash searchParams={params} />
       <PageHeader
         eyebrow="Innsikt · Oppstart"
-        title="Rolle-kø"
+        title="Kø"
         description={
           <>
-            Innsikt i brreg_url_queue. Rader genereres når et nytt foretak
-            havner i en kategori med <code className="text-xs">enrich_roles=true</code>.
-            Cron drenerer K=50 hvert 30. min;{" "}
-            <Link href="/admin/startups" className="underline underline-offset-2">
-              burst-knappen
-            </Link>{" "}
-            kjører K=500.
+            Operativ tilstand for brreg-pipelinen: rolle-fetch-køen og
+            LLM-tier-køene. Cron drenerer normaltilstand;{" "}
+            <em>Operasjoner</em> nedenfor er escape hatches.
           </>
         }
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard label="Ventende" value={pending.toLocaleString("nb-NO")} />
-        <StatCard label="Hentet" value={fetched.toLocaleString("nb-NO")} />
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard
-          label="Feilet"
+          label="Rolle-kø ventende"
+          value={pending.toLocaleString("nb-NO")}
+          hint="Cron K=50 hver halvtime"
+        />
+        <StatCard
+          label="Rolle-kø hentet"
+          value={fetched.toLocaleString("nb-NO")}
+          hint="Lagt i brreg_roles"
+        />
+        <StatCard
+          label="Rolle-kø feilet"
           value={failed.toLocaleString("nb-NO")}
-          hint="Etter 3 forsøk fryses raden som 'failed'."
+          hint={failed > 0 ? "Sjekk feilmeldinger nedenfor" : "Ingen feil"}
+        />
+        <StatCard
+          label="Tier 1-kø"
+          value={tier1Pending.toLocaleString("nb-NO")}
+          hint="AI-relevante selskaper uten T1"
         />
       </div>
 
       <Card className="mt-6 gap-3">
         <CardHeader>
           <CardTitle className="font-mono text-[0.7rem] uppercase tracking-[0.14em]">
-            Manuell drainer
+            Operasjoner
           </CardTitle>
           <CardDescription>
-            Burst-drain av rolle-køen (K=500 / 4-min budget) — samme
-            orchestrator som <code className="font-mono">brreg-roles</code>{" "}
-            cron, bare større batch. Bruk når du har en pukkel etter
-            backfill og ikke vil vente på neste tikk.
+            De fem essensielle knappene for brreg-pipelinen. Cron dekker
+            normaltilstand — bruk når du vil verifisere et taksonomi-skifte
+            eller drainere en backlog. Backfill laster hele Brreg-registeret
+            via bulk-dump; den lille datovinduet under er for inkrementell
+            ingest (samme som daglig cron).
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <form action={rolesBurstAction}>
-            <SubmitButton
-              variant="outline"
-              size="sm"
-              pendingLabel="Starter…"
-              disabled={pending === 0}
-            >
-              Tøm rollekø ({pending.toLocaleString("nb-NO")})
-            </SubmitButton>
-          </form>
+        <CardContent className="flex flex-col gap-3">
+          <div className="flex flex-wrap gap-2">
+            <form action={reprocessKeywordsAction}>
+              <SubmitButton
+                variant="outline"
+                size="sm"
+                pendingLabel="Starter…"
+                disabled={reprocessRunning}
+              >
+                {reprocessRunning ? "Keyword-mapping kjører…" : "Keyword-mapping"}
+              </SubmitButton>
+            </form>
+            {reprocessRunning ? (
+              <form action={stopReprocessAction}>
+                <SubmitButton variant="outline" size="sm" pendingLabel="Stopper…">
+                  Stopp keyword-mapping
+                </SubmitButton>
+              </form>
+            ) : null}
+            <form action={backfillAction}>
+              <SubmitButton variant="outline" size="sm" pendingLabel="Starter…">
+                Backfill (hele registeret)
+              </SubmitButton>
+            </form>
+            <form action={runTier1Action}>
+              <SubmitButton
+                variant="outline"
+                size="sm"
+                pendingLabel="Starter…"
+                disabled={tier1Pending === 0}
+              >
+                Kjør Tier 1 ({tier1Pending.toLocaleString("nb-NO")})
+              </SubmitButton>
+            </form>
+            <form action={runTier2Action}>
+              <SubmitButton variant="outline" size="sm" pendingLabel="Starter…">
+                Kjør Tier 2
+              </SubmitButton>
+            </form>
+            <form action={refreshSnapshotsAction}>
+              <SubmitButton variant="outline" size="sm" pendingLabel="Regner…">
+                Refresh snapshots
+              </SubmitButton>
+            </form>
+            <form action={rolesBurstAction}>
+              <SubmitButton
+                variant="outline"
+                size="sm"
+                pendingLabel="Starter…"
+                disabled={pending === 0}
+              >
+                Tøm rollekø ({pending.toLocaleString("nb-NO")})
+              </SubmitButton>
+            </form>
+          </div>
+
+          {reprocessRunning && reprocessStep ? (
+            <p className="text-xs text-muted-foreground">
+              Keyword-mapping: {reprocessStep}
+            </p>
+          ) : null}
+
+          <details className="mt-1 rounded-md border bg-muted/30 px-3 py-2">
+            <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+              Inkrementell ingest (dato-vindu)
+            </summary>
+            <form action={ingestAction} className="mt-3 flex flex-col gap-2">
+              <p className="text-xs text-muted-foreground">
+                Hent foretak fra brreg-API for et dato-vindu. Tomme felt =
+                gårsdagen. Idempotent på orgnr. Cron kjører dette daglig
+                06:30 UTC.
+              </p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="ingest-from" className="text-xs">
+                    Fra (YYYY-MM-DD)
+                  </Label>
+                  <Input id="ingest-from" name="from" placeholder={yesterday} />
+                </div>
+                <div>
+                  <Label htmlFor="ingest-to" className="text-xs">
+                    Til
+                  </Label>
+                  <Input id="ingest-to" name="to" placeholder={yesterday} />
+                </div>
+              </div>
+              <SubmitButton size="sm" pendingLabel="Henter…" className="self-start">
+                Ingest
+              </SubmitButton>
+            </form>
+          </details>
         </CardContent>
       </Card>
 
