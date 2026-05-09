@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, FileText, Globe, Newspaper } from "lucide-react";
+import { ArrowRight, FileText, Newspaper } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,16 +21,8 @@ import {
 import { Flash } from "@/app/admin/_components/flash";
 import { PageHeader } from "@/app/admin/_components/page-header";
 import { StatCard } from "@/app/admin/_components/stat-card";
-import { SubmitButton } from "@/app/admin/_components/submit-button";
 import { sbFetch } from "@/lib/admin/sb";
 import { fmtDateTime } from "@/lib/admin/flash";
-import {
-  burstFetchClassifyAction,
-  burstTier1Action,
-  burstTier2Action,
-  refreshSnapshotsAction,
-  reprocessKeywordsAction,
-} from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -107,10 +99,6 @@ export default async function MediaOverviewPage({ searchParams }: Props) {
     aiArticles7d,
     articles30d,
     aiArticles30d,
-    queuePending,
-    queueFailed,
-    tier1Pending,
-    tier2Pending,
     sources,
     recentArticles,
     latestIndex,
@@ -139,22 +127,6 @@ export default async function MediaOverviewPage({ searchParams }: Props) {
       `/media_articles?deleted_at=is.null&is_ai_related=is.true&fetched_at=gte.${encodeURIComponent(thirtyDaysAgoIso)}&select=count`,
       { service: true, headers: { Prefer: "count=exact" } },
     ).catch(() => null),
-    sbFetch<CountRow[] | { count: number }>(
-      `/media_url_queue?status=eq.pending&select=count`,
-      { service: true, headers: { Prefer: "count=exact" } },
-    ).catch(() => null),
-    sbFetch<CountRow[] | { count: number }>(
-      `/media_url_queue?status=eq.failed&select=count`,
-      { service: true, headers: { Prefer: "count=exact" } },
-    ).catch(() => null),
-    sbFetch<CountRow[] | { count: number }>(
-      `/media_articles?deleted_at=is.null&is_ai_related=is.true&tier1_completed_at=is.null&select=count`,
-      { service: true, headers: { Prefer: "count=exact" } },
-    ).catch(() => null),
-    sbFetch<CountRow[] | { count: number }>(
-      `/media_articles?deleted_at=is.null&tier1_completed_at=not.is.null&tier2_completed_at=is.null&select=count`,
-      { service: true, headers: { Prefer: "count=exact" } },
-    ).catch(() => null),
     sbFetch<Source[]>(
       `/media_sources?select=id,name,domain,is_active,last_polled_at&order=is_active.desc,name.asc`,
       { service: true },
@@ -177,10 +149,6 @@ export default async function MediaOverviewPage({ searchParams }: Props) {
   const all7 = unwrapCount(articles7d);
   const ai30 = unwrapCount(aiArticles30d);
   const all30 = unwrapCount(articles30d);
-  const pending = unwrapCount(queuePending);
-  const failed = unwrapCount(queueFailed);
-  const t1Pending = unwrapCount(tier1Pending);
-  const t2Pending = unwrapCount(tier2Pending);
 
   const activeSources = sources.filter((s) => s.is_active).length;
   const lastPolled = sources
@@ -198,7 +166,7 @@ export default async function MediaOverviewPage({ searchParams }: Props) {
       <PageHeader
         eyebrow="Innsikt"
         title="Mediedekning"
-        description="Operativ oversikt over AI-medietemperatur-pipelinen: kilder, kø, klassifisering og siste artikler. Den offentlige dashboarden ligger på /mediedekning."
+        description="Operativ oversikt over AI-medietemperatur-pipelinen: kilder, kø, klassifisering og siste artikler. Operasjoner ligger på Kø."
         action={
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline">
@@ -213,11 +181,6 @@ export default async function MediaOverviewPage({ searchParams }: Props) {
             <Button asChild variant="outline">
               <Link href="/admin/media/queue">Kø</Link>
             </Button>
-            <form action={refreshSnapshotsAction}>
-              <SubmitButton variant="outline" pendingLabel="Regner…">
-                Regn snapshots
-              </SubmitButton>
-            </form>
           </div>
         }
       />
@@ -249,154 +212,41 @@ export default async function MediaOverviewPage({ searchParams }: Props) {
         />
       </div>
 
-      <h2 className="mt-8 mb-3 font-mono text-[0.7rem] uppercase tracking-[0.14em] text-muted-foreground">
-        Operasjoner
-      </h2>
-      <Card className="gap-3">
+      <Card className="mt-6">
         <CardHeader>
-          <CardTitle className="font-mono text-xs uppercase tracking-[0.18em]">
-            Kjør keyword-mapping
+          <CardTitle className="flex items-center gap-2 font-mono text-xs uppercase tracking-[0.18em]">
+            <Newspaper className="size-3.5" />
+            Kilder
           </CardTitle>
           <CardDescription>
-            Re-tagger alle medieartikler mot dagens nøkkelord-katalog
-            (domain=media,any). Kjører mot overskrift — vi lagrer ikke
-            artikkeltekst, så enkelte rader som opprinnelig matchet på
-            innhold kan flippe is_ai_related = false. Idempotent.
+            {activeSources} aktive av {sources.length} totalt.
+            {lastPolled ? ` Sist pollet: ${fmtDateTime(lastPolled)}.` : ""}
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex-1 text-sm text-muted-foreground">
-            Manuell trigger — ingen cron.
+        <CardContent className="flex flex-col gap-3">
+          <div className="flex flex-wrap gap-2">
+            {sources.slice(0, 12).map((s) => (
+              <Badge
+                key={s.id}
+                variant="outline"
+                className={s.is_active ? "" : "opacity-60"}
+              >
+                {s.name}
+                {!s.is_active ? <span className="ml-1 text-muted-foreground">(av)</span> : null}
+              </Badge>
+            ))}
+            {sources.length > 12 ? (
+              <Badge variant="outline">+{sources.length - 12}</Badge>
+            ) : null}
           </div>
-          <form action={reprocessKeywordsAction}>
-            <SubmitButton variant="outline" size="sm" pendingLabel="Starter…">
-              Kjør keyword-mapping
-            </SubmitButton>
-          </form>
+          <Button asChild variant="outline" className="self-start">
+            <Link href="/admin/media/sources">
+              Administrer kilder
+              <ArrowRight />
+            </Link>
+          </Button>
         </CardContent>
       </Card>
-
-      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 font-mono text-xs uppercase tracking-[0.18em]">
-              <Globe className="size-3.5" />
-              Pipelinedybde
-            </CardTitle>
-            <CardDescription>
-              Hvor langt rader har kommet i kaskaden. Dyp kø = burst-cron eller
-              MLX-utfall.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableBody>
-                <TableRow>
-                  <TableCell className="text-muted-foreground">Kø: pending</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {pending.toLocaleString("nb-NO")}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <form action={burstFetchClassifyAction}>
-                      <SubmitButton
-                        variant="outline"
-                        size="sm"
-                        pendingLabel="Kjører…"
-                        disabled={pending === 0}
-                      >
-                        Tøm kø
-                      </SubmitButton>
-                    </form>
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell className="text-muted-foreground">Kø: failed</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {failed.toLocaleString("nb-NO")}
-                  </TableCell>
-                  <TableCell />
-                </TableRow>
-                <TableRow>
-                  <TableCell className="text-muted-foreground">
-                    Venter på Tier 1
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {t1Pending.toLocaleString("nb-NO")}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <form action={burstTier1Action}>
-                      <SubmitButton
-                        variant="outline"
-                        size="sm"
-                        pendingLabel="Kjører…"
-                        disabled={t1Pending === 0}
-                      >
-                        Burst T1
-                      </SubmitButton>
-                    </form>
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell className="text-muted-foreground">
-                    Venter på Tier 2
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {t2Pending.toLocaleString("nb-NO")}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <form action={burstTier2Action}>
-                      <SubmitButton
-                        variant="outline"
-                        size="sm"
-                        pendingLabel="Kjører…"
-                        disabled={t2Pending === 0}
-                      >
-                        Burst T2
-                      </SubmitButton>
-                    </form>
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 font-mono text-xs uppercase tracking-[0.18em]">
-              <Newspaper className="size-3.5" />
-              Kilder
-            </CardTitle>
-            <CardDescription>
-              {activeSources} aktive av {sources.length} totalt.
-              {lastPolled ? ` Sist pollet: ${fmtDateTime(lastPolled)}.` : ""}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <div className="flex flex-wrap gap-2">
-              {sources.slice(0, 12).map((s) => (
-                <Badge
-                  key={s.id}
-                  variant="outline"
-                  className={s.is_active ? "" : "opacity-60"}
-                >
-                  {s.name}
-                  {!s.is_active ? <span className="ml-1 text-muted-foreground">(av)</span> : null}
-                </Badge>
-              ))}
-              {sources.length > 12 ? (
-                <Badge variant="outline">+{sources.length - 12}</Badge>
-              ) : null}
-            </div>
-            <Button asChild variant="outline" className="self-start">
-              <Link href="/admin/media/sources">
-                Administrer kilder
-                <ArrowRight />
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
 
       <Card className="mt-6 gap-0 p-0">
         <CardHeader className="px-6 py-4">
