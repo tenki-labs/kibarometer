@@ -15,11 +15,6 @@ function fmt(n: number | null | undefined): string {
   return NB.format(n);
 }
 
-function pct(num: number, den: number): string {
-  if (den === 0) return "—";
-  return `${((num / den) * 100).toFixed(1).replace(".", ",")} %`;
-}
-
 function indexLabel(value: number): string {
   if (value >= 65) return "Begeistret tilt";
   if (value >= 55) return "Lett positiv";
@@ -36,7 +31,6 @@ export function Hero({ latest, prior }: Props) {
       ? indexValue - priorIndex
       : null;
   const aiArticles7d = latest?.ai_article_count_7d ?? 0;
-  const total7d = latest?.article_count_7d ?? 0;
   const aboveWater = latest?.categories_above_water ?? 0;
   const belowWater = latest?.categories_below_water ?? 0;
 
@@ -56,7 +50,7 @@ export function Hero({ latest, prior }: Props) {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-3">
         <Stat
           label="Kibarometer-indeks"
           value={indexValue !== null ? String(indexValue) : "—"}
@@ -74,12 +68,6 @@ export function Hero({ latest, prior }: Props) {
         <Stat
           label="AI-artikler siste 7 dager"
           value={fmt(aiArticles7d)}
-          hint={`${fmt(total7d)} totalt`}
-        />
-        <Stat
-          label="AI-andel siste 7 dager"
-          value={pct(aiArticles7d, total7d)}
-          hint="av all dekning"
         />
         <Stat
           label="Kategorier over null"
