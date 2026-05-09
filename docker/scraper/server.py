@@ -139,6 +139,48 @@ async def healthz():
     return body
 
 
+def _shape_of(result: object) -> str:
+    """One-line fingerprint of what SearchGraph.run() returned, surfaced
+    in DiscoverStats.result_shapes so an operator on /admin/processes/{id}
+    can tell at a glance whether the parser silently dropped a non-empty
+    result. Examples:
+      "keys=urls"
+      "keys=answer,considered_urls"
+      "list[12]"
+      "type=str"
+    """
+    if isinstance(result, dict):
+        keys = sorted(result.keys()) if result else []
+        return "keys=" + ",".join(keys) if keys else "keys=<empty>"
+    if isinstance(result, list):
+        return f"list[{len(result)}]"
+    return f"type={type(result).__name__}"
+
+
+def _extract_candidates(result: object) -> list[str]:
+    """Pull URL strings out of whatever SearchGraph returned. Handles the
+    handful of shapes observed in scrapegraphai 1.76. If a new shape
+    appears in /admin/processes/{id}'s metadata.result_shapes, add it
+    here AND to test_server.py so the parser doesn't silently regress."""
+    if isinstance(result, dict):
+        for key in ("urls", "links", "considered_urls"):
+            v = result.get(key)
+            if isinstance(v, list):
+                return [str(u) for u in v]
+        for outer in ("result", "answer"):
+            inner = result.get(outer)
+            if isinstance(inner, list):
+                return [str(u) for u in inner]
+            if isinstance(inner, dict):
+                for key in ("urls", "links", "considered_urls"):
+                    v = inner.get(key)
+                    if isinstance(v, list):
+                        return [str(u) for u in v]
+    elif isinstance(result, list):
+        return [str(u) for u in result]
+    return []
+
+
 @app.post("/discover", response_model=DiscoverResponse)
 async def discover(req: DiscoverRequest):
     started = time.time()
@@ -146,6 +188,8 @@ async def discover(req: DiscoverRequest):
     seen: set[str] = set()
     pages_fetched = 0
     queries_run = 0
+    dropped_off_domain = 0
+    result_shapes: list[str] = []
     stopped = "completed"
 
     for term in req.queries:
@@ -170,16 +214,18 @@ async def discover(req: DiscoverRequest):
             continue
 
         queries_run += 1
-        # SearchGraph's result shape varies — sometimes {"urls": [...]},
-        # sometimes a list, sometimes nested. Be forgiving.
-        candidates: list[str] = []
-        if isinstance(result, dict):
-            if isinstance(result.get("urls"), list):
-                candidates = [str(u) for u in result["urls"]]
-            elif isinstance(result.get("result"), list):
-                candidates = [str(u) for u in result["result"]]
-        elif isinstance(result, list):
-            candidates = [str(u) for u in result]
+        shape = _shape_of(result)
+        result_shapes.append(shape)
+        candidates = _extract_candidates(result)
+
+        if not candidates and result not in (None, {}, []):
+            # Non-empty result that the parser couldn't read. Log the
+            # raw value so it's visible in `docker logs kiba-scraper`,
+            # capped at 500 chars.
+            log.info(
+                "SearchGraph returned shape=%s but no URLs parsed for %r: %s",
+                shape, q, repr(result)[:500],
+            )
 
         for u in candidates:
             if not u.startswith(("http://", "https://")):
@@ -187,6 +233,7 @@ async def discover(req: DiscoverRequest):
             if req.site and req.site.lower() not in u.lower():
                 # Defensive: SearchGraph occasionally returns off-domain
                 # results despite the site: filter.
+                dropped_off_domain += 1
                 continue
             if u in seen:
                 continue
@@ -202,6 +249,8 @@ async def discover(req: DiscoverRequest):
             pages_fetched=pages_fetched,
             duration_ms=duration_ms,
             stopped=stopped,
+            result_shapes=result_shapes,
+            dropped_off_domain=dropped_off_domain,
         ),
     )
 

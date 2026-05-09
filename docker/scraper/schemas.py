@@ -51,6 +51,15 @@ class DiscoverStats(BaseModel):
     pages_fetched: int
     duration_ms: int
     stopped: str = "completed"
+    # Per-query top-level shape fingerprint of what SearchGraph.run()
+    # returned, e.g. "keys=urls,answer" / "keys=result.urls" / "list[12]"
+    # / "type=str". Lets an operator on /admin/processes/{id} see at a
+    # glance whether the parser silently dropped a non-empty result.
+    result_shapes: list[str] = Field(default_factory=list)
+    # Count of URLs SearchGraph returned that we dropped because they
+    # didn't match the requested site filter. Distinguishes "search
+    # found nothing" from "found things, all off-domain".
+    dropped_off_domain: int = 0
 
 
 class DiscoverResponse(BaseModel):

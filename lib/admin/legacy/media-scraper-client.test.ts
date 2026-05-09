@@ -71,6 +71,35 @@ describe("discoverUrls", () => {
     await expect(promise).rejects.toThrow(/500/);
     await expect(promise).rejects.toThrow(/scraper exploded/);
   });
+
+  // The sidecar grew DiscoverStats.result_shapes + dropped_off_domain
+  // for diagnosing 0-URL outcomes. The client doesn't filter stats — it
+  // hands the whole stats blob to the orchestrator, which spreads it
+  // into jobs.metadata so /admin/processes/{id} can render it. This
+  // test guards that pass-through.
+  it("passes diagnostic stats fields through unchanged", async () => {
+    mockFetchOnce({
+      status: 200,
+      body: {
+        urls: [],
+        stats: {
+          queries_run: 2,
+          pages_fetched: 0,
+          duration_ms: 689,
+          stopped: "completed",
+          result_shapes: ["keys=answer,considered_urls", "keys=answer"],
+          dropped_off_domain: 0,
+        },
+      },
+    });
+    const out = await discoverUrls({ queries: ["AI", "KI"], site: "vg.no" });
+    expect(out.urls).toEqual([]);
+    expect((out.stats as { result_shapes: string[] }).result_shapes).toEqual([
+      "keys=answer,considered_urls",
+      "keys=answer",
+    ]);
+    expect((out.stats as { dropped_off_domain: number }).dropped_off_domain).toBe(0);
+  });
 });
 
 describe("extractArticle", () => {

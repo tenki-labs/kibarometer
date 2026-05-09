@@ -107,6 +107,94 @@ def test_discover_rejects_too_many_queries(client):
     assert r.status_code == 422
 
 
+class _FakeSearchGraphUnparseable:
+    """Returns a dict shape the parser doesn't know — simulates the
+    VG.no failure mode where SearchGraph hands back an LLM-shaped dict
+    and we silently drop everything."""
+
+    def __init__(self, prompt, config):
+        pass
+
+    def run(self):
+        return {
+            "answer": "Here are some Norwegian news URLs",
+            "considered_urls": ["https://www.vg.no/i/Mlavbg/x"],
+        }
+
+
+def test_discover_unparseable_shape_logs_and_recovers(client, caplog):
+    """A non-empty result the parser can't read should:
+      1. still 200 (we don't blow up),
+      2. surface the shape in stats.result_shapes,
+      3. log the raw value so an operator can debug,
+      4. now actually pull URLs from `considered_urls` (the parser was
+         extended to handle this shape — was the silent VG.no bug)."""
+    import logging
+
+    with patch("server.SearchGraph", _FakeSearchGraphUnparseable):
+        with caplog.at_level(logging.INFO, logger="kiba-scraper"):
+            r = client.post("/discover", json={
+                "queries": ["AI"],
+                "site": "vg.no",
+                "num_results": 5,
+            })
+
+    assert r.status_code == 200
+    body = r.json()
+    # Parser now extracts considered_urls — VG.no fix.
+    assert body["urls"] == ["https://www.vg.no/i/Mlavbg/x"]
+    assert body["stats"]["result_shapes"] == ["keys=answer,considered_urls"]
+    assert body["stats"]["dropped_off_domain"] == 0
+
+
+class _FakeSearchGraphTrulyOpaque:
+    """Returns a shape with no URL-bearing keys at all — exercises the
+    'log raw value' branch."""
+
+    def __init__(self, prompt, config):
+        pass
+
+    def run(self):
+        return {"answer": "I don't know"}
+
+
+def test_discover_truly_opaque_shape_logs_raw(client, caplog):
+    import logging
+
+    with patch("server.SearchGraph", _FakeSearchGraphTrulyOpaque):
+        with caplog.at_level(logging.INFO, logger="kiba-scraper"):
+            r = client.post("/discover", json={"queries": ["x"]})
+
+    assert r.status_code == 200
+    body = r.json()
+    assert body["urls"] == []
+    assert body["stats"]["result_shapes"] == ["keys=answer"]
+    # The "no URLs parsed" log line fired with the raw repr.
+    assert any("no URLs parsed" in rec.message for rec in caplog.records)
+
+
+class _FakeSearchGraphAllOffDomain:
+    """Every URL returned is off-domain when site filter is applied."""
+
+    def __init__(self, prompt, config):
+        pass
+
+    def run(self):
+        return {"urls": [
+            "https://www.aftenposten.no/x",
+            "https://www.dagbladet.no/y",
+        ]}
+
+
+def test_discover_dropped_off_domain_counted(client):
+    with patch("server.SearchGraph", _FakeSearchGraphAllOffDomain):
+        r = client.post("/discover", json={"queries": ["x"], "site": "vg.no"})
+    body = r.json()
+    assert body["urls"] == []
+    assert body["stats"]["dropped_off_domain"] == 2
+    assert body["stats"]["result_shapes"] == ["keys=urls"]
+
+
 # ---- /extract ----------------------------------------------------------
 
 
