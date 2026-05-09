@@ -1,9 +1,13 @@
 import Link from "next/link";
 import {
   AlertTriangle,
+  ArrowRight,
   Bot,
+  Briefcase,
+  Building2,
   KeyRound,
   ListChecks,
+  Newspaper,
   Wifi,
   WifiOff,
 } from "lucide-react";
@@ -12,6 +16,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -54,6 +59,18 @@ const FAILED_STATUSES = [
   "tier2_auth_failed",
 ] as const;
 const AUTH_FAILED_STATUSES = ["tier1_auth_failed", "tier2_auth_failed"] as const;
+
+// All cron jobs that drain an LLM queue across the three domains. Aggregating
+// `metadata.processed` / fail-counters from these gives the cross-domain
+// "Analysert 24t" + "Feilrate 24t" numbers in the Generelt section.
+const LLM_JOB_NAMES = [
+  "llm-discover",
+  "llm-classify",
+  "media-llm-tier1",
+  "media-llm-tier2",
+  "brreg-llm-tier1",
+  "brreg-llm-tier2",
+] as const;
 
 const STATUS_LABEL: Record<string, string> = {
   tier1_ok: "Tier 1 OK",
@@ -137,12 +154,12 @@ function statusBadge(status: string) {
   );
 }
 
-// Aggregate llm-discover + llm-classify jobs from the last 24 h to compute
-// "analysed" and "failure rate". metadata.processed sums total per-row LLM
+// Aggregate every LLM-queue cron job from the last 24 h to compute "analysed"
+// and "failure rate" cross-domain. metadata.processed sums total per-row LLM
 // invocations; auth/parse/http_fails sum per-row failures. We pull from jobs
-// because nav_postings has no per-row failure timestamp — markFailed in
-// lib/admin/llm-{discover,classify}.ts only PATCHes llm_status, so aggregating
-// over a time window means walking the jobs table.
+// because the row-level tables have no per-row failure timestamp — markFailed
+// in lib/admin/llm-{discover,classify,media-tier*,brreg-tier*}.ts only PATCHes
+// llm_status, so aggregating over a time window means walking the jobs table.
 function aggregate24h(rows: LlmJobRow[]) {
   const cutoff = Date.now() - 24 * 60 * 60 * 1000;
   let processed = 0;
@@ -161,6 +178,12 @@ function aggregate24h(rows: LlmJobRow[]) {
 
 function numField(v: unknown): number {
   return typeof v === "number" && Number.isFinite(v) ? v : 0;
+}
+
+// Hoisted out of the async server component so the react-hooks/purity rule
+// (which flags Date.now() in component bodies) is satisfied.
+function isoHoursAgo(hours: number): string {
+  return new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 }
 
 function unwrapCount(rows: CountRow[] | { count: number }): number {
@@ -215,12 +238,18 @@ export default async function LlmStatusPage({ searchParams }: Props) {
     );
   }
 
-  const sinceIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const sinceIso = isoHoursAgo(24);
 
   const [
     health,
-    tier1QueueRows,
-    tier2QueueRows,
+    navT1Rows,
+    navT2Rows,
+    mediaUrlPendingRows,
+    mediaT1Rows,
+    mediaT2Rows,
+    brregRolesPendingRows,
+    brregT1Rows,
+    brregT2Rows,
     authFailedRows,
     failureRows,
     llmJobs,
@@ -234,6 +263,30 @@ export default async function LlmStatusPage({ searchParams }: Props) {
       `/nav_postings?is_ai=is.true&tier2_completed_at=is.null&llm_retry_count=lt.3&select=count`,
       { service: true, headers: { Prefer: "count=exact" } },
     ).catch(() => [] as CountRow[]),
+    sbFetch<CountRow[] | { count: number }>(
+      `/media_url_queue?status=eq.pending&select=count`,
+      { service: true, headers: { Prefer: "count=exact" } },
+    ).catch(() => [] as CountRow[]),
+    sbFetch<CountRow[] | { count: number }>(
+      `/media_articles?deleted_at=is.null&is_ai_related=is.true&tier1_completed_at=is.null&llm_retry_count=lt.3&select=count`,
+      { service: true, headers: { Prefer: "count=exact" } },
+    ).catch(() => [] as CountRow[]),
+    sbFetch<CountRow[] | { count: number }>(
+      `/media_articles?deleted_at=is.null&tier1_completed_at=not.is.null&tier2_completed_at=is.null&llm_retry_count=lt.3&select=count`,
+      { service: true, headers: { Prefer: "count=exact" } },
+    ).catch(() => [] as CountRow[]),
+    sbFetch<CountRow[] | { count: number }>(
+      `/brreg_url_queue?status=eq.pending&select=count`,
+      { service: true, headers: { Prefer: "count=exact" } },
+    ).catch(() => [] as CountRow[]),
+    sbFetch<CountRow[] | { count: number }>(
+      `/brreg_companies?is_ai_relevant=is.true&tier1_completed_at=is.null&llm_retry_count=lt.3&select=count`,
+      { service: true, headers: { Prefer: "count=exact" } },
+    ).catch(() => [] as CountRow[]),
+    sbFetch<CountRow[] | { count: number }>(
+      `/brreg_companies?is_ai_relevant=is.true&tier1_completed_at=not.is.null&tier2_completed_at=is.null&llm_retry_count=lt.3&select=count`,
+      { service: true, headers: { Prefer: "count=exact" } },
+    ).catch(() => [] as CountRow[]),
     sbFetch<{ id: string }[]>(
       `/nav_postings?llm_status=in.(${AUTH_FAILED_STATUSES.join(",")})&select=id&limit=1`,
       { service: true },
@@ -245,17 +298,23 @@ export default async function LlmStatusPage({ searchParams }: Props) {
       { service: true },
     ).catch(() => [] as FailureRow[]),
     sbFetch<LlmJobRow[]>(
-      `/jobs?name=in.(llm-discover,llm-classify)` +
+      `/jobs?name=in.(${LLM_JOB_NAMES.join(",")})` +
         `&started_at=gte.${encodeURIComponent(sinceIso)}` +
-        `&select=name,status,started_at,metadata&order=started_at.desc&limit=400`,
+        `&select=name,status,started_at,metadata&order=started_at.desc&limit=600`,
       { service: true },
     ).catch(() => [] as LlmJobRow[]),
   ]);
 
   const tunnel = classifyTunnel(health?.last_success_at ?? null);
   const lastError = health?.last_error ?? null;
-  const tier1Queue = unwrapCount(tier1QueueRows);
-  const tier2Queue = unwrapCount(tier2QueueRows);
+  const navT1 = unwrapCount(navT1Rows);
+  const navT2 = unwrapCount(navT2Rows);
+  const mediaUrlPending = unwrapCount(mediaUrlPendingRows);
+  const mediaT1 = unwrapCount(mediaT1Rows);
+  const mediaT2 = unwrapCount(mediaT2Rows);
+  const brregRolesPending = unwrapCount(brregRolesPendingRows);
+  const brregT1 = unwrapCount(brregT1Rows);
+  const brregT2 = unwrapCount(brregT2Rows);
   const hasAuthFailures = authFailedRows.length > 0;
   const { processed: processed24h, fails: fails24h } = aggregate24h(llmJobs);
   const failureRatePct =
@@ -268,7 +327,7 @@ export default async function LlmStatusPage({ searchParams }: Props) {
       <PageHeader
         eyebrow="Drift"
         title="AI-analyse"
-        description="Status for mlx.tenki.no LLM-endepunktet. Auto-oppdaterer hvert 30. sekund."
+        description="Status for mlx.tenki.no LLM-endepunktet — på tvers av alle domener. Auto-oppdaterer hvert 30. sekund."
       />
 
       {hasAuthFailures ? (
@@ -290,6 +349,9 @@ export default async function LlmStatusPage({ searchParams }: Props) {
         </Card>
       ) : null}
 
+      <h2 className="mb-3 font-mono text-[0.7rem] uppercase tracking-[0.14em] text-muted-foreground">
+        Generelt
+      </h2>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Tunnel"
@@ -310,22 +372,9 @@ export default async function LlmStatusPage({ searchParams }: Props) {
           hint={`Endepunkt: ${cfg.baseUrl}`}
         />
         <StatCard
-          label="Tier 1-kø"
-          value={tier1Queue.toLocaleString("nb-NO")}
-          hint="Stillinger ventende på oppdagelse"
-        />
-        <StatCard
-          label="Tier 2-kø"
-          value={tier2Queue.toLocaleString("nb-NO")}
-          hint="AI-stillinger ventende på klassifisering"
-        />
-      </div>
-
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
           label="Analysert 24t"
           value={processed24h.toLocaleString("nb-NO")}
-          hint={`${llmJobs.length} jobb-kjøringer registrert`}
+          hint={`${llmJobs.length} jobb-kjøringer på tvers av domener`}
         />
         <StatCard
           label="Feilrate 24t"
@@ -338,6 +387,8 @@ export default async function LlmStatusPage({ searchParams }: Props) {
               : "Ingen kjøringer ennå"
           }
         />
+      </div>
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <StatCard
           label="Siste feil"
           value={
@@ -352,7 +403,45 @@ export default async function LlmStatusPage({ searchParams }: Props) {
         />
       </div>
 
-      <Card className="mt-6">
+      <h2 className="mt-8 mb-3 font-mono text-[0.7rem] uppercase tracking-[0.14em] text-muted-foreground">
+        Per domene
+      </h2>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <DomainQueueCard
+          icon={<Briefcase className="size-3.5" />}
+          title="Jobbmarked"
+          subtitle="NAV-stillinger"
+          rows={[
+            { label: "Tier 1-kø", value: navT1 },
+            { label: "Tier 2-kø", value: navT2 },
+          ]}
+          href="/admin/job-market/queue"
+        />
+        <DomainQueueCard
+          icon={<Newspaper className="size-3.5" />}
+          title="Mediedekning"
+          subtitle="Artikler"
+          rows={[
+            { label: "URL-kø (pending)", value: mediaUrlPending },
+            { label: "Tier 1-kø", value: mediaT1 },
+            { label: "Tier 2-kø", value: mediaT2 },
+          ]}
+          href="/admin/media/queue"
+        />
+        <DomainQueueCard
+          icon={<Building2 className="size-3.5" />}
+          title="Oppstart"
+          subtitle="Brreg-foretak"
+          rows={[
+            { label: "Roller-kø (pending)", value: brregRolesPending },
+            { label: "Tier 1-kø", value: brregT1 },
+            { label: "Tier 2-kø", value: brregT2 },
+          ]}
+          href="/admin/startups/queue"
+        />
+      </div>
+
+      <Card className="mt-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 font-mono text-xs uppercase tracking-[0.18em]">
             <ListChecks className="size-3.5" />
@@ -360,15 +449,7 @@ export default async function LlmStatusPage({ searchParams }: Props) {
           </CardTitle>
           <CardDescription>
             Endepunkt-ping for å bekrefte tunnel + tokens. Manuelle Tier 1- /
-            Tier 2-bursts ligger nå per pipeline:{" "}
-            <Link href="/admin/job-market" className="underline">
-              /admin/job-market
-            </Link>{" "}
-            for NAV,{" "}
-            <Link href="/admin/media" className="underline">
-              /admin/media
-            </Link>{" "}
-            for medie-pipelinen.
+            Tier 2-bursts ligger per domene-kø.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
@@ -390,7 +471,7 @@ export default async function LlmStatusPage({ searchParams }: Props) {
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2 font-mono text-[0.7rem] uppercase tracking-[0.14em]">
               <Bot className="size-4" />
-              Siste 20 feil
+              NAV: Feilede rader (siste 20)
             </CardTitle>
             <span className="text-xs text-muted-foreground">
               {failureRows.length}{" "}
@@ -453,6 +534,21 @@ export default async function LlmStatusPage({ searchParams }: Props) {
             </TableBody>
           </Table>
         </div>
+        <CardFooter className="flex flex-wrap gap-x-4 gap-y-1 border-t px-6 py-3 text-xs text-muted-foreground">
+          <span>Andre domeners feil:</span>
+          <Link
+            href="/admin/media/queue"
+            className="inline-flex items-center gap-1 text-foreground hover:underline"
+          >
+            Mediefeil <ArrowRight className="size-3" />
+          </Link>
+          <Link
+            href="/admin/startups/queue"
+            className="inline-flex items-center gap-1 text-foreground hover:underline"
+          >
+            Brreg-feil <ArrowRight className="size-3" />
+          </Link>
+        </CardFooter>
       </Card>
 
       {lastError ? (
@@ -471,6 +567,58 @@ export default async function LlmStatusPage({ searchParams }: Props) {
         </Card>
       ) : null}
     </>
+  );
+}
+
+type DomainQueueCardProps = {
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+  rows: { label: string; value: number }[];
+  href: string;
+};
+
+function DomainQueueCard({
+  icon,
+  title,
+  subtitle,
+  rows,
+  href,
+}: DomainQueueCardProps) {
+  return (
+    <Card className="gap-0 p-0">
+      <CardHeader className="px-6 py-4">
+        <CardTitle className="flex items-center gap-2 font-mono text-xs uppercase tracking-[0.18em]">
+          {icon}
+          {title}
+        </CardTitle>
+        <CardDescription>{subtitle}</CardDescription>
+      </CardHeader>
+      <CardContent className="px-6 pb-4">
+        <ul className="divide-y divide-border">
+          {rows.map((r) => (
+            <li
+              key={r.label}
+              className="flex items-baseline justify-between py-2.5"
+            >
+              <span className="text-xs text-muted-foreground">{r.label}</span>
+              <span className="text-xl font-semibold tabular-nums">
+                {r.value.toLocaleString("nb-NO")}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+      <CardFooter className="border-t px-6 py-3">
+        <Link
+          href={href}
+          className="inline-flex items-center gap-1 text-xs font-medium text-foreground transition-opacity hover:opacity-80"
+        >
+          Gå til kø
+          <ArrowRight className="size-3.5" />
+        </Link>
+      </CardFooter>
+    </Card>
   );
 }
 

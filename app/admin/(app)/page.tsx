@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, BarChart3 } from "lucide-react";
 
 import {
   Card,
-  CardContent,
+  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
@@ -16,16 +16,7 @@ import { PageHeader } from "@/app/admin/_components/page-header";
 import { StatCard } from "@/app/admin/_components/stat-card";
 import { sbFetch } from "@/lib/admin/sb";
 import { getStaffClaims } from "@/lib/admin/auth";
-
-type SnapshotHeadline = {
-  computed_for: string;
-  computed_at: string;
-  ai_count_7d: number;
-  ai_count_30d: number;
-  ai_share_30d: number;
-};
-
-type KeywordCount = { count: number };
+import { getStats, umamiConfigured } from "@/lib/admin/umami";
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -37,25 +28,15 @@ export default async function AdminOverviewPage({ searchParams }: Props) {
   const role = claims?.user_metadata?.role ?? "ukjent";
   const name = claims?.user_metadata?.full_name ?? claims?.email ?? "ukjent";
 
-  const [headlines, recentJobs, keywordRows] = await Promise.all([
-    sbFetch<SnapshotHeadline[]>(
-      "/snapshot_headline?order=computed_for.desc&limit=1&select=computed_for,computed_at,ai_count_7d,ai_count_30d,ai_share_30d",
-      { service: true },
-    ).catch(() => [] as SnapshotHeadline[]),
+  const umami = umamiConfigured();
+  const [recentJobs, stats] = await Promise.all([
     sbFetch<JobsTableRow[]>(
       "/jobs?select=id,name,status,trigger,started_at,finished_at,rows_processed,error,progress_pct,current_step&order=started_at.desc&limit=10",
       { service: true },
     ).catch(() => [] as JobsTableRow[]),
-    sbFetch<KeywordCount[] | { count: number }>(
-      "/keywords?status=eq.canonical&select=count",
-      { service: true, headers: { Prefer: "count=exact" } },
-    ).catch(() => [] as KeywordCount[]),
+    umami ? getStats(umami, "7d").catch(() => null) : Promise.resolve(null),
   ]);
 
-  const headline = headlines[0] ?? null;
-  const activeKeywords = Array.isArray(keywordRows)
-    ? (keywordRows[0] as KeywordCount | undefined)?.count ?? keywordRows.length
-    : 0;
   const runningCount = recentJobs.filter((r) => r.status === "running").length;
 
   return (
@@ -75,31 +56,66 @@ export default async function AdminOverviewPage({ searchParams }: Props) {
         }
       />
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <StatCard
-          label="AI-stillinger 7d"
-          value={headline?.ai_count_7d ?? "—"}
-          hint={
-            headline
-              ? `Snapshot for ${headline.computed_for}`
-              : "Ingen snapshots ennå"
-          }
-        />
-        <StatCard
-          label="AI-stillinger 30d"
-          value={headline?.ai_count_30d ?? "—"}
-          hint={
-            headline
-              ? `Andel: ${headline.ai_share_30d != null ? (headline.ai_share_30d * 100).toFixed(2) + "%" : "—"}`
-              : "Kjør snapshot-refresh på Prosesser"
-          }
-        />
-        <StatCard
-          label="Aktive nøkkelord"
-          value={activeKeywords}
-          hint="Inkluderingslisten — endres på Nøkkelord"
-        />
-      </div>
+      {umami ? (
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard
+              label="Sidevisninger 7d"
+              value={stats ? stats.pageviews.value.toLocaleString("nb-NO") : "—"}
+              hint={stats ? diffHint(stats.pageviews.value, stats.pageviews.prev) : "—"}
+            />
+            <StatCard
+              label="Unike besøkende 7d"
+              value={stats ? stats.visitors.value.toLocaleString("nb-NO") : "—"}
+              hint={stats ? diffHint(stats.visitors.value, stats.visitors.prev) : "—"}
+            />
+            <StatCard
+              label="Økter 7d"
+              value={stats ? stats.visits.value.toLocaleString("nb-NO") : "—"}
+              hint={stats ? diffHint(stats.visits.value, stats.visits.prev) : "—"}
+            />
+            <StatCard
+              label="Snittid (s)"
+              value={
+                stats && stats.visits.value > 0
+                  ? Math.round(stats.totaltime.value / stats.visits.value).toString()
+                  : "—"
+              }
+              hint="per økt"
+            />
+          </div>
+          <div className="mt-3 flex justify-end">
+            <Link
+              href="/admin/analytics"
+              className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <BarChart3 className="size-3.5" />
+              Se full analytics
+              <ArrowRight className="size-3.5" />
+            </Link>
+          </div>
+        </>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 font-mono text-xs uppercase tracking-[0.18em]">
+              <BarChart3 className="size-3.5" />
+              Umami er ikke ferdig satt opp
+            </CardTitle>
+            <CardDescription>
+              Sett{" "}
+              <code className="font-mono">UMAMI_USERNAME</code>,{" "}
+              <code className="font-mono">UMAMI_PASSWORD</code> og{" "}
+              <code className="font-mono">UMAMI_WEBSITE_ID</code> i env-filen.
+              Full runbook på{" "}
+              <Link href="/admin/analytics" className="underline">
+                /admin/analytics
+              </Link>
+              .
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      )}
 
       <Card className="mt-6 gap-0 p-0">
         <CardHeader className="px-6 py-4">
@@ -125,4 +141,13 @@ export default async function AdminOverviewPage({ searchParams }: Props) {
       </Card>
     </>
   );
+}
+
+function diffHint(curr?: number, prev?: number): string {
+  if (curr == null || prev == null) return "—";
+  if (prev === 0) return curr > 0 ? "ny periode" : "ingen forrige";
+  const diff = curr - prev;
+  const pct = (diff / prev) * 100;
+  const sign = diff >= 0 ? "+" : "";
+  return `${sign}${pct.toFixed(0)}% mot forrige`;
 }

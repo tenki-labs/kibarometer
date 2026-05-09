@@ -29,13 +29,13 @@ import {
 
 type AppSettings = { cron_paused: boolean; updated_at: string };
 
-type SnapshotHeadline = {
-  computed_for: string;
-  computed_at: string;
-  ai_count_7d: number;
-  ai_count_30d: number;
-  ai_share_30d: number;
-};
+type RowsProcessedJob = { rows_processed: number | null };
+
+// Hoisted out of the async server component so the react-hooks/purity rule
+// (which flags Date.now() in component bodies) is satisfied.
+function isoHoursAgo(hours: number): string {
+  return new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+}
 
 type OperationCardProps = {
   title: string;
@@ -79,24 +79,29 @@ type Props = {
 export default async function ProcessesPage({ searchParams }: Props) {
   const params = await searchParams;
 
-  const [rows, latestHeadline, appSettings] = await Promise.all([
+  const since24h = isoHoursAgo(24);
+
+  const [rows, processed24hRows, appSettings] = await Promise.all([
     sbFetch<JobsTableRow[]>(
       `/jobs?select=id,name,trigger,status,started_at,finished_at,rows_processed,error,progress_pct,current_step&order=started_at.desc&limit=50`,
       { service: true },
     ),
-    sbFetch<SnapshotHeadline[]>(
-      `/snapshot_headline?order=computed_for.desc&limit=1&select=computed_for,computed_at,ai_count_7d,ai_count_30d,ai_share_30d`,
+    sbFetch<RowsProcessedJob[]>(
+      `/jobs?status=eq.success&finished_at=gte.${encodeURIComponent(since24h)}&select=rows_processed`,
       { service: true },
-    ).catch(() => [] as SnapshotHeadline[]),
+    ).catch(() => [] as RowsProcessedJob[]),
     sbFetch<AppSettings[]>(
       `/app_settings?id=eq.1&select=cron_paused,updated_at`,
       { service: true },
     ).catch(() => [] as AppSettings[]),
   ]);
 
-  const headline = latestHeadline[0] ?? null;
   const cronPaused = appSettings[0]?.cron_paused ?? false;
   const cronUpdatedAt = appSettings[0]?.updated_at ?? null;
+  const rowsProcessed24h = processed24hRows.reduce(
+    (sum, r) => sum + (r.rows_processed ?? 0),
+    0,
+  );
 
   const successCount = rows.filter((r) => r.status === "success").length;
   const failedCount = rows.filter((r) => r.status === "failed").length;
@@ -138,12 +143,12 @@ export default async function ProcessesPage({ searchParams }: Props) {
           hint={runningCount > 0 ? "Pågår" : "Klar"}
         />
         <StatCard
-          label="AI-stillinger 7d"
-          value={headline?.ai_count_7d ?? "—"}
+          label="Rader behandlet 24t"
+          value={rowsProcessed24h.toLocaleString("nb-NO")}
           hint={
-            headline
-              ? `Andel 30d: ${headline.ai_share_30d != null ? (headline.ai_share_30d * 100).toFixed(2) + "%" : "—"}`
-              : "Aldri kjørt"
+            processed24hRows.length > 0
+              ? `Sum på tvers av domener (${processed24hRows.length} jobber)`
+              : "Ingen vellykkede jobber siste døgn"
           }
         />
       </div>
