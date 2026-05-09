@@ -21,6 +21,9 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Test
+        run: pnpm test
+
       - name: Build (with placeholder env)
         env:
           NEXT_PUBLIC_SITE_URL: https://kibarometer.no
