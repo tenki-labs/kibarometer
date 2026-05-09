@@ -8,8 +8,8 @@ import type { Series } from "@/app/(site)/_components/stacked-area-chart";
 import { TimeRangeToggle } from "@/app/(site)/_components/time-range-toggle";
 import { NorwayMap } from "@/app/(site)/jobbmarked/_components/norway-map";
 import type {
-  BrregSnapshotCohort,
   BrregSnapshotDaily,
+  BrregSnapshotFounderAgeYearly,
   BrregSnapshotGeography,
   BrregSnapshotHeadline,
   SnapshotGeography,
@@ -18,7 +18,7 @@ import type {
 
 import { AiShareBars } from "./ai-share-bars";
 import { CategoryList, type NaceCategoryLabel } from "./category-list";
-import { CohortBars } from "./cohort-bars";
+import { FounderAgeBars } from "./founder-age-bars";
 import { Hero } from "./hero";
 import {
   OPPSTART_RANGE_OPTIONS,
@@ -31,7 +31,7 @@ import {
 type Props = {
   headline: BrregSnapshotHeadline | null;
   daily: BrregSnapshotDaily[];
-  cohort: BrregSnapshotCohort[];
+  founderAge: BrregSnapshotFounderAgeYearly[];
   geography: BrregSnapshotGeography[];
   categories: NaceCategoryLabel[];
 };
@@ -87,7 +87,7 @@ function buildVolumeSeries(
 export function Scroller({
   headline,
   daily,
-  cohort,
+  founderAge,
   geography,
   categories,
 }: Props) {
@@ -209,15 +209,16 @@ export function Scroller({
       <section className="snap-segment sm:snap-start sm:snap-always">
         <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
           <h2 className="text-lg font-medium tracking-tight sm:text-xl">
-            Goldrush-diagnose: kohort-overlevelse
+            Yngste grunnlegger ved registrering — AI vs ikke-AI
           </h2>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
-            Andel foretak fra hvert registreringskvartal som fortsatt er aktive
-            (ikke konkurs, ikke slettet). AI-relevante mot ikke-AI som
-            kontroll-gruppe.
+            Median alder på yngste registrerte rolleinnehaver ved
+            registreringstidspunktet, per år. AI-relevante mot ikke-AI som
+            kontroll-gruppe. Søyler med færre enn 25 foretak er svakere
+            fargelagt; tooltip viser kvartilavstand og utvalg.
           </p>
           <div className="min-h-0 flex-1">
-            <CohortBars rows={cohort} />
+            <FounderAgeBars rows={founderAge} />
           </div>
         </div>
       </section>

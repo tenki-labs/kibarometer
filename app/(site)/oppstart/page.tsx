@@ -11,8 +11,8 @@ import { Suspense } from "react";
 
 import {
   sb,
-  type BrregSnapshotCohort,
   type BrregSnapshotDaily,
+  type BrregSnapshotFounderAgeYearly,
   type BrregSnapshotGeography,
   type BrregSnapshotHeadline,
 } from "@/lib/supabase";
@@ -42,7 +42,7 @@ const jsonLd = {
 };
 
 export default async function OppstartPage() {
-  const [headlineRows, daily, cohort, geography, categories] = await Promise.all([
+  const [headlineRows, daily, founderAge, geography, categories] = await Promise.all([
     sb<BrregSnapshotHeadline[]>(
       "/brreg_snapshot_headline?order=computed_for.desc&limit=1",
     ),
@@ -52,8 +52,8 @@ export default async function OppstartPage() {
         "&order=registrert_dato.asc" +
         "&limit=200000",
     ),
-    sb<BrregSnapshotCohort[]>(
-      "/brreg_snapshot_cohort?order=cohort_quarter.asc",
+    sb<BrregSnapshotFounderAgeYearly[]>(
+      "/brreg_snapshot_founder_age_yearly?order=reg_year.asc",
     ),
     sb<BrregSnapshotGeography[]>(
       "/brreg_snapshot_geography?order=count_30d.desc",
@@ -71,7 +71,7 @@ export default async function OppstartPage() {
         <Scroller
           headline={headline}
           daily={daily}
-          cohort={cohort}
+          founderAge={founderAge}
           geography={geography}
           categories={categories}
         />
