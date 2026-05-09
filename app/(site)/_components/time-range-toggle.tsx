@@ -4,14 +4,15 @@ import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { cn } from "@/lib/utils";
 
-// Legacy range vocabulary, still used by /media and /jobbmarked.
-export type Range = "1m" | "1q" | "1y" | "max";
+// Standard time-range vocabulary, used by every public scroller.
+export type Range = "1m" | "6m" | "1y" | "since-2024" | "max";
 
-const LEGACY_OPTIONS: { value: Range; label: string }[] = [
-  { value: "1m", label: "1 mnd" },
-  { value: "1q", label: "1 kv" },
-  { value: "1y", label: "1 år" },
-  { value: "max", label: "Maks" },
+export const STANDARD_RANGE_OPTIONS: { value: Range; label: string }[] = [
+  { value: "1m",         label: "1 mnd" },
+  { value: "6m",         label: "6 mnd" },
+  { value: "1y",         label: "1 år" },
+  { value: "since-2024", label: "Siden 2024" },
+  { value: "max",        label: "Maks" },
 ];
 
 export type TimeRangeOption<T extends string> = { value: T; label: string };
@@ -26,7 +27,7 @@ export function TimeRangeToggle<T extends string = Range>({
   options?: TimeRangeOption<T>[];
 }) {
   const opts =
-    options ?? (LEGACY_OPTIONS as unknown as TimeRangeOption<T>[]);
+    options ?? (STANDARD_RANGE_OPTIONS as unknown as TimeRangeOption<T>[]);
   return (
     <ButtonGroup aria-label="Tidsintervall">
       {opts.map((opt) => {

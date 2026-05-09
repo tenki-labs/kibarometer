@@ -11,7 +11,16 @@ import {
   StackedAreaChart,
   type Series,
 } from "@/app/(site)/_components/stacked-area-chart";
-import { TimeRangeToggle } from "@/app/(site)/_components/time-range-toggle";
+import {
+  TimeRangeToggle,
+  type Range,
+} from "@/app/(site)/_components/time-range-toggle";
+import {
+  dateKey,
+  parseRange,
+  rangeCutoffMs,
+  shouldBucketMonthly,
+} from "@/app/(site)/_lib/range";
 import {
   NorwayMap,
   type NorwayMapUnit,
@@ -30,13 +39,6 @@ import type {
 import { FounderAgeLines } from "./founder-age-lines";
 import { Hero } from "./hero";
 import { KeywordList } from "./keyword-list";
-import {
-  OPPSTART_RANGE_OPTIONS,
-  parseOppstartRange,
-  rangeToCutoffMs,
-  shouldBucketMonthly,
-  type OppstartRange,
-} from "./range-utils";
 
 const MAP_UNIT: NorwayMapUnit = {
   ariaLabel: "Kart over nye AI-relevante foretak per fylke",
@@ -60,16 +62,12 @@ type Props = {
   norwayViewBox: string;
 };
 
-function dateKey(iso: string, monthly: boolean): string {
-  return monthly ? iso.slice(0, 7) : iso.slice(0, 10);
-}
-
 function buildAiShareBuckets(
   rows: BrregSnapshotDaily[],
-  range: OppstartRange,
+  range: Range,
   nowMs: number,
 ): AIShareBucket[] {
-  const cutoffMs = rangeToCutoffMs(range, nowMs);
+  const cutoffMs = rangeCutoffMs(range, nowMs);
   const monthly = shouldBucketMonthly(range);
   const buckets = new Map<string, { ai: number; total: number }>();
   for (const row of rows) {
@@ -91,10 +89,10 @@ function buildAiShareBuckets(
 // the chart and legend never show empty bands.
 function buildCategoryMixSeries(
   rows: BrregSnapshotDaily[],
-  range: OppstartRange,
+  range: Range,
   nowMs: number,
 ): Series {
-  const cutoffMs = rangeToCutoffMs(range, nowMs);
+  const cutoffMs = rangeCutoffMs(range, nowMs);
   const monthly = shouldBucketMonthly(range);
   const buckets = new Map<string, Map<string, number>>();
   const slugTotals = new Map<string, number>();
@@ -139,17 +137,17 @@ export function Scroller({
   norwayViewBox,
 }: Props) {
   const searchParams = useSearchParams();
-  const initialRange = parseOppstartRange(searchParams.get("range"));
-  const [range, setRange] = useState<OppstartRange>(initialRange);
+  const initialRange = parseRange(searchParams.get("range"));
+  const [range, setRange] = useState<Range>(initialRange);
 
   // Sync the URL via history.replaceState rather than Next.js router.replace
   // so the snap-scroll container's scroll position is never perturbed — the
   // router path can interact subtly with the segment layout and bounce the
   // user back to the hero on each click. Mirrors /jobbmarked.
-  function onRangeChange(next: OppstartRange) {
+  function onRangeChange(next: Range) {
     setRange(next);
     const params = new URLSearchParams(searchParams.toString());
-    if (next === "12m") params.delete("range");
+    if (next === "1m") params.delete("range");
     else params.set("range", next);
     const qs = params.toString();
     const url = qs ? `/oppstart?${qs}` : "/oppstart";
@@ -219,11 +217,7 @@ export function Scroller({
             <h2 className="text-lg font-medium tracking-tight sm:text-xl">
               AI-andel av nye foretak
             </h2>
-            <TimeRangeToggle<OppstartRange>
-              value={range}
-              onChange={onRangeChange}
-              options={OPPSTART_RANGE_OPTIONS}
-            />
+            <TimeRangeToggle value={range} onChange={onRangeChange} />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
             Andelen nyregistrerte foretak fra Brønnøysundregistrene som
@@ -241,11 +235,7 @@ export function Scroller({
             <h2 className="text-lg font-medium tracking-tight sm:text-xl">
               Topp kategorier — etter AI-andel
             </h2>
-            <TimeRangeToggle<OppstartRange>
-              value={range}
-              onChange={onRangeChange}
-              options={OPPSTART_RANGE_OPTIONS}
-            />
+            <TimeRangeToggle value={range} onChange={onRangeChange} />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
             Næringskategorier blant AI-relevante nyregistreringer, normalisert
@@ -285,11 +275,7 @@ export function Scroller({
             <h2 className="text-lg font-medium tracking-tight sm:text-xl">
               Median alder ved registrering — AI vs ikke-AI
             </h2>
-            <TimeRangeToggle<OppstartRange>
-              value={range}
-              onChange={onRangeChange}
-              options={OPPSTART_RANGE_OPTIONS}
-            />
+            <TimeRangeToggle value={range} onChange={onRangeChange} />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
             Medianalder på yngste registrerte rolleinnehaver ved

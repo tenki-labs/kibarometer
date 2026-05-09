@@ -27,7 +27,7 @@ import {
 import {
   dateKey,
   parseRange,
-  rangeToCutoffDays,
+  rangeCutoffMs,
   shouldBucketMonthly,
 } from "@/app/(site)/_lib/range";
 
@@ -64,9 +64,8 @@ function buildSeries<R extends { posted_on: string; ai_count: number; total_coun
   metric: "ai" | "total",
   nowMs: number,
 ): Series {
-  const cutoffDays = rangeToCutoffDays(range);
   const monthly = shouldBucketMonthly(range);
-  const cutoffMs = cutoffDays === null ? -Infinity : nowMs - cutoffDays * 86_400_000;
+  const cutoffMs = rangeCutoffMs(range, nowMs);
 
   // Group: dateBucket -> (categoryKey -> count)
   const buckets = new Map<string, Map<string, number>>();
@@ -152,10 +151,8 @@ export function Scroller({
   // Sums ai_count and total_count across all categories within each bucket so
   // the chart can render the AI share as ai/total over time.
   const aiShareBuckets = useMemo<AIShareBucket[]>(() => {
-    const cutoffDays = rangeToCutoffDays(range);
     const monthly = shouldBucketMonthly(range);
-    const cutoffMs =
-      cutoffDays === null ? -Infinity : nowMs - cutoffDays * 86_400_000;
+    const cutoffMs = rangeCutoffMs(range, nowMs);
     const buckets = new Map<string, { ai: number; total: number }>();
     for (const row of categoryDaily) {
       const t = new Date(row.posted_on + "T00:00:00Z").getTime();
