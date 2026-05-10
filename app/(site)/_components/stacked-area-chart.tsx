@@ -14,14 +14,14 @@ import {
   ChartLegend,
   ChartLegendContent,
   ChartTooltip,
-  ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
 import { AI_COLOR } from "@/lib/palette";
-import { descriptionFor } from "@/lib/occupation-descriptions";
 import type { TaxonomyCategory } from "@/lib/supabase";
 
 import { formatBucket, formatBucketShort } from "./bucket-format";
+import { ChartHoverPanel, type ChartHoverRow } from "./chart-hover-panel";
+import { useChartInteraction } from "./use-chart-interaction";
 
 export type Series = {
   dates: string[];
@@ -53,6 +53,8 @@ export function StackedAreaChart({
   variant,
   normalize = false,
 }: Props) {
+  const { activeKey, setActiveKey, tooltipTrigger } = useChartInteraction();
+
   // Visual key order: AI band first (bottom of stack) for occupation, taxonomy
   // sort order for skill, fallback to natural order otherwise.
   const visualKeys = useMemo<string[]>(() => {
@@ -95,17 +97,6 @@ export function StackedAreaChart({
     if (key === AI_KEY) return AI_LABEL;
     if (variant === "skill") return titleBySlug.get(key) ?? key;
     return key;
-  }
-
-  function bandDescription(key: string): string | null {
-    if (key === AI_KEY) {
-      return "Alle stillinger der NAV-feeden inneholder AI-relaterte nøkkelord. Vises som eget bånd nederst i grafen.";
-    }
-    if (variant === "skill") {
-      const c = taxonomy.find((t) => t.slug === key);
-      return c?.definition_md ?? null;
-    }
-    return descriptionFor(key);
   }
 
   function colorForKey(key: string, idx: number): string {
@@ -177,45 +168,44 @@ export function StackedAreaChart({
           <YAxis hide />
         )}
         <ChartTooltip
-          cursor={false}
+          trigger={tooltipTrigger}
+          cursor={{ strokeDasharray: "3 3" }}
           content={
-            <ChartTooltipContent
-              indicator="dot"
-              labelFormatter={(value) =>
-                typeof value === "string" ? formatBucket(value) : String(value)
+            <ChartHoverPanel
+              mode="stacked"
+              activeKey={activeKey}
+              header={(label) =>
+                typeof label === "string" ? formatBucket(label) : String(label)
               }
-              formatter={(value, name, item) => {
-                const key = String(name);
-                const numeric = typeof value === "number" ? value : Number(value) || 0;
-                const total = (() => {
-                  const p = item.payload as Record<string, number> | undefined;
-                  if (!p) return 0;
-                  let sum = 0;
-                  for (const k of visualKeys) sum += Number(p[k] ?? 0);
-                  return sum;
-                })();
-                const share = total > 0 ? numeric / total : 0;
-                const desc = bandDescription(key);
-                return (
-                  <div className="flex w-full flex-col gap-1">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-muted-foreground">
-                        {bandLabel(key)}
-                      </span>
-                      <span className="font-mono font-medium tabular-nums text-foreground">
-                        {numeric.toLocaleString("nb-NO")}
-                      </span>
-                    </div>
-                    <span className="font-mono text-[0.65rem] uppercase tracking-[0.16em] text-muted-foreground">
-                      {(share * 100).toFixed(1).replace(".", ",")} % av dagen
-                    </span>
-                    {desc ? (
-                      <p className="mt-1 max-w-[18rem] text-[0.7rem] leading-snug text-muted-foreground">
-                        {desc}
-                      </p>
-                    ) : null}
-                  </div>
-                );
+              rows={(payload) => {
+                if (!payload?.length) return [];
+                const row = payload[0]?.payload as
+                  | Record<string, number>
+                  | undefined;
+                let total = 0;
+                if (row) {
+                  for (const k of visualKeys) total += Number(row[k] ?? 0);
+                }
+                return payload
+                  .map((item): ChartHoverRow | null => {
+                    const key = String(item.dataKey ?? item.name ?? "");
+                    if (!key) return null;
+                    const numeric =
+                      typeof item.value === "number"
+                        ? item.value
+                        : Number(item.value) || 0;
+                    const share = total > 0 ? numeric / total : 0;
+                    return {
+                      key,
+                      label: bandLabel(key),
+                      color: item.color,
+                      value: numeric.toLocaleString("nb-NO"),
+                      sub: `${(share * 100)
+                        .toFixed(1)
+                        .replace(".", ",")} % av dagen`,
+                    };
+                  })
+                  .filter((r): r is ChartHoverRow => r !== null);
               }}
             />
           }
@@ -231,6 +221,9 @@ export function StackedAreaChart({
             fill={`var(--color-${key})`}
             fillOpacity={0.7}
             isAnimationActive={false}
+            onMouseEnter={() => setActiveKey(key)}
+            onMouseLeave={() => setActiveKey(undefined)}
+            onClick={() => setActiveKey(key)}
           />
         ))}
       </AreaChart>

@@ -14,14 +14,14 @@ import {
   ChartLegend,
   ChartLegendContent,
   ChartTooltip,
-  ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
 import { AI_COLOR } from "@/lib/palette";
-import { descriptionFor } from "@/lib/occupation-descriptions";
 import type { TaxonomyCategory } from "@/lib/supabase";
 
 import { formatBucket, formatBucketShort } from "./bucket-format";
+import { ChartHoverPanel, type ChartHoverRow } from "./chart-hover-panel";
+import { useChartInteraction } from "./use-chart-interaction";
 import type { Series } from "./stacked-area-chart";
 
 type Variant = "occupation" | "skill";
@@ -48,6 +48,8 @@ export function StackedBarChart({
   variant,
   normalize = false,
 }: Props) {
+  const { activeKey, setActiveKey, tooltipTrigger } = useChartInteraction();
+
   const visualKeys = useMemo<string[]>(() => {
     if (variant === "occupation" && aiBandValues) {
       return [AI_KEY, ...series.keys];
@@ -86,17 +88,6 @@ export function StackedBarChart({
     if (key === AI_KEY) return AI_LABEL;
     if (variant === "skill") return titleBySlug.get(key) ?? key;
     return key;
-  }
-
-  function bandDescription(key: string): string | null {
-    if (key === AI_KEY) {
-      return "Alle stillinger der NAV-feeden inneholder AI-relaterte nøkkelord. Vises som eget bånd nederst i hver søyle.";
-    }
-    if (variant === "skill") {
-      const c = taxonomy.find((t) => t.slug === key);
-      return c?.definition_md ?? null;
-    }
-    return descriptionFor(key);
   }
 
   function colorForKey(key: string, idx: number): string {
@@ -159,63 +150,56 @@ export function StackedBarChart({
           <YAxis hide />
         )}
         <ChartTooltip
-          cursor={false}
+          trigger={tooltipTrigger}
           content={
-            <ChartTooltipContent
-              indicator="dot"
-              labelFormatter={(value, payload) => {
+            <ChartHoverPanel
+              mode="stacked"
+              activeKey={activeKey}
+              header={(label, payload) => {
                 const dateLabel =
-                  typeof value === "string"
-                    ? formatBucket(value)
-                    : String(value);
+                  typeof label === "string" ? formatBucket(label) : String(label);
                 const p = payload?.[0]?.payload as
                   | Record<string, number>
                   | undefined;
-                if (!p) return dateLabel;
+                if (!p || !aiBandValues) return dateLabel;
                 let total = 0;
                 for (const k of visualKeys) total += Number(p[k] ?? 0);
+                if (total === 0) return dateLabel;
                 const aiVolume = Number(p[AI_KEY] ?? 0);
-                const aiShare = total > 0 ? aiVolume / total : 0;
-                if (!aiBandValues || total === 0) return dateLabel;
+                const aiShare = aiVolume / total;
                 return `${dateLabel} · AI-andel ${(aiShare * 100)
                   .toFixed(1)
                   .replace(".", ",")} %`;
               }}
-              formatter={(value, name, item) => {
-                const key = String(name);
-                const numeric =
-                  typeof value === "number" ? value : Number(value) || 0;
-                const total = (() => {
-                  const p = item.payload as
-                    | Record<string, number>
-                    | undefined;
-                  if (!p) return 0;
-                  let sum = 0;
-                  for (const k of visualKeys) sum += Number(p[k] ?? 0);
-                  return sum;
-                })();
-                const share = total > 0 ? numeric / total : 0;
-                const desc = bandDescription(key);
-                return (
-                  <div className="flex w-full flex-col gap-1">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-muted-foreground">
-                        {bandLabel(key)}
-                      </span>
-                      <span className="font-mono font-medium tabular-nums text-foreground">
-                        {numeric.toLocaleString("nb-NO")}
-                      </span>
-                    </div>
-                    <span className="font-mono text-[0.65rem] uppercase tracking-[0.16em] text-muted-foreground">
-                      {(share * 100).toFixed(1).replace(".", ",")} % av perioden
-                    </span>
-                    {desc ? (
-                      <p className="mt-1 max-w-[18rem] text-[0.7rem] leading-snug text-muted-foreground">
-                        {desc}
-                      </p>
-                    ) : null}
-                  </div>
-                );
+              rows={(payload) => {
+                if (!payload?.length) return [];
+                const row = payload[0]?.payload as
+                  | Record<string, number>
+                  | undefined;
+                let total = 0;
+                if (row) {
+                  for (const k of visualKeys) total += Number(row[k] ?? 0);
+                }
+                return payload
+                  .map((item): ChartHoverRow | null => {
+                    const key = String(item.dataKey ?? item.name ?? "");
+                    if (!key) return null;
+                    const numeric =
+                      typeof item.value === "number"
+                        ? item.value
+                        : Number(item.value) || 0;
+                    const share = total > 0 ? numeric / total : 0;
+                    return {
+                      key,
+                      label: bandLabel(key),
+                      color: item.color,
+                      value: numeric.toLocaleString("nb-NO"),
+                      sub: `${(share * 100)
+                        .toFixed(1)
+                        .replace(".", ",")} % av perioden`,
+                    };
+                  })
+                  .filter((r): r is ChartHoverRow => r !== null);
               }}
             />
           }
@@ -229,6 +213,9 @@ export function StackedBarChart({
             fill={`var(--color-${key})`}
             radius={key === topKey ? [4, 4, 0, 0] : [0, 0, 0, 0]}
             isAnimationActive={false}
+            onMouseEnter={() => setActiveKey(key)}
+            onMouseLeave={() => setActiveKey(undefined)}
+            onClick={() => setActiveKey(key)}
           />
         ))}
       </BarChart>

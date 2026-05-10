@@ -14,13 +14,14 @@ import {
   ChartLegend,
   ChartLegendContent,
   ChartTooltip,
-  ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
 import {
   formatBucket,
   formatBucketShort,
 } from "@/app/(site)/_components/bucket-format";
+import { ChartHoverPanel } from "@/app/(site)/_components/chart-hover-panel";
+import { useChartInteraction } from "@/app/(site)/_components/use-chart-interaction";
 import type { BrregSnapshotFounderAgeMonthly } from "@/lib/supabase";
 
 import type { Range } from "@/app/(site)/_components/time-range-toggle";
@@ -59,6 +60,8 @@ function fmtAge(v: number | null): string {
 }
 
 export function FounderAgeLines({ rows, range, nowMs }: Props) {
+  const { tooltipTrigger } = useChartInteraction();
+
   const points = useMemo<Point[]>(() => {
     const cutoffMs = rangeCutoffMs(range, nowMs);
     const byMonth = new Map<string, Point>();
@@ -141,49 +144,63 @@ export function FounderAgeLines({ rows, range, nowMs }: Props) {
           width={36}
         />
         <ChartTooltip
-          cursor={false}
+          trigger={tooltipTrigger}
+          cursor={{ strokeDasharray: "3 3" }}
           content={
-            <ChartTooltipContent
-              indicator="dot"
-              labelFormatter={(v) => formatBucket(String(v))}
-              formatter={(value, name, item) => {
-                const key = String(name);
-                const p = item.payload as Point;
-                const isAi = key === "aiMedian";
-                const median =
-                  typeof value === "number" ? value : Number(value) || null;
-                const p25 = isAi ? p.aiP25 : p.nonAiP25;
-                const p75 = isAi ? p.aiP75 : p.nonAiP75;
-                const sample = isAi ? p.aiSample : p.nonAiSample;
-                const label = isAi ? "AI-relevante" : "Ikke-AI";
-                const lowSample = sample < SAMPLE_FLOOR;
-                return (
-                  <div className="flex w-full flex-col gap-1">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-muted-foreground">{label}</span>
-                      <span className="font-mono font-medium tabular-nums text-foreground">
-                        {fmtAge(median)}
-                      </span>
-                    </div>
-                    {p25 !== null && p75 !== null ? (
-                      <span className="font-mono text-[0.65rem] uppercase tracking-[0.16em] text-muted-foreground">
-                        IQR {fmtAge(p25)} – {fmtAge(p75)}
-                      </span>
-                    ) : null}
-                    <span
-                      className={
-                        "font-mono text-[0.65rem] uppercase tracking-[0.16em] " +
-                        (lowSample
-                          ? "text-amber-600 dark:text-amber-400"
-                          : "text-muted-foreground")
-                      }
-                    >
-                      n = {NB.format(sample)}
-                      {lowSample ? " · lavt utvalg" : ""}
-                    </span>
-                  </div>
-                );
-              }}
+            <ChartHoverPanel
+              mode="single"
+              header={(label) =>
+                typeof label === "string" ? formatBucket(label) : String(label)
+              }
+              rows={(payload) =>
+                payload
+                  .map((item) => {
+                    const key = String(item.dataKey ?? item.name ?? "");
+                    if (key !== "aiMedian" && key !== "nonAiMedian") return null;
+                    const p = item.payload as Point | undefined;
+                    if (!p) return null;
+                    const isAi = key === "aiMedian";
+                    const median =
+                      typeof item.value === "number"
+                        ? item.value
+                        : Number(item.value) || null;
+                    const p25 = isAi ? p.aiP25 : p.nonAiP25;
+                    const p75 = isAi ? p.aiP75 : p.nonAiP75;
+                    const sample = isAi ? p.aiSample : p.nonAiSample;
+                    const lowSample = sample < SAMPLE_FLOOR;
+                    const iqr =
+                      p25 !== null && p75 !== null
+                        ? `IQR ${fmtAge(p25)} – ${fmtAge(p75)}`
+                        : null;
+                    const sampleStr = `n = ${NB.format(sample)}${
+                      lowSample ? " · lavt utvalg" : ""
+                    }`;
+                    return {
+                      key,
+                      label: isAi ? "AI-relevante" : "Ikke-AI",
+                      color: item.color,
+                      value: fmtAge(median),
+                      sub: (
+                        <>
+                          {iqr ? (
+                            <span className="block">{iqr}</span>
+                          ) : null}
+                          <span
+                            className={
+                              "block " +
+                              (lowSample
+                                ? "text-amber-600 dark:text-amber-400"
+                                : "")
+                            }
+                          >
+                            {sampleStr}
+                          </span>
+                        </>
+                      ),
+                    };
+                  })
+                  .filter((r): r is NonNullable<typeof r> => r !== null)
+              }
             />
           }
         />
