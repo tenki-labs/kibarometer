@@ -79,16 +79,17 @@ async function fetchPeek(filter: string): Promise<QueueRow[]> {
 export default async function NavQueuePage({ searchParams }: Props) {
   const sp = await searchParams;
 
-  // Pipeline stages — three filters that mirror the cron orchestrators.
-  // Berikelse (enrichment): nav_postings.detail_fetched_at IS NULL AND status=ACTIVE.
-  //   Drained by enrich-nav cron every 15 min.
-  // Klassifisering T1: tier1_completed_at IS NULL AND detail_fetched_at IS NOT NULL.
-  //   The cron runs every 15 min on detail-enriched rows.
-  // Klassifisering T2: tier2_completed_at IS NULL AND tier1_completed_at IS NOT NULL.
-  //   Tier 2 only runs after Tier 1 succeeded.
+  // Pipeline stages — three filters that mirror what the cron orchestrators
+  // actually process. Without is_ai + retry-cap predicates, rows that flipped
+  // is_ai=true → false after a keyword retag (or hit the retry ceiling) would
+  // sit in the queue forever even though no processor would touch them, so
+  // the header's "trender mot null" promise would be a lie.
+  // Berikelse: nav_postings.detail_fetched_at IS NULL AND status=ACTIVE — enrich-nav cron.
+  // Klassifisering T1: mirrors lib/admin/llm-discover.ts:87-89.
+  // Klassifisering T2: mirrors lib/admin/llm-classify.ts:116-117 (also matches Claude drain).
   const ENRICH_FILTER = "status=eq.ACTIVE&detail_fetched_at=is.null";
-  const T1_FILTER = "tier1_completed_at=is.null&detail_fetched_at=not.is.null&ingest_mode=eq.live";
-  const T2_FILTER = "tier2_completed_at=is.null&tier1_completed_at=not.is.null";
+  const T1_FILTER = "tier1_completed_at=is.null&detail_fetched_at=not.is.null&ingest_mode=eq.live&is_ai=eq.true&llm_retry_count=lt.3";
+  const T2_FILTER = "is_ai=eq.true&tier2_completed_at=is.null&llm_retry_count=lt.3";
 
   const [
     enrichCount,
