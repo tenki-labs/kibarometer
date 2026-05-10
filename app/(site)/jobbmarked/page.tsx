@@ -14,7 +14,7 @@ import { Suspense } from "react";
 import { NORWAY_FYLKE_PATHS, NORWAY_VIEWBOX } from "@/lib/norway-paths";
 import {
   sb,
-  type SnapshotCategoryDaily,
+  type SnapshotDaily,
   type SnapshotGeography,
   type SnapshotHeadline,
   type SnapshotKeyword,
@@ -64,9 +64,13 @@ const jsonLd = {
 };
 
 export default async function JobbmarkedPage() {
+  // PostgREST default cap is 1000 rows (PGRST_DB_MAX_ROWS in
+  // docker/supabase/docker-compose.yml). With order=posted_on.asc, hitting that
+  // cap silently drops the *most recent* rows. Every snapshot fetch therefore
+  // pins an explicit &limit= comfortably above its realistic ceiling.
   const [
     headlineRows,
-    categoryDaily,
+    snapshotDaily,
     skillCategoryDaily,
     keywords,
     geography,
@@ -75,16 +79,18 @@ export default async function JobbmarkedPage() {
     sb<SnapshotHeadline[]>(
       "/snapshot_headline?order=computed_for.desc&limit=1",
     ),
-    sb<SnapshotCategoryDaily[]>(
-      "/snapshot_category_daily?order=posted_on.asc",
+    sb<SnapshotDaily[]>(
+      "/snapshot_daily?order=posted_on.asc&limit=20000",
     ),
     sb<SnapshotSkillCategoryDaily[]>(
-      "/snapshot_skill_category_daily?order=posted_on.asc",
+      "/snapshot_skill_category_daily?order=posted_on.asc&limit=200000",
     ),
     sb<SnapshotKeyword[]>("/snapshot_keywords?order=rank.asc&limit=20"),
-    sb<SnapshotGeography[]>("/snapshot_geography?order=ai_count_30d.desc"),
+    sb<SnapshotGeography[]>(
+      "/snapshot_geography?order=ai_count_30d.desc&limit=200",
+    ),
     sb<TaxonomyCategory[]>(
-      "/taxonomy_categories?select=slug,title,definition_md,sort_order&order=sort_order.asc",
+      "/taxonomy_categories?select=slug,title,definition_md,sort_order&order=sort_order.asc&limit=500",
     ),
   ]);
 
@@ -95,7 +101,7 @@ export default async function JobbmarkedPage() {
       <Suspense fallback={null}>
         <Scroller
           headline={headline}
-          categoryDaily={categoryDaily}
+          snapshotDaily={snapshotDaily}
           skillCategoryDaily={skillCategoryDaily}
           keywords={keywords}
           geography={geography}
