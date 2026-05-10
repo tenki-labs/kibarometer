@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import type {
-  SnapshotCategoryDaily,
+  SnapshotDaily,
   SnapshotGeography,
   SnapshotHeadline,
   SnapshotKeyword,
@@ -44,7 +44,10 @@ const MAP_UNIT: NorwayMapUnit = {
 
 type Props = {
   headline: SnapshotHeadline | null;
-  categoryDaily: SnapshotCategoryDaily[];
+  /** Per-day NAV-posting totals: ai_count + total_count, no enrichment
+   *  filter — sums match snapshot_headline.ai_count_30d exactly. Drives
+   *  segment 2's AI-share area chart. */
+  snapshotDaily: SnapshotDaily[];
   skillCategoryDaily: SnapshotSkillCategoryDaily[];
   keywords: SnapshotKeyword[];
   geography: SnapshotGeography[];
@@ -98,7 +101,7 @@ function buildSeries<R extends { posted_on: string; ai_count: number; total_coun
 
 export function Scroller({
   headline,
-  categoryDaily,
+  snapshotDaily,
   skillCategoryDaily,
   keywords,
   geography,
@@ -127,11 +130,13 @@ export function Scroller({
   }
 
   // Reference "now" derived from the data — the latest posted_on across the
-  // two daily snapshots. Avoids Date.now() during render and gives stable
-  // cutoffs whether the page renders at 03:59 or 04:01.
+  // daily snapshots. Anchored on snapshot_daily so the cutoff for segment 2
+  // tracks the most recent NAV-posting date even when LLM Tier 2 is lagging
+  // behind on snapshot_skill_category_daily. Avoids Date.now() during render
+  // and gives stable cutoffs whether the page renders at 03:59 or 04:01.
   const nowMs = useMemo(() => {
     let latest = 0;
-    for (const row of categoryDaily) {
+    for (const row of snapshotDaily) {
       const t = new Date(row.posted_on + "T00:00:00Z").getTime();
       if (t > latest) latest = t;
     }
@@ -140,7 +145,7 @@ export function Scroller({
       if (t > latest) latest = t;
     }
     return latest || 0;
-  }, [categoryDaily, skillCategoryDaily]);
+  }, [snapshotDaily, skillCategoryDaily]);
 
   const skillSeries = useMemo(
     () => buildSeries(skillCategoryDaily, range, (r) => r.slug, "ai", nowMs),
@@ -148,13 +153,14 @@ export function Scroller({
   );
 
   // Per-bucket (ai_count, total_count) for segment 2's AI-share area chart.
-  // Sums ai_count and total_count across all categories within each bucket so
-  // the chart can render the AI share as ai/total over time.
+  // Reads snapshot_daily directly so numerator and denominator share the same
+  // predicate as snapshot_headline.ai_count_30d (no `category is not null`
+  // filter). Buckets monthly under 1y/Maks for readability.
   const aiShareBuckets = useMemo<AIShareBucket[]>(() => {
     const monthly = shouldBucketMonthly(range);
     const cutoffMs = rangeCutoffMs(range, nowMs);
     const buckets = new Map<string, { ai: number; total: number }>();
-    for (const row of categoryDaily) {
+    for (const row of snapshotDaily) {
       const t = new Date(row.posted_on + "T00:00:00Z").getTime();
       if (t < cutoffMs) continue;
       const bucket = dateKey(row.posted_on, monthly);
@@ -166,7 +172,7 @@ export function Scroller({
     return [...buckets.entries()]
       .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
       .map(([date, v]) => ({ date, aiCount: v.ai, totalCount: v.total }));
-  }, [categoryDaily, range, nowMs]);
+  }, [snapshotDaily, range, nowMs]);
 
   // Container is a snap scroller from sm: up. On mobile we let normal page
   // scroll handle things and skip the cinematic effect.
@@ -209,10 +215,11 @@ export function Scroller({
             <TimeRangeToggle value={range} onChange={onRangeChange} />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
-            AI-stillinger klassifisert av en språkmodell etter
-            ferdighetskategori. Grafen viser kategorienes andel av periodens
-            AI-tilordninger — én stilling kan tilhøre flere kategorier, så
-            området summerer 100 %.
+            Av AI-stillinger som er klassifisert av en språkmodell etter
+            ferdighetskategori. Grafen viser fordelingen blant de
+            klassifiserte stillingene — totalen følger derfor ikke
+            nødvendigvis hovedtallet, og én stilling kan tilhøre flere
+            kategorier (området summerer 100 %).
           </p>
           <div className="min-h-0 flex-1">
             <StackedAreaChart
