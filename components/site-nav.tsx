@@ -109,7 +109,12 @@ export function SiteNav() {
         >
           <NavigationMenuList>
             <NavigationMenuItem value="kibarometre">
-              <NavigationMenuTrigger className="font-mono text-xs uppercase tracking-[0.14em]">
+              <NavigationMenuTrigger
+                className="font-mono text-xs uppercase tracking-[0.14em]"
+                onClick={(e) => {
+                  if (desktopValue === "kibarometre") e.preventDefault();
+                }}
+              >
                 Kibarometre
               </NavigationMenuTrigger>
               <NavigationMenuContent className="left-auto right-0 w-auto">
