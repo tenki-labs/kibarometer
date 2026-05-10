@@ -1,3 +1,7 @@
+"use client";
+
+import { useState } from "react";
+
 import type { BrregSnapshotHeadline } from "@/lib/supabase";
 
 const NB = new Intl.NumberFormat("nb-NO");
@@ -9,6 +13,10 @@ const NO_DATETIME = new Intl.DateTimeFormat("nb-NO", {
   hour: "2-digit",
   minute: "2-digit",
 });
+
+// Snapshot is refreshed nightly (kiba-fetcher cron). Anything older than 48h
+// indicates the cron has missed at least two runs — flag it visually.
+const STALE_AFTER_MS = 48 * 60 * 60 * 1000;
 
 function fmtNumber(n: number | null | undefined): string {
   if (n === null || n === undefined) return "—";
@@ -27,6 +35,17 @@ function fmtDelta(n: number | null | undefined): string | null {
 }
 
 export function Hero({ headline }: { headline: BrregSnapshotHeadline | null }) {
+  // Stale check captured once at mount; we don't need a live timer for this.
+  // useState initializer runs only on first render, satisfying the
+  // react-hooks/purity rule against calling Date.now() during render.
+  // Hook must come before any conditional return per rules-of-hooks.
+  const [stale] = useState(() => {
+    if (!headline) return false;
+    const ms = new Date(headline.computed_at).getTime();
+    if (!Number.isFinite(ms)) return false;
+    return Date.now() - ms > STALE_AFTER_MS;
+  });
+
   if (!headline) {
     return (
       <div className="flex h-full items-center justify-center px-6 text-center text-muted-foreground">
@@ -48,7 +67,14 @@ export function Hero({ headline }: { headline: BrregSnapshotHeadline | null }) {
       </div>
 
       <div className="max-w-[60ch] text-sm text-muted-foreground">
-        Siste 30 dager · oppdatert {NO_DATETIME.format(new Date(headline.computed_at))}
+        Siste 30 dager · oppdatert{" "}
+        <span
+          className={
+            stale ? "text-amber-600 dark:text-amber-400" : undefined
+          }
+        >
+          {NO_DATETIME.format(new Date(headline.computed_at))}
+        </span>
         {delta ? <> · {delta} siden forrige måned</> : null}
       </div>
 

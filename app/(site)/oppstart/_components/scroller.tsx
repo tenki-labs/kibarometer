@@ -46,6 +46,25 @@ const MAP_UNIT: NorwayMapUnit = {
   shareNoun: "AI-foretakene",
 };
 
+// Topp kategorier visibility thresholds. A category survives only if it has
+// at least MIN_CATEGORY_COUNT AI-relevant foretak in the active window AND
+// represents at least MIN_CATEGORY_SHARE of the window's AI total. Bands
+// thinner than this make the legend honest at the cost of dropping noisy
+// long-tail categories.
+const MIN_CATEGORY_COUNT = 5;
+const MIN_CATEGORY_SHARE = 0.005;
+
+// brreg_snapshot_daily coalesces unmapped NACE codes to 'annet' (see
+// 0047_brreg_2018_floor.sql). We never want it as a stack band — it's a
+// catch-all, not a real category — so it's filtered out client-side.
+const HIDDEN_CATEGORY_SLUGS = new Set(["annet"]);
+
+const NO_DATETIME_SHORT = new Intl.DateTimeFormat("nb-NO", {
+  day: "2-digit",
+  month: "long",
+  year: "numeric",
+});
+
 export type NaceCategoryLabel = {
   slug: string;
   label_no: string;
@@ -84,9 +103,11 @@ function buildAiShareBuckets(
     .map(([date, v]) => ({ date, aiCount: v.ai, totalCount: v.total }));
 }
 
-// Build a Series of category mix among AI-relevant new companies. Categories
-// whose AI-relevant total over the active window is 0 are filtered out, so
-// the chart and legend never show empty bands.
+// Build a Series of category mix among AI-relevant new companies. A category
+// survives the legend only if its window total clears MIN_CATEGORY_COUNT and
+// MIN_CATEGORY_SHARE, and it is not in HIDDEN_CATEGORY_SLUGS — keeps tiny
+// long-tail bands and the 'annet' catch-all out of both the chart and the
+// colored swatch row underneath.
 function buildCategoryMixSeries(
   rows: BrregSnapshotDaily[],
   range: Range,
@@ -100,6 +121,7 @@ function buildCategoryMixSeries(
     const t = new Date(row.registrert_dato + "T00:00:00Z").getTime();
     if (t < cutoffMs) continue;
     if (row.ai_relevant_count === 0) continue;
+    if (HIDDEN_CATEGORY_SLUGS.has(row.nace_category_slug)) continue;
     const bucket = dateKey(row.registrert_dato, monthly);
     if (!buckets.has(bucket)) buckets.set(bucket, new Map());
     const inner = buckets.get(bucket)!;
@@ -112,10 +134,31 @@ function buildCategoryMixSeries(
       (slugTotals.get(row.nace_category_slug) ?? 0) + row.ai_relevant_count,
     );
   }
-  const sortedDates = [...buckets.keys()].sort();
+
+  const windowAiTotal = [...slugTotals.values()].reduce((a, n) => a + n, 0);
   const liveKeys = [...slugTotals.entries()]
-    .filter(([, n]) => n > 0)
+    .filter(([, n]) => {
+      if (n < MIN_CATEGORY_COUNT) return false;
+      if (windowAiTotal > 0 && n / windowAiTotal < MIN_CATEGORY_SHARE)
+        return false;
+      return true;
+    })
     .map(([k]) => k);
+
+  // Dev-only safety net: if a zero-sum slug ever leaks through into the
+  // legend payload, fail loudly during development so the regression is
+  // caught immediately. Never surfaced in production.
+  if (process.env.NODE_ENV !== "production") {
+    for (const k of liveKeys) {
+      if ((slugTotals.get(k) ?? 0) <= 0) {
+        console.error(
+          `buildCategoryMixSeries: zero-sum slug leaked through filter: ${k}`,
+        );
+      }
+    }
+  }
+
+  const sortedDates = [...buckets.keys()].sort();
   return {
     dates: sortedDates,
     keys: liveKeys,
@@ -124,6 +167,11 @@ function buildCategoryMixSeries(
       return liveKeys.map((k) => inner.get(k) ?? 0);
     }),
   };
+}
+
+function formatComputedAt(iso: string | undefined): string | null {
+  if (!iso) return null;
+  return NO_DATETIME_SHORT.format(new Date(iso));
 }
 
 export function Scroller({
@@ -199,6 +247,8 @@ export function Scroller({
     [geography],
   );
 
+  const oppdatert = formatComputedAt(headline?.computed_at);
+
   return (
     <div
       className="
@@ -226,6 +276,7 @@ export function Scroller({
           <div className="min-h-0 flex-1">
             <AIShareAreaChart buckets={aiShareBuckets} unitLabel="foretak" />
           </div>
+          <FootnoteRow oppdatert={oppdatert} showMethodology />
         </div>
       </section>
 
@@ -239,8 +290,9 @@ export function Scroller({
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
             Næringskategorier blant AI-relevante nyregistreringer, normalisert
-            til 100 % per periode. Kategorier uten AI-relevante foretak i
-            valgt vindu utelates.
+            til 100 % per periode. Kategorier med færre enn {MIN_CATEGORY_COUNT}{" "}
+            foretak eller under {(MIN_CATEGORY_SHARE * 100).toString().replace(".", ",")}{" "}
+            % av perioden utelates, samt samlebåsen «annet».
           </p>
           <div className="min-h-0 flex-1">
             <StackedAreaChart
@@ -250,6 +302,7 @@ export function Scroller({
               normalize
             />
           </div>
+          <FootnoteRow oppdatert={oppdatert} showMethodology />
         </div>
       </section>
 
@@ -266,6 +319,7 @@ export function Scroller({
           <div className="min-h-0 flex-1 overflow-auto">
             <KeywordList rows={keywords} />
           </div>
+          <FootnoteRow oppdatert={oppdatert} />
         </div>
       </section>
 
@@ -290,6 +344,7 @@ export function Scroller({
               nowMs={nowMs}
             />
           </div>
+          <FootnoteRow oppdatert={oppdatert} showMethodology />
         </div>
       </section>
 
@@ -309,8 +364,37 @@ export function Scroller({
               unit={MAP_UNIT}
             />
           </div>
+          <FootnoteRow oppdatert={oppdatert} />
         </div>
       </section>
+    </div>
+  );
+}
+
+// Small footer row under each chart: data freshness on the left, optional
+// methodology link on the right. Spelling out what "AI-relevant" means in
+// one sentence keeps the keyword-only signal honest without cluttering the
+// chart copy.
+function FootnoteRow({
+  oppdatert,
+  showMethodology,
+}: {
+  oppdatert: string | null;
+  showMethodology?: boolean;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[0.7rem] text-muted-foreground">
+      <span>{oppdatert ? <>Oppdatert {oppdatert}</> : null}</span>
+      {showMethodology ? (
+        <span>
+          AI-relevant = treff på kuraterte nøkkelord i firmanavn eller
+          aktivitet ved registrering.{" "}
+          <a className="underline underline-offset-2" href="/docs/oppstart">
+            Mer om metode
+          </a>
+          .
+        </span>
+      ) : null}
     </div>
   );
 }
