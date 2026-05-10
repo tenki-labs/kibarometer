@@ -210,10 +210,15 @@ cd "$WEBSITE"
 # kiba-web now). The container itself is left running on the VPS for one
 # cycle so an operator can `docker rm -f kiba-admin` once the cutover smoke
 # passes; PR 5 will remove the kiba-admin block from compose.boot.yml.
+# --build rebuilds services with an active `build:` directive (kiba-scraper
+# is the only one in this list — kiba-web is image-tagged above, the rest
+# are pure `image:`). Without --build, edits under docker/scraper/ never
+# reach the running container; layer caching in docker/scraper/Dockerfile
+# keeps the rebuild cheap when only server.py / schemas.py changed.
 docker compose --env-file /opt/kibarometer/env/supabase.env \
   -f compose.yml -f docker/supabase/docker-compose.yml \
   -f compose.prod.yml -f compose.boot.yml \
-  up -d --force-recreate --remove-orphans kiba-web kiba-fetcher kiba-backup kiba-redis kiba-umami kiba-scraper
+  up -d --build --force-recreate --remove-orphans kiba-web kiba-fetcher kiba-backup kiba-redis kiba-umami kiba-scraper
 
 # Recreate kong too — the alias override lives in compose.boot.yml. Without
 # this, an old kong container with the default `kong` alias keeps running

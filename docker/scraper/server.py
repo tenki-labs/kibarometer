@@ -56,15 +56,17 @@ MLX_MODEL = os.getenv(
 # scrapegraphai routes via langchain-openai's ChatOpenAI when the model
 # name is prefixed with "openai/". The "openai/" prefix is stripped
 # before the model name reaches the API (verified in the Day 0 stub).
+#
+# Do NOT add "model_tokens" here — newer scrapegraphai/langchain-openai
+# leaks it through to OpenAI's Completions.create() as a kwarg, which
+# raises "unexpected keyword argument 'model_tokens'" and kills every
+# graph.run() before any I/O. The "Max input tokens for model X not
+# found" warning it used to suppress is harmless.
 _LLM_CONFIG = {
     "model": f"openai/{MLX_MODEL}",
     "api_key": MLX_API_KEY,
     "base_url": MLX_BASE_URL,
     "temperature": 0,
-    # Suppresses the "Max input tokens for model X not found" warning;
-    # 8192 is conservative for Gemma 3 (real ctx is 128K) and covers
-    # any single article page we'd extract from.
-    "model_tokens": 8192,
 }
 
 
