@@ -2,7 +2,7 @@
 import { sb, type SnapshotHeadline } from "@/lib/supabase";
 import { json } from "../_response";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   const rows = await sb<SnapshotHeadline[]>(
