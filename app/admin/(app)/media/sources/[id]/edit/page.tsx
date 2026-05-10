@@ -41,7 +41,7 @@ export default async function EditSourcePage({ params, searchParams }: Props) {
 
   const rows = await sbFetch<Source[]>(
     `/media_sources?id=eq.${encodeURIComponent(id)}` +
-      `&select=id,name,domain,rss_url,backfill_method,search_config,sitemap_url,sitemap_index,extractor_config,requires_render,crawl_delay_ms,is_active,category,last_polled_at,backfill_cursor,notes,created_at,updated_at`,
+      `&select=id,name,domain,rss_url,crawl_delay_ms,is_active,category,last_polled_at,backfill_cursor,notes,created_at,updated_at`,
     { service: true },
   ).catch(() => [] as Source[]);
   const src = rows[0];
@@ -149,22 +149,14 @@ export default async function EditSourcePage({ params, searchParams }: Props) {
                   variant="outline"
                   size="sm"
                   pendingLabel="Spør sidekarens…"
-                  disabled={src.backfill_method !== "scrapegraph"}
                 >
                   Tørrtest scrapegraph-discover
                 </SubmitButton>
-                {src.backfill_method !== "scrapegraph" ? (
-                  <p className="text-xs text-muted-foreground">
-                    Bytt <code className="font-mono">backfill_method</code> til{" "}
-                    <code className="font-mono">scrapegraph</code> først.
-                  </p>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    Henter første aktive keyword fra <code className="font-mono">/admin/keywords</code>{" "}
-                    og spør kiba-scraper-sidecaren om topp 5 URL-er fra{" "}
-                    <code className="font-mono">{src.domain}</code>.
-                  </p>
-                )}
+                <p className="text-xs text-muted-foreground">
+                  Henter første aktive keyword fra <code className="font-mono">/admin/keywords</code>{" "}
+                  og spør kiba-scraper-sidecaren om topp 5 URL-er fra{" "}
+                  <code className="font-mono">{src.domain}</code>.
+                </p>
               </form>
 
               <form
