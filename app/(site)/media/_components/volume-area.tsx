@@ -113,7 +113,7 @@ export function VolumeArea({ rows, cutoffMs, monthly }: Props) {
         />
         <Area
           dataKey="count"
-          type="monotone"
+          type={data.length < 3 ? "step" : "monotone"}
           stroke="var(--color-count)"
           fill="var(--color-count)"
           fillOpacity={0.55}

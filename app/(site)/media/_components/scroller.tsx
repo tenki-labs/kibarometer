@@ -12,10 +12,11 @@ import {
   type Range,
 } from "@/app/(site)/_components/time-range-toggle";
 import {
+  coverageHorizonMs,
   dateKey,
+  effectiveMonthly,
   parseRange,
   rangeCutoffMs,
-  shouldBucketMonthly,
 } from "@/app/(site)/_lib/range";
 import type {
   MediaAnomalyDaily,
@@ -27,7 +28,7 @@ import type {
 
 import { AnomalyFeed } from "./anomaly-feed";
 import { CategoryTemperatureList } from "./category-temperature-list";
-import { Hero } from "./hero";
+import { Hero, type TopCategory } from "./hero";
 import { IndexLine } from "./index-line";
 import { VolumeArea } from "./volume-area";
 
@@ -118,8 +119,32 @@ export function Scroller({
     return latestMs || 0;
   }, [indexHistory, categoryDaily]);
 
+  // Earliest data point across both snapshot tables. Drives the coverage
+  // banner and the daily/monthly bucket fallback.
+  const coverageMs = useMemo(() => {
+    const a = coverageHorizonMs(indexHistory);
+    const b = coverageHorizonMs(categoryDaily);
+    return Math.min(a, b);
+  }, [indexHistory, categoryDaily]);
+
+  const coverageStart = useMemo(() => {
+    if (!Number.isFinite(coverageMs)) return null;
+    return new Date(coverageMs).toISOString().slice(0, 10);
+  }, [coverageMs]);
+
+  const coverageDays = useMemo(() => {
+    if (!Number.isFinite(coverageMs) || nowMs === 0) return 0;
+    return Math.max(
+      0,
+      Math.round((nowMs - coverageMs) / 86_400_000) + 1,
+    );
+  }, [coverageMs, nowMs]);
+
   const cutoffMs = useMemo(() => rangeCutoffMs(range, nowMs), [range, nowMs]);
-  const monthly = shouldBucketMonthly(range);
+  const monthly = useMemo(
+    () => effectiveMonthly(range, coverageMs, nowMs),
+    [range, coverageMs, nowMs],
+  );
   const indexCutoffMs = cutoffMs === -Infinity ? null : cutoffMs;
 
   const categorySeries = useMemo(
@@ -140,6 +165,48 @@ export function Scroller({
     [categories],
   );
 
+  // Top category in the last 7 days against the data's reference "now". Ties
+  // broken by alphabetical slug. Returns null when no AI articles in window.
+  const topCategoryLast7d = useMemo<TopCategory | null>(() => {
+    if (nowMs === 0) return null;
+    const cutoff = nowMs - 7 * 86_400_000;
+    const tally = new Map<string, number>();
+    for (const row of categoryDaily) {
+      const t = new Date(row.published_on + "T00:00:00Z").getTime();
+      if (t < cutoff) continue;
+      if (row.ai_count === 0) continue;
+      tally.set(row.category_slug, (tally.get(row.category_slug) ?? 0) + row.ai_count);
+    }
+    if (tally.size === 0) return null;
+    const labelBySlug = new Map(categories.map((c) => [c.slug, c.label_no]));
+    let bestSlug: string | null = null;
+    let bestCount = -1;
+    for (const [slug, count] of tally) {
+      if (
+        count > bestCount ||
+        (count === bestCount && bestSlug !== null && slug < bestSlug)
+      ) {
+        bestSlug = slug;
+        bestCount = count;
+      }
+    }
+    if (bestSlug === null) return null;
+    return {
+      label: labelBySlug.get(bestSlug) ?? bestSlug,
+      aiCount: bestCount,
+    };
+  }, [categoryDaily, categories, nowMs]);
+
+  // Pre-filter anomalies to the active range so we can hide the whole
+  // section when there's nothing to show, instead of rendering a card-shaped
+  // "ingen spiker" placeholder.
+  const inRangeAnomalies = useMemo(() => {
+    const cutoff = indexCutoffMs ?? -Infinity;
+    return anomalies.filter(
+      (r) => new Date(r.date + "T00:00:00Z").getTime() >= cutoff,
+    );
+  }, [anomalies, indexCutoffMs]);
+
   return (
     <div
       className="
@@ -149,7 +216,13 @@ export function Scroller({
       "
     >
       <section className="snap-segment sm:snap-start sm:snap-always">
-        <Hero latest={latest} prior={prior} />
+        <Hero
+          latest={latest}
+          prior={prior}
+          topCategoryLast7d={topCategoryLast7d}
+          coverageStart={coverageStart}
+          coverageDays={coverageDays}
+        />
       </section>
 
       <section className="snap-segment sm:snap-start sm:snap-always">
@@ -245,28 +318,30 @@ export function Scroller({
         </div>
       </section>
 
-      <section className="snap-segment sm:snap-start sm:snap-always">
-        <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
-          <div className="flex items-baseline justify-between gap-4">
-            <h2 className="text-lg font-medium tracking-tight sm:text-xl">
-              Anomalier — kategori-spiker
-            </h2>
-            <TimeRangeToggle value={range} onChange={onRangeChange} />
+      {inRangeAnomalies.length > 0 ? (
+        <section className="snap-segment sm:snap-start sm:snap-always">
+          <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
+            <div className="flex items-baseline justify-between gap-4">
+              <h2 className="text-lg font-medium tracking-tight sm:text-xl">
+                Anomalier — kategori-spiker
+              </h2>
+              <TimeRangeToggle value={range} onChange={onRangeChange} />
+            </div>
+            <p className="max-w-[60ch] text-sm text-muted-foreground">
+              Dager hvor en kategori hadde uvanlig høyt volum mot 28-dagers
+              rullerende baseline. Z-skår 2 eller mer, minst 5 artikler.
+            </p>
+            <div className="min-h-0 flex-1 overflow-auto">
+              <AnomalyFeed
+                rows={inRangeAnomalies}
+                categoryDaily={categoryDaily}
+                categories={categories}
+                cutoffMs={indexCutoffMs}
+              />
+            </div>
           </div>
-          <p className="max-w-[60ch] text-sm text-muted-foreground">
-            Dager hvor en kategori hadde uvanlig høyt volum mot 28-dagers
-            rullerende baseline. Z-skår 2 eller mer, minst 5 artikler.
-          </p>
-          <div className="min-h-0 flex-1 overflow-auto">
-            <AnomalyFeed
-              rows={anomalies}
-              categoryDaily={categoryDaily}
-              categories={categories}
-              cutoffMs={indexCutoffMs}
-            />
-          </div>
-        </div>
-      </section>
+        </section>
+      ) : null}
     </div>
   );
 }
