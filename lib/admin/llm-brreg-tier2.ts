@@ -21,7 +21,8 @@ import {
 
 const JOB_NAME = "brreg_llm_tier2";
 const MODEL_VERSION = "gemma-3-4b-it-4bit";
-const TAXONOMY_VERSION = "v1";
+export const BRREG_TAXONOMY_VERSION = "v1";
+const TAXONOMY_VERSION = BRREG_TAXONOMY_VERSION;
 
 const DEFAULT_K_PER_TICK = 4;
 const DEFAULT_WALL_TIME_MS = 60_000;
@@ -33,16 +34,16 @@ const MAX_CATEGORIES_PER_COMPANY = 3;
 const TIER2_MODEL_MAX_TOKENS = 600;
 const TIER2_MODEL_TEMPERATURE = 0.2;
 
-type Sb = typeof sbFetch;
+export type Sb = typeof sbFetch;
 type Trigger = "manual" | "cron";
 
-type Company = {
+export type Company = {
   orgnr: string;
   aktivitet: string | null;
   llm_ai_phrases: { phrases?: { text?: string }[] } | null;
 };
 
-type CategoryRow = {
+export type CategoryRow = {
   slug: string;
   label_no: string;
   description: string | null;
@@ -281,7 +282,7 @@ async function processOne(
   return { invalidSlugDrops };
 }
 
-function buildCategoriesBlock(taxonomy: CategoryRow[]): string {
+export function buildCategoriesBlock(taxonomy: CategoryRow[]): string {
   return taxonomy
     .map((t) => {
       const def = (t.description ?? "").trim();
@@ -292,7 +293,7 @@ function buildCategoriesBlock(taxonomy: CategoryRow[]): string {
     .join("\n");
 }
 
-async function loadLiveTaxonomy(sb: Sb): Promise<CategoryRow[]> {
+export async function loadLiveTaxonomy(sb: Sb): Promise<CategoryRow[]> {
   return sb<CategoryRow[]>(
     "/brreg_categories?is_active=is.true" +
       "&select=slug,label_no,description&order=sort_order.asc,slug.asc",

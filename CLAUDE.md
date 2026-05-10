@@ -305,11 +305,11 @@ after the first `setup.sh` run.
 VPS only, mode 600 deploy:deploy:
 ```
 /opt/kibarometer/env/supabase.env       # Postgres + GoTrue + JWT + dashboard
-/opt/kibarometer/env/admin.env          # source of truth for JWT secret, anon/service keys, fetcher token, UMAMI_*, MLX_*
+/opt/kibarometer/env/admin.env          # source of truth for JWT secret, anon/service keys, fetcher token, UMAMI_*, MLX_*, ANTHROPIC_*
 /opt/kibarometer/env/fetcher.env        # fetcher cron — admin URL + fetcher token (must match admin.env)
 /opt/kibarometer/env/backup.env         # B2 creds, bucket, optional Kuma URL
 /opt/kibarometer/env/umami.env          # Umami Postgres URL + HASH_SALT + APP_SECRET
-/opt/kibarometer/env/.env.production    # kiba-web runtime env — propagated from admin.env by deploy.sh (FETCHER_TOKEN, SUPABASE_JWT_SECRET, UMAMI_*, MLX_*) plus marketing-only NEXT_PUBLIC_*
+/opt/kibarometer/env/.env.production    # kiba-web runtime env — propagated from admin.env by deploy.sh (FETCHER_TOKEN, SUPABASE_JWT_SECRET, UMAMI_*, MLX_*, ANTHROPIC_*) plus marketing-only NEXT_PUBLIC_*
 ```
 
 [scripts/generate-secrets.sh](scripts/generate-secrets.sh) mints all six on
@@ -318,7 +318,11 @@ generated — they come from the Backblaze console. Real Umami API key +
 website ID are NOT generated either — they come from a one-time setup via
 SSH-tunnel to the Umami container; see the `/admin/analytics` empty-state
 card for the runbook. `MLX_*` values point at the shared `mlx.tenki.no`
-endpoint and are issued by tenki — see §4.
+endpoint and are issued by tenki — see §4. `ANTHROPIC_API_KEY` (optional)
+gates the manual "Backfill via Claude" buttons on `/admin/llm` for
+NAV + BRREG Tier 2 — when unset, the buttons are hidden and live MLX
+cron is unaffected; `ANTHROPIC_CONCURRENCY` (optional, default 4) tunes
+the `p-limit` cap inside the drain orchestrator.
 
 ## 13. Out of scope
 
