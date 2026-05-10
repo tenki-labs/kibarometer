@@ -66,9 +66,9 @@ export async function reprocessKeywordsAction() {
 }
 
 // Burst Tier 1: K=100 / 4-min budget. Same orchestrator as the cron tick;
-// just bigger K so the operator can drain a backfill backlog without
-// waiting for ~15-row cron ticks. Operator can fire repeatedly until
-// "ai_relevant" stops growing.
+// just bigger K so the operator can drain a backfill backlog of phrase
+// extraction without waiting for ~15-row cron ticks. Operator can fire
+// repeatedly until "phrases_persisted" stops growing.
 export async function burstTier1Action() {
   try {
     const r = await runMediaTier1({
@@ -112,13 +112,13 @@ export async function burstFetchClassifyAction() {
     })) as {
       status: string;
       reason?: string;
-      processed?: number;
-      ai_relevant?: number;
+      fetched?: number;
+      ai_count?: number;
       stopped?: string;
     };
     const parts = [
-      `Fetch+klassifiser: ${r.processed ?? 0} URL-er prosessert`,
-      r.ai_relevant != null ? `${r.ai_relevant} AI-treff` : null,
+      `Fetch+klassifiser: ${r.fetched ?? 0} URL-er prosessert`,
+      r.ai_count != null ? `${r.ai_count} AI-treff` : null,
       r.stopped ? `(stoppet: ${r.stopped})` : null,
     ].filter(Boolean);
     redirect(`${LIST}${flashQs({ ok: parts.join(" · ") })}`);

@@ -15,6 +15,7 @@ import {
   type MediaCategory,
   type MediaSnapshotCategoryDaily,
   type MediaSnapshotIndex,
+  type SnapshotTier2CoverageDaily,
 } from "@/lib/supabase";
 
 import { Scroller } from "./_components/scroller";
@@ -48,6 +49,7 @@ export default async function MediaPage() {
     categoryDaily,
     categories,
     anomalies,
+    tier2Coverage,
   ] = await Promise.all([
     sb<MediaSnapshotIndex[]>(
       "/media_snapshot_index?order=date.desc&limit=1",
@@ -67,6 +69,9 @@ export default async function MediaPage() {
     sb<MediaAnomalyDaily[]>(
       "/media_anomaly_daily?is_spike=is.true&order=date.desc,z_score.desc&limit=500",
     ),
+    sb<SnapshotTier2CoverageDaily[]>(
+      "/media_snapshot_tier2_coverage_daily?order=date.asc&limit=20000",
+    ),
   ]);
 
   const latest = latestRows[0] ?? null;
@@ -82,6 +87,7 @@ export default async function MediaPage() {
           categoryDaily={categoryDaily}
           categories={categories}
           anomalies={anomalies}
+          tier2Coverage={tier2Coverage}
         />
       </Suspense>
       <script

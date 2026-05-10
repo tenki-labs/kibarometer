@@ -1,11 +1,16 @@
-// lib/admin/llm-brreg-tier1.ts — Tier 1 (AI-relevance + AI-phrase
-// extraction) for brreg companies.
+// lib/admin/llm-brreg-tier1.ts — Tier 1 (AI-phrase extraction) for
+// brreg companies.
 //
 // Mirrors lib/admin/llm-media-tier1.ts but operates on brreg_companies
 // (PK = orgnr, text). Per D7 of the symmetric-triggers PRD: the haystack
 // is `aktivitet` only — company names are too short and proper-noun
 // heavy to extract useful AI-related phrases from. Validation is the
 // shared substring-match in llm-media-parse.validatePhrases.
+//
+// AI-relevance is decided by the keyword matcher at ingest time
+// (`is_ai_relevant` is a generated column from `has_ai_in_name OR
+// has_ai_in_aktivitet`). Tier 1 only enriches already-flagged rows for
+// keyword-catalog growth — it does NOT validate relevance.
 //
 // Active prompt loaded from public.llm_prompts (role='brreg_tier1').
 // Same concurrency / heartbeat / retry semantics as the media + NAV
@@ -43,7 +48,6 @@ export type RunBrregTier1Result = {
   job_id?: string;
   metadata?: {
     processed: number;
-    ai_relevant: number;
     phrases_persisted: number;
     parse_fails: number;
     http_fails: number;
@@ -103,7 +107,6 @@ export async function runBrregTier1(args: {
   if (candidates.length === 0) {
     const meta = {
       processed: 0,
-      ai_relevant: 0,
       phrases_persisted: 0,
       parse_fails: 0,
       http_fails: 0,
@@ -116,7 +119,6 @@ export async function runBrregTier1(args: {
 
   const start = Date.now();
   let processed = 0;
-  let aiRelevant = 0;
   let phrasesPersisted = 0;
   let parseFails = 0;
   let httpFails = 0;
@@ -133,7 +135,6 @@ export async function runBrregTier1(args: {
       try {
         const r = await processOne(sb, company, prompt.body, prompt.id);
         processed += 1;
-        if (r.aiRelevant) aiRelevant += 1;
         phrasesPersisted += r.phraseCount;
       } catch (err) {
         if (err instanceof MlxError && err.kind === "auth") {
@@ -155,14 +156,13 @@ export async function runBrregTier1(args: {
           pct: ((idx + 1) / candidates.length) * 100,
           step:
             `${idx + 1} / ${candidates.length} · ${processed} ok · ` +
-            `${aiRelevant} AI · ${parseFails + httpFails + authFails} feil`,
+            `${phrasesPersisted} fraser · ${parseFails + httpFails + authFails} feil`,
         });
       }
     }
 
     const meta = {
       processed,
-      ai_relevant: aiRelevant,
       phrases_persisted: phrasesPersisted,
       parse_fails: parseFails,
       http_fails: httpFails,
@@ -174,7 +174,6 @@ export async function runBrregTier1(args: {
   } catch (err) {
     await finalize(sb, job.id, "failed", {
       processed,
-      ai_relevant: aiRelevant,
       phrases_persisted: phrasesPersisted,
       parse_fails: parseFails,
       http_fails: httpFails,
@@ -191,7 +190,7 @@ async function processOne(
   company: Company,
   systemPrompt: string,
   promptId: string,
-): Promise<{ aiRelevant: boolean; phraseCount: number }> {
+): Promise<{ phraseCount: number }> {
   const aktivitet = company.aktivitet ?? "";
   const userInput = `Aktivitet: ${aktivitet}`;
 
@@ -212,7 +211,6 @@ async function processOne(
 
   const validatedPhrases = validatePhrases(parsed.phrases, aktivitet);
   const persisted = {
-    ai_relevant: parsed.ai_relevant,
     phrases: validatedPhrases,
     phrases_returned: parsed.phrases.length,
     prompt_id: promptId,
@@ -230,7 +228,6 @@ async function processOne(
   });
 
   return {
-    aiRelevant: parsed.ai_relevant,
     phraseCount: validatedPhrases.length,
   };
 }

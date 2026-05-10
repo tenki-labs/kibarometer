@@ -19,7 +19,6 @@ export const STANCE_SET: Set<string> = new Set(STANCE_VALUES);
 
 export type Phrase = { text: string };
 export type Tier1Output = {
-  ai_relevant: boolean;
   phrases: Phrase[];
 };
 
@@ -45,10 +44,9 @@ export function parseTier1(content: string): Tier1Output | null {
   }
   if (!obj || typeof obj !== "object") return null;
 
-  const aiRelevant = Boolean((obj as { ai_relevant?: unknown }).ai_relevant);
   const rawPhrases = (obj as { phrases?: unknown }).phrases;
   if (!Array.isArray(rawPhrases)) {
-    return { ai_relevant: aiRelevant, phrases: [] };
+    return { phrases: [] };
   }
   const phrases: Phrase[] = [];
   for (const p of rawPhrases) {
@@ -60,7 +58,7 @@ export function parseTier1(content: string): Tier1Output | null {
       phrases.push({ text: (p as { text: string }).text });
     }
   }
-  return { ai_relevant: aiRelevant, phrases };
+  return { phrases };
 }
 
 export function validatePhrases(

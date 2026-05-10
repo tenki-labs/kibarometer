@@ -76,13 +76,13 @@ export async function burstFetchClassifyAction() {
     })) as {
       status: string;
       reason?: string;
-      processed?: number;
-      ai_relevant?: number;
+      fetched?: number;
+      ai_count?: number;
       stopped?: string;
     };
     const parts = [
-      `Fetch+klassifiser: ${r.processed ?? 0} URL-er prosessert`,
-      r.ai_relevant != null ? `${r.ai_relevant} AI-treff` : null,
+      `Fetch+klassifiser: ${r.fetched ?? 0} URL-er prosessert`,
+      r.ai_count != null ? `${r.ai_count} AI-treff` : null,
       r.stopped ? `(stoppet: ${r.stopped})` : null,
     ].filter(Boolean);
     redirect(`${LIST}${flashQs({ ok: parts.join(" · ") })}`);

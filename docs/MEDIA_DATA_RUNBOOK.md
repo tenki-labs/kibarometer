@@ -17,24 +17,30 @@ in front of you before changing anything.
 [`media_articles`](../supabase/migrations/0029_media.sql) is the fact
 table. Articles only appear on `/media` when:
 
-1. They have `is_ai_related = true` (Tier 1 confidence + phrase
-   extraction has run).
-2. They have `tier2_completed_at IS NOT NULL` (Tier 2 has assigned a
-   category, stance, and intensity).
+1. They have `is_ai_related = true` (set by the keyword matcher at
+   ingest, in [media-processor.js:123](../lib/admin/legacy/media-processor.js#L123) —
+   no LLM involved).
+2. They have `tier2_completed_at IS NOT NULL` (Tier 2 LLM has assigned
+   a category, stance, and intensity).
 3. The snapshot tables (`media_snapshot_index`,
    `media_snapshot_category_daily`, `media_anomaly_daily`) have been
    refreshed since.
 
-Three things commonly block step 1:
+Tier 1 LLM (verbatim AI-phrase extraction) is *not* on this critical
+path — its output feeds the keyword-catalog growth loop at
+`/admin/keywords` and never gates the public charts.
 
-- **`ingest_mode='backfill'` rows skip Tier 1.** [Migration
+Three things commonly block step 2:
+
+- **`ingest_mode='backfill'` rows skip Tier 1 (and used to skip Tier 2
+  by transitive dependency).** [Migration
   0050](../supabase/migrations/0050_ingest_mode.sql) introduced an
   `ingest_mode` column with default `'backfill'`. Tier 1 only processes
   rows where `ingest_mode='live'`
   ([llm-media-tier1.ts:78-82](../lib/admin/llm-media-tier1.ts#L78-L82)).
-  Every article ingested *before* that migration defaults to
-  `'backfill'`. Without intervention they never reach Tier 1, never
-  reach Tier 2, never appear on `/media`.
+  Tier 2's selector now gates on `is_ai_related=true` directly, so
+  historical rows can be categorized without first being Tier-1'd —
+  see the "Reset / burst" playbook below.
 - **Only 2 of 32 sources are active by default.** Digi.no + Kode24
   ([0029_media.sql](../supabase/migrations/0029_media.sql)). The 18
   outlets added by [0035_more_media_sources.sql](../supabase/migrations/0035_more_media_sources.sql)
@@ -47,17 +53,41 @@ Three things commonly block step 1:
 
 ---
 
-## Lever 1 — Free Tier 1 over historical rows
+## Lever 1 — Heal historical AI-flagging + drain Tier 2
 
-The single biggest source of ghost-empty charts is articles stuck at
-`ingest_mode='backfill'` with `tier1_completed_at IS NULL`.
+When charts show gaps in older intervals, the cause is usually one of
+two things:
 
-**Pick one of these. Do *not* run both.**
+1. **Keyword catalog has grown since those articles were ingested.**
+   The keyword matcher only runs at ingest time; historical rows keep
+   their old `is_ai_related=false` even after we add new keywords.
+2. **Tier 2 hasn't categorized them yet.** Cron Tier 2 drains at
+   ~60/hour (K=4 × 4 ticks/hour). After a keyword rematch, the queue
+   can be many thousands of rows.
 
-### Option 1A: Promote existing AI-suspect rows to live
+### Option 1A: Re-apply the current keyword catalog to historical rows
 
-Lowest-effort. Targets only rows where the keyword matcher already
-flagged AI-relevance (so we don't burn LLM calls on noise):
+In `/admin/media`, click **"Re-apply keyword catalog (historical)"**.
+This re-runs the keyword matcher against every row in
+`media_articles` and flips `is_ai_related` to `true` on rows that
+match the current catalog. Strict additive — only `false → true`,
+never the reverse. No chart can lose points.
+
+### Option 1B: LLM Tier 2 burst
+
+After 1A, many rows have `is_ai_related=true` but
+`tier2_completed_at IS NULL`. Click **"LLM Tier 2 burst"** in
+`/admin/media`. Burst processes K=20/tick over a ~4 min wall budget,
+newest-first. Charts heal from the right edge inward as Tier 2 drains.
+
+The public coverage banner ("LLM-validert: X% av AI-treff i valgt
+periode") shows progress in real time. Auto-hides at 100%.
+
+### Option 1C: Promote backfill rows to live for forward Tier 1 coverage
+
+Optional — only useful if you want phrase extraction to run on
+historical articles for keyword-catalog growth (Tier 1 doesn't gate
+the public charts):
 
 ```sql
 update media_articles
@@ -68,21 +98,8 @@ update media_articles
 ```
 
 Run from the VPS via psql (see [CLAUDE.md §8](../CLAUDE.md#8-migrations)
-for the `kiba-supabase-db` exec recipe). Tier 1 will pick the rows up
-on the next 4×/hour cron tick and drain at K=15 per tick (~225/hour).
-
-**Estimate the cost first.** Run `select count(*)` with the same `where`
-clause to get the row count. At ~3 s per LLM call, ~225 rows/hour fall
-through Tier 1. Tier 2 then runs at K=4 per tick (~60/hour). Plan for
-24-48 hours of background drain on a thousand-row backfill.
-
-### Option 1B: Add a "Tier 1 backfill" admin button
-
-Higher-effort but more controlled. Modify
-[lib/admin/llm-media-tier1.ts](../lib/admin/llm-media-tier1.ts) to
-accept an `includeBackfill` flag and add a button on `/admin/media` that
-schedules a one-shot job. Out of scope for the
-`feat/media-reliability` PR — open a separate change if you want this.
+for the `kiba-supabase-db` exec recipe). Tier 1 picks up at K=15/tick
+(~225/hour).
 
 ---
 
@@ -145,7 +162,8 @@ horizon.
 When the levers are pulled and a few weeks have elapsed:
 
 - `/admin/media/queue` shows tier1_pending and tier2_pending in the
-  single digits.
+  single digits. (Tier 2 backlog grows after a keyword rematch — drain
+  via burst.)
 - `media_snapshot_category_daily` has rows for every active category on
   most days (a few will be sparse in low-coverage weeks; that's fine).
 - `media_snapshot_index.categories_above_water + categories_below_water`

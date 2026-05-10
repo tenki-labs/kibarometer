@@ -24,8 +24,11 @@ import type {
   MediaCategory,
   MediaSnapshotCategoryDaily,
   MediaSnapshotIndex,
+  SnapshotTier2CoverageDaily,
   TaxonomyCategory,
 } from "@/lib/supabase";
+
+import { LlmCoverageBanner } from "@/app/(site)/_components/llm-coverage-banner";
 
 import { AnomalyFeed } from "./anomaly-feed";
 import { CategoryTemperatureList } from "./category-temperature-list";
@@ -40,6 +43,7 @@ type Props = {
   categoryDaily: MediaSnapshotCategoryDaily[];
   categories: MediaCategory[];
   anomalies: MediaAnomalyDaily[];
+  tier2Coverage: SnapshotTier2CoverageDaily[];
 };
 
 function buildCategorySeries(
@@ -83,6 +87,7 @@ export function Scroller({
   categoryDaily,
   categories,
   anomalies,
+  tier2Coverage,
 }: Props) {
   const searchParams = useSearchParams();
   const initialRange = parseRange(searchParams.get("range"));
@@ -260,6 +265,11 @@ export function Scroller({
             tidsperiode summerer til 100 %. En artikkel kan høre til flere
             kategorier samtidig.
           </p>
+          <LlmCoverageBanner
+            rows={tier2Coverage}
+            range={range}
+            nowMs={nowMs}
+          />
           <div className="min-h-0 flex-1">
             <StackedAreaChart
               series={categorySeries}

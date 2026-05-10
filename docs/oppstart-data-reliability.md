@@ -65,10 +65,11 @@ at **ingest time** — once per company. It is _not_ refreshed when the
 keyword list evolves; manual reprocess via the admin UI sets `retagged_at`.
 
 Tier-1 LLM also runs against `is_ai_relevant=true AND tier1_completed_at IS NULL`
-rows (~4×/hour cron) and stores its own confirmation inside
-`llm_ai_phrases->>'ai_relevant'` JSONB — but **the public `/oppstart` charts
-never use this**. Tier-1 is meant for discovery (verbatim phrase
-extraction → keyword candidates pipeline), not as a gate.
+rows (~4×/hour cron) and stores verbatim AI-phrases in `llm_ai_phrases` —
+but **the public `/oppstart` charts never use this**. Tier-1 is for
+discovery only (phrase extraction → keyword candidates pipeline), not
+as a gate. It does NOT validate AI-relevance and does NOT write
+`is_ai_relevant`.
 
 So the chart copy carefully says:
 
