@@ -92,6 +92,9 @@ export function AIShareAreaChart({ buckets, unitLabel = "stillinger" }: Props) {
         <ChartTooltip
           trigger={tooltipTrigger}
           cursor={{ strokeDasharray: "3 3" }}
+          wrapperStyle={{ transition: "none" }}
+          isAnimationActive={false}
+          animationDuration={0}
           content={
             <ChartHoverPanel
               mode="single"
