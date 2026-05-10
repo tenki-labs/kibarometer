@@ -8,7 +8,7 @@
 import { sb } from "@/lib/supabase";
 
 export const runtime = "nodejs";
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 type BrregHeadline = {
   computed_for: string;

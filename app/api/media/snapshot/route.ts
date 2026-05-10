@@ -10,7 +10,7 @@
 import { sb } from "@/lib/supabase";
 import { json } from "@/app/api/v1/_response";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 type SnapshotIndex = {
   date: string;
