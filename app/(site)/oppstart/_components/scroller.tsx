@@ -55,9 +55,20 @@ const MIN_CATEGORY_COUNT = 5;
 const MIN_CATEGORY_SHARE = 0.005;
 
 // brreg_snapshot_daily coalesces unmapped NACE codes to 'annet' (see
-// 0047_brreg_2018_floor.sql). We never want it as a stack band — it's a
-// catch-all, not a real category — so it's filtered out client-side.
+// 0047_brreg_2018_floor.sql). We never want it as a named stack band — it's
+// a catch-all, not a real category. Its companies still flow into the
+// residual "Andre" band so the 100% stack stays honest.
 const HIDDEN_CATEGORY_SLUGS = new Set(["annet"]);
+
+// Synthetic key for the residual band. Carries the AI count from 'annet' and
+// the below-threshold long tail so the normalised stack actually equals 100 %
+// of the bucket's AI total (rather than 100 % of the *visible* categories,
+// which would silently inflate every survivor's apparent share). Reserved
+// slug — must not collide with any nace_category_slug.
+const RESIDUAL_KEY = "__andre__";
+const RESIDUAL_LABEL = "Andre";
+const RESIDUAL_DEFINITION =
+  "Mindre kategorier under terskelen pluss foretak uten klar NACE-kode (samlebåsen «annet»).";
 
 const NO_DATETIME_SHORT = new Intl.DateTimeFormat("nb-NO", {
   day: "2-digit",
@@ -105,9 +116,10 @@ function buildAiShareBuckets(
 
 // Build a Series of category mix among AI-relevant new companies. A category
 // survives the legend only if its window total clears MIN_CATEGORY_COUNT and
-// MIN_CATEGORY_SHARE, and it is not in HIDDEN_CATEGORY_SLUGS — keeps tiny
-// long-tail bands and the 'annet' catch-all out of both the chart and the
-// colored swatch row underneath.
+// MIN_CATEGORY_SHARE, and it is not in HIDDEN_CATEGORY_SLUGS. Everything else
+// is folded into a synthetic RESIDUAL_KEY band so the 100 % stack reflects
+// the bucket's true AI total — without a residual the normalised stack
+// silently inflates each surviving category's apparent share.
 function buildCategoryMixSeries(
   rows: BrregSnapshotDaily[],
   range: Range,
@@ -116,13 +128,23 @@ function buildCategoryMixSeries(
   const cutoffMs = rangeCutoffMs(range, nowMs);
   const grain = bucketGrainForRange(range);
   const buckets = new Map<string, Map<string, number>>();
+  const bucketTotalAi = new Map<string, number>();
   const slugTotals = new Map<string, number>();
+
   for (const row of rows) {
     const t = new Date(row.registrert_dato + "T00:00:00Z").getTime();
     if (t < cutoffMs) continue;
     if (row.ai_relevant_count === 0) continue;
-    if (HIDDEN_CATEGORY_SLUGS.has(row.nace_category_slug)) continue;
     const bucket = dateKey(row.registrert_dato, grain);
+    // Every AI-relevant row counts toward the bucket total — this is the
+    // denominator the 100 % stack must respect (incl. 'annet' + long tail).
+    bucketTotalAi.set(
+      bucket,
+      (bucketTotalAi.get(bucket) ?? 0) + row.ai_relevant_count,
+    );
+    // Hidden slugs (e.g. 'annet') stay out of named bands but still flow
+    // into the residual via bucketTotalAi above.
+    if (HIDDEN_CATEGORY_SLUGS.has(row.nace_category_slug)) continue;
     if (!buckets.has(bucket)) buckets.set(bucket, new Map());
     const inner = buckets.get(bucket)!;
     inner.set(
@@ -145,26 +167,53 @@ function buildCategoryMixSeries(
     })
     .map(([k]) => k);
 
-  // Dev-only safety net: if a zero-sum slug ever leaks through into the
-  // legend payload, fail loudly during development so the regression is
-  // caught immediately. Never surfaced in production.
+  // Dev-only invariant check: the filter above is the source of truth, so
+  // if a survivor falls below either gate we want to hear about it. (The
+  // previous version checked `<= 0`, which the count gate already rules
+  // out — this rewrite catches a real regression instead of asserting an
+  // impossibility.)
   if (process.env.NODE_ENV !== "production") {
     for (const k of liveKeys) {
-      if ((slugTotals.get(k) ?? 0) <= 0) {
+      const n = slugTotals.get(k) ?? 0;
+      if (n < MIN_CATEGORY_COUNT) {
         console.error(
-          `buildCategoryMixSeries: zero-sum slug leaked through filter: ${k}`,
+          `buildCategoryMixSeries: ${k} survived with n=${n} (< MIN_CATEGORY_COUNT=${MIN_CATEGORY_COUNT})`,
+        );
+      }
+      if (windowAiTotal > 0 && n / windowAiTotal < MIN_CATEGORY_SHARE) {
+        console.error(
+          `buildCategoryMixSeries: ${k} survived with share=${(n / windowAiTotal).toFixed(4)} (< MIN_CATEGORY_SHARE=${MIN_CATEGORY_SHARE})`,
         );
       }
     }
   }
 
-  const sortedDates = [...buckets.keys()].sort();
+  // Compute the residual per bucket = bucket AI total − sum of visible bands.
+  // Adds the synthetic RESIDUAL_KEY band only when at least one bucket has
+  // a positive residual; otherwise the chart stays unchanged.
+  let residualUsed = false;
+  for (const [date, total] of bucketTotalAi) {
+    const inner = buckets.get(date);
+    let visible = 0;
+    if (inner) for (const k of liveKeys) visible += inner.get(k) ?? 0;
+    const andre = total - visible;
+    if (andre > 0) {
+      if (!inner) buckets.set(date, new Map([[RESIDUAL_KEY, andre]]));
+      else inner.set(RESIDUAL_KEY, andre);
+      residualUsed = true;
+    }
+  }
+  if (residualUsed) liveKeys.push(RESIDUAL_KEY);
+
+  // Use bucketTotalAi as the date set so an "Andre-only" bucket (e.g. only
+  // 'annet' rows) still appears on the x-axis.
+  const sortedDates = [...bucketTotalAi.keys()].sort();
   return {
     dates: sortedDates,
     keys: liveKeys,
     values: sortedDates.map((d) => {
-      const inner = buckets.get(d)!;
-      return liveKeys.map((k) => inner.get(k) ?? 0);
+      const inner = buckets.get(d);
+      return liveKeys.map((k) => inner?.get(k) ?? 0);
     }),
   };
 }
@@ -226,14 +275,26 @@ export function Scroller({
     [daily, range, nowMs],
   );
 
+  // taxonomyAdapter feeds StackedAreaChart's "skill" variant for label,
+  // tooltip definition, and band ordering. The synthetic "Andre" entry sits
+  // at the end of the sort order so the residual band lands last (least
+  // visually prominent), and its definition surfaces in the tooltip on hover
+  // so users understand what's lumped together.
   const taxonomyAdapter = useMemo<TaxonomyCategory[]>(
-    () =>
-      categories.map((c, i) => ({
+    () => [
+      ...categories.map((c, i) => ({
         slug: c.slug,
         title: c.label_no,
         definition_md: c.label_no,
         sort_order: i,
       })),
+      {
+        slug: RESIDUAL_KEY,
+        title: RESIDUAL_LABEL,
+        definition_md: RESIDUAL_DEFINITION,
+        sort_order: 9999,
+      },
+    ],
     [categories],
   );
 
@@ -292,7 +353,7 @@ export function Scroller({
             Næringskategorier blant AI-relevante nyregistreringer, normalisert
             til 100 % per periode. Kategorier med færre enn {MIN_CATEGORY_COUNT}{" "}
             foretak eller under {(MIN_CATEGORY_SHARE * 100).toString().replace(".", ",")}{" "}
-            % av perioden utelates, samt samlebåsen «annet».
+            % av perioden samles i «{RESIDUAL_LABEL}», sammen med samlebåsen «annet» fra NACE.
           </p>
           <div className="min-h-0 flex-1">
             <StackedAreaChart
