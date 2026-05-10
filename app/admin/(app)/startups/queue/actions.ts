@@ -5,7 +5,14 @@ import { after } from "next/server";
 
 import { sbFetch } from "@/lib/admin/sb";
 import { flashQs } from "@/lib/admin/flash";
-import { enrichRolesBrreg } from "@/lib/admin/legacy/brreg.js";
+import {
+  countBrregRolesBacklog,
+  findLiveBrregRolesDrainJob,
+  insertBrregRolesDrainJob,
+  markBrregRolesDrainCancelled,
+  reapStaleBrregRolesDrains,
+  runBrregRolesFullDrain,
+} from "@/lib/admin/brreg-roles-drain";
 
 function isRedirect(err: unknown): boolean {
   return Boolean(err && typeof err === "object" && "digest" in err);
@@ -15,29 +22,86 @@ function msg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-// Burst-drain the role-fetch queue. K=500 / 4-min wall budget — same
-// orchestrator as /admin/api/jobs/brreg-roles-burst, surfaced as a UI
-// button so operators can flush a backlog without curling the route.
-// Cron drains K=50 per tick at :12 + :42 each hour; this is the
-// catch-up button.
+// Drain the entire brreg_url_queue pending backlog in one click. Owns a
+// single jobs row (enrich_brreg_roles_drain) and loops in CHUNK_SIZE
+// batches until the queue is empty or the operator hits "Stopp
+// drainering". Mirrors the Claude Tier 2 drain pattern. At BRREG's
+// 250 ms polite pace, 130k rows ≈ 9 hours wall-clock; the drain is
+// idempotent so a kiba-web restart mid-flight is recoverable by re-
+// clicking the button. Cron at :12/:42 (K=50) handles steady-state.
 export async function rolesBurstAction() {
-  after(async () => {
-    try {
-      await enrichRolesBrreg({
-        sb: sbFetch,
-        trigger: "manual",
-        k: 500,
-        maxWallMs: 4 * 60_000,
-      });
-    } catch {
-      // enrichRolesBrreg writes its own failure PATCH to the jobs row.
+  try {
+    // Reap stale running rows (crashed without finalizing) before the
+    // duplicate-guard check; otherwise an orphaned row blocks new drains.
+    await reapStaleBrregRolesDrains(sbFetch);
+
+    const live = await findLiveBrregRolesDrainJob(sbFetch);
+    if (live) {
+      redirect(
+        `/admin/startups/queue${flashQs({
+          error:
+            'Rolle-drainering kjører allerede. Trykk "Stopp drainering" hvis du vil avbryte.',
+        })}`,
+      );
     }
-  });
-  redirect(
-    `/admin/startups/queue${flashQs({
-      ok: "Rolle-burst startet — følg progresjon på /admin/processes.",
-    })}`,
-  );
+
+    const backlog = await countBrregRolesBacklog(sbFetch);
+    if (backlog === 0) {
+      redirect(
+        `/admin/startups/queue${flashQs({
+          ok: "Ingen ventende rader — ingenting å draine.",
+        })}`,
+      );
+    }
+
+    const job = await insertBrregRolesDrainJob(sbFetch, backlog);
+
+    // Fire-and-forget: returns immediately; the drain runs in the same
+    // kiba-web container until the queue is empty (or cancelled).
+    after(async () => {
+      try {
+        await runBrregRolesFullDrain({
+          sb: sbFetch,
+          jobId: job.id,
+          initialBacklog: backlog,
+        });
+      } catch {
+        // The orchestrator's try/catch finalizes the jobs row on any
+        // unhandled error. This catch is a backstop only.
+      }
+    });
+
+    redirect(
+      `/admin/startups/queue${flashQs({
+        ok: `Rolle-drainering startet (~${backlog.toLocaleString("nb-NO")} rader, ca. ${Math.ceil((backlog * 0.25) / 3600)} timer). Følg progresjon på /admin/processes.`,
+      })}`,
+    );
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    redirect(
+      `/admin/startups/queue${flashQs({
+        error: `Kunne ikke starte: ${msg(err)}`,
+      })}`,
+    );
+  }
+}
+
+export async function stopRolesDrainAction() {
+  try {
+    await markBrregRolesDrainCancelled(sbFetch);
+    redirect(
+      `/admin/startups/queue${flashQs({
+        ok: "Stoppsignal sendt — drain avslutter etter neste rad.",
+      })}`,
+    );
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    redirect(
+      `/admin/startups/queue${flashQs({
+        error: `Stopp feilet: ${msg(err)}`,
+      })}`,
+    );
+  }
 }
 
 export async function retryFailedAction() {
