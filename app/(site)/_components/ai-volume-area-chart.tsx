@@ -20,6 +20,8 @@ import { formatBucket, formatBucketShort } from "./bucket-format";
 import { ChartHoverPanel } from "./chart-hover-panel";
 import { useChartInteraction } from "./use-chart-interaction";
 
+// Bucket carries both numbers — area plots the count, tooltip shows the
+// share. Same shape feeds /jobbmarked + /oppstart.
 export type AIShareBucket = {
   date: string;
   aiCount: number;
@@ -32,9 +34,15 @@ type Props = {
   unitLabel?: string;
 };
 
-const SHARE_KEY = "share";
+const COUNT_KEY = "aiCount";
+const NB_INT = new Intl.NumberFormat("nb-NO");
 
-export function AIShareAreaChart({ buckets, unitLabel = "stillinger" }: Props) {
+// Area chart of AI volume over time. Earlier versions plotted ai_share
+// (ai_count / total_count) as the area, but small-denominator weeks at
+// the start of NAV / BRREG ingest produced 25-33% spikes from 1-3
+// postings. Switching to absolute count eliminates that artifact — the
+// share is still present in the tooltip for context.
+export function AIVolumeAreaChart({ buckets, unitLabel = "stillinger" }: Props) {
   const { tooltipTrigger } = useChartInteraction();
 
   const data = useMemo(
@@ -43,7 +51,6 @@ export function AIShareAreaChart({ buckets, unitLabel = "stillinger" }: Props) {
         .filter((b) => b.totalCount > 0)
         .map((b) => ({
           date: b.date,
-          [SHARE_KEY]: b.aiCount / b.totalCount,
           aiCount: b.aiCount,
           totalCount: b.totalCount,
         })),
@@ -52,8 +59,8 @@ export function AIShareAreaChart({ buckets, unitLabel = "stillinger" }: Props) {
 
   const chartConfig = useMemo<ChartConfig>(
     () => ({
-      [SHARE_KEY]: {
-        label: "AI-andel",
+      [COUNT_KEY]: {
+        label: "AI-treff",
         color: AI_COLOR,
       },
     }),
@@ -85,9 +92,8 @@ export function AIShareAreaChart({ buckets, unitLabel = "stillinger" }: Props) {
           axisLine={false}
           tickMargin={4}
           width={48}
-          tickFormatter={(v) =>
-            `${((v as number) * 100).toFixed(1).replace(".", ",")} %`
-          }
+          allowDecimals={false}
+          tickFormatter={(v) => NB_INT.format(v as number)}
         />
         <ChartTooltip
           trigger={tooltipTrigger}
@@ -110,11 +116,11 @@ export function AIShareAreaChart({ buckets, unitLabel = "stillinger" }: Props) {
                 const share = p.totalCount > 0 ? p.aiCount / p.totalCount : 0;
                 return [
                   {
-                    key: SHARE_KEY,
-                    label: "AI-andel",
+                    key: COUNT_KEY,
+                    label: "AI-treff",
                     color: item?.color,
-                    value: `${(share * 100).toFixed(2).replace(".", ",")} %`,
-                    sub: `${p.aiCount.toLocaleString("nb-NO")} av ${p.totalCount.toLocaleString("nb-NO")} ${unitLabel}`,
+                    value: NB_INT.format(p.aiCount),
+                    sub: `${(share * 100).toFixed(2).replace(".", ",")} % av ${NB_INT.format(p.totalCount)} ${unitLabel}`,
                   },
                 ];
               }}
@@ -122,10 +128,10 @@ export function AIShareAreaChart({ buckets, unitLabel = "stillinger" }: Props) {
           }
         />
         <Area
-          dataKey={SHARE_KEY}
+          dataKey={COUNT_KEY}
           type="monotone"
-          stroke={`var(--color-${SHARE_KEY})`}
-          fill={`var(--color-${SHARE_KEY})`}
+          stroke={`var(--color-${COUNT_KEY})`}
+          fill={`var(--color-${COUNT_KEY})`}
           fillOpacity={0.7}
           isAnimationActive={false}
         />

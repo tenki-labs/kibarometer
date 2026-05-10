@@ -4,9 +4,9 @@ import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import {
-  AIShareAreaChart,
+  AIVolumeAreaChart,
   type AIShareBucket,
-} from "@/app/(site)/_components/ai-share-area-chart";
+} from "@/app/(site)/_components/ai-volume-area-chart";
 import {
   StackedAreaChart,
   type Series,
@@ -326,16 +326,17 @@ export function Scroller({
         <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
           <div className="flex items-baseline justify-between gap-4">
             <h2 className="text-lg font-medium tracking-tight sm:text-xl">
-              AI-andel av nye foretak
+              Nye AI-relevante foretak
             </h2>
             <TimeRangeToggle value={range} onChange={onRangeChange} />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
-            Andelen nyregistrerte foretak fra Brønnøysundregistrene som
-            klassifiseres som AI-relevante, gruppert per dag eller måned.
+            Antall nyregistrerte AI-relevante foretak fra Brønnøysund­
+            registrene, gruppert per dag eller uke. Hold over en stolpe
+            for å se andelen av alle nyregistreringer.
           </p>
           <div className="min-h-0 flex-1">
-            <AIShareAreaChart buckets={aiShareBuckets} unitLabel="foretak" />
+            <AIVolumeAreaChart buckets={aiShareBuckets} unitLabel="foretak" />
           </div>
           <FootnoteRow oppdatert={oppdatert} showMethodology />
         </div>
