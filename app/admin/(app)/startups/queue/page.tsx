@@ -27,6 +27,7 @@ import {
   discardFailedAction,
   retryFailedAction,
   rolesBurstAction,
+  stopRolesDrainAction,
 } from "./actions";
 import {
   backfillAction,
@@ -90,6 +91,7 @@ export default async function QueuePage({ searchParams }: Props) {
     oldestPending,
     recentFailed,
     reprocessDrain,
+    rolesDrain,
   ] = await Promise.all([
     countRows("brreg_url_queue", "status=eq.pending"),
     countRows("brreg_url_queue", "status=eq.fetched"),
@@ -114,10 +116,16 @@ export default async function QueuePage({ searchParams }: Props) {
       "/jobs?name=eq.brreg_reprocess_drain&order=started_at.desc&limit=1&select=id,status,current_step",
       { service: true },
     ).catch(() => [] as ReprocessDrainRow[]),
+    sbFetch<ReprocessDrainRow[]>(
+      "/jobs?name=eq.enrich_brreg_roles_drain&order=started_at.desc&limit=1&select=id,status,current_step",
+      { service: true },
+    ).catch(() => [] as ReprocessDrainRow[]),
   ]);
 
   const reprocessRunning = reprocessDrain[0]?.status === "running";
   const reprocessStep = reprocessDrain[0]?.current_step ?? null;
+  const rolesDrainRunning = rolesDrain[0]?.status === "running";
+  const rolesDrainStep = rolesDrain[0]?.current_step ?? null;
 
   return (
     <>
@@ -224,16 +232,31 @@ export default async function QueuePage({ searchParams }: Props) {
                 variant="outline"
                 size="sm"
                 pendingLabel="Starter…"
-                disabled={pending === 0}
+                disabled={pending === 0 || rolesDrainRunning}
               >
-                Hent roller nå ({pending.toLocaleString("nb-NO")})
+                {rolesDrainRunning
+                  ? "Rolle-drainering kjører…"
+                  : `Hent roller nå (${pending.toLocaleString("nb-NO")})`}
               </SubmitButton>
             </form>
+            {rolesDrainRunning ? (
+              <form action={stopRolesDrainAction}>
+                <SubmitButton variant="outline" size="sm" pendingLabel="Stopper…">
+                  Stopp drainering
+                </SubmitButton>
+              </form>
+            ) : null}
           </div>
 
           {reprocessRunning && reprocessStep ? (
             <p className="text-xs text-muted-foreground">
               Keyword-mapping: {reprocessStep}
+            </p>
+          ) : null}
+
+          {rolesDrainRunning && rolesDrainStep ? (
+            <p className="text-xs text-muted-foreground">
+              Rolle-drainering: {rolesDrainStep}
             </p>
           ) : null}
 
