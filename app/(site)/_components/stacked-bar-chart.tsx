@@ -151,6 +151,9 @@ export function StackedBarChart({
         )}
         <ChartTooltip
           trigger={tooltipTrigger}
+          wrapperStyle={{ transition: "none" }}
+          isAnimationActive={false}
+          animationDuration={0}
           content={
             <ChartHoverPanel
               mode="stacked"
