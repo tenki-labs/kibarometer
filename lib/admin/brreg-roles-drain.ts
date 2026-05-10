@@ -28,7 +28,11 @@ const POLITE_DELAY_MS = 250; // matches brreg-client.js; used for ETA only
 
 type JobLite = { id: string; metadata: Record<string, unknown> | null };
 
-const STALE_AFTER_MS = 30 * 60 * 1000;
+// Heartbeats fire every 10 rows (~2.5 s on a healthy drain at the 250 ms
+// polite pace). 3 min covers ≈70 heartbeat cycles of slack while still
+// catching deploy/OOM deaths fast enough for the */5-min watchdog cron
+// to auto-resume within one tick.
+const STALE_HEARTBEAT_MS = 3 * 60 * 1000;
 
 // ---- Jobs-table helpers -------------------------------------------------
 
@@ -43,40 +47,55 @@ export async function findLiveBrregRolesDrainJob(
   return rows[0] ?? null;
 }
 
-export async function reapStaleBrregRolesDrains(sb: Sb) {
-  const cutoff = new Date(Date.now() - STALE_AFTER_MS).toISOString();
-  await sb(
+// Reap drains whose heartbeat hasn't ticked for STALE_HEARTBEAT_MS — the
+// signature of a kiba-web restart (deploy / OOM / reboot) that killed
+// the JS process mid-loop. Returns the number reaped so callers can
+// decide whether to auto-resume. last_heartbeat is bootstrapped at
+// insert time, so a fresh drain row is never null.
+export async function reapStaleBrregRolesDrains(sb: Sb): Promise<number> {
+  const cutoff = new Date(Date.now() - STALE_HEARTBEAT_MS).toISOString();
+  const stale = await sb<{ id: string }[]>(
     `/jobs?name=eq.${BRREG_ROLES_DRAIN_JOB_NAME}&status=eq.running` +
-      `&finished_at=is.null&started_at=lt.${encodeURIComponent(cutoff)}`,
-    {
-      service: true,
-      method: "PATCH",
-      body: {
-        status: "failed",
-        finished_at: new Date().toISOString(),
-        error: "Reaped: stale (no progress for 30+ min)",
-      },
-      prefer: "return=minimal",
-    },
+      `&finished_at=is.null&last_heartbeat=lt.${encodeURIComponent(cutoff)}` +
+      `&select=id`,
+    { service: true },
   );
+  if (!stale.length) return 0;
+  const idList = stale.map((r) => encodeURIComponent(r.id)).join(",");
+  await sb(`/jobs?id=in.(${idList})`, {
+    service: true,
+    method: "PATCH",
+    body: {
+      status: "failed",
+      finished_at: new Date().toISOString(),
+      error: "Reaped: heartbeat stale (3+ min — likely deploy/OOM)",
+    },
+    prefer: "return=minimal",
+  });
+  return stale.length;
 }
 
 export async function insertBrregRolesDrainJob(
   sb: Sb,
   initialBacklog: number,
+  trigger: "manual" | "watchdog" = "manual",
 ): Promise<{ id: string }> {
+  const now = new Date().toISOString();
   const [row] = await sb<{ id: string }[]>(`/jobs`, {
     service: true,
     method: "POST",
     body: {
       name: BRREG_ROLES_DRAIN_JOB_NAME,
-      trigger: "manual",
+      trigger,
       metadata: {
         initial_backlog: initialBacklog,
         chunk_size: CHUNK_SIZE,
       },
       current_step: `0 / ${initialBacklog} · venter…`,
       progress_pct: 0,
+      // Bootstrap so reapStaleBrregRolesDrains never sees a null
+      // heartbeat (would otherwise need a compound or= filter).
+      last_heartbeat: now,
     },
     prefer: "return=representation",
   });
