@@ -36,6 +36,15 @@ class DiscoverRequest(BaseModel):
         10, ge=1, le=50,
         description="Max URLs to return per query.",
     )
+    max_wall_seconds: int = Field(
+        50, ge=5, le=300,
+        description="Self-imposed wall budget for the /discover loop. "
+                    "When elapsed exceeds this, the loop breaks early "
+                    "and returns whatever URLs were collected with "
+                    "stats.stopped='wall_time'. Default 50 s leaves "
+                    "~40 s headroom under the JS client's 90 s fetch "
+                    "timeout — so the sidecar always wins the race.",
+    )
 
     @field_validator("queries")
     @classmethod
