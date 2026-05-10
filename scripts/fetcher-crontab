@@ -22,6 +22,16 @@
 # run per day is enough — the dashboard reads pre-computed rows; the tag-time
 # is shown as "Sist oppdatert" so users see the freshness.
 0 4 * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 120 ${ADMIN_URL}/admin/api/jobs/refresh-snapshots > /var/log/last-snapshots.log 2>&1 || logger -s "kiba-fetcher: refresh-snapshots failed at $(date -Iseconds)"
+# NAV retag: re-apply the current canonical keyword matcher to every
+# nav_postings row. Forward-only ingest means historical rows retain the
+# matcher's verdict from their ingest time — without a periodic retag, the
+# is_ai flag drifts as canonical keywords get promoted (see /jobbmarked
+# Temperatur card +676% incident, May 10 2026). reprocessNavPostings
+# chains into refreshSnapshots on success, so the dashboard is fresh
+# before the daily 04:00 refresh tick runs. Sundays 03:30 UTC — well
+# before the 04:00 daily snapshot, after the 03:00 backup. -m 1800 covers
+# ~370k rows at PAGE=1000 with conservative slack.
+30 3 * * 0 curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 1800 ${ADMIN_URL}/admin/api/jobs/reprocess > /var/log/last-nav-reprocess.log 2>&1 || logger -s "kiba-fetcher: nav reprocess failed at $(date -Iseconds)"
 # LLM Tier 1 (discovery): verbatim AI-skill phrase extraction on every new
 # posting. K=15 rows per tick, ~3 s/call on Gemma 3 4B-IT 4-bit ≈ 45 s/tick.
 # -m 90 gives slack above the 60 s wall budget. Offset from backfill
