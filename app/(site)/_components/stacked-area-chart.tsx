@@ -135,6 +135,18 @@ export function StackedAreaChart({
     );
   }
 
+  // 100 %-stacked area with <3 X points renders as a triangular wedge under
+  // recharts' linear interpolation, which reads as a misleading trend.
+  // Show an explicit empty-state instead.
+  if (normalize && series.dates.length < 3) {
+    return (
+      <div className="flex h-full min-h-[200px] items-center justify-center rounded-md border border-dashed px-6 text-center text-sm text-muted-foreground">
+        For lite data til å vise andeler i denne perioden. Velg en kortere
+        tidsintervall, eller vent til datagrunnlaget bygger seg opp.
+      </div>
+    );
+  }
+
   return (
     <ChartContainer config={chartConfig} className="h-full w-full">
       <AreaChart

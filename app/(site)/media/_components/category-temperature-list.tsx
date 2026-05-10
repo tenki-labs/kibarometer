@@ -152,7 +152,7 @@ export function CategoryTemperatureList({
             <div className="flex justify-end text-foreground/70">
               <Sparkline
                 points={r.points}
-                width={Math.max(120, Math.min(220, bucketKeys.length * 6))}
+                width={Math.max(160, Math.min(240, bucketKeys.length * 10))}
                 height={36}
                 yDomain={[-1, 1]}
                 ariaLabel={`Temperatur-utvikling for ${r.label}`}
