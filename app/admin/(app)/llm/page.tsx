@@ -8,6 +8,8 @@ import {
   KeyRound,
   ListChecks,
   Newspaper,
+  Sparkles,
+  StopCircle,
   Wifi,
   WifiOff,
 } from "lucide-react";
@@ -20,6 +22,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -37,7 +40,14 @@ import { AutoRefresh } from "@/app/admin/_components/auto-refresh";
 import { fmtDateTime } from "@/lib/admin/flash";
 import { mlxConfigured, readMlxHealth } from "@/lib/admin/mlx";
 import { sbFetch } from "@/lib/admin/sb";
-import { pingAction } from "./actions";
+import { anthropicConfigured } from "@/lib/admin/anthropic";
+import { NAV_CLAUDE_JOB_NAME } from "@/lib/admin/llm-classify-claude";
+import { BRREG_CLAUDE_JOB_NAME } from "@/lib/admin/llm-brreg-tier2-claude";
+import {
+  pingAction,
+  startClaudeDrainAction,
+  stopClaudeDrainAction,
+} from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -100,6 +110,53 @@ type LlmJobRow = {
   started_at: string;
   metadata: Record<string, unknown> | null;
 };
+
+type ClaudeDrainJobRow = {
+  id: string;
+  name: string;
+  status: string;
+  started_at: string;
+  finished_at: string | null;
+  current_step: string | null;
+  progress_pct: number | string | null;
+  metadata: Record<string, unknown> | null;
+  rows_processed: number | null;
+  error: string | null;
+};
+
+const CLAUDE_DRAIN_JOB_NAMES = [
+  NAV_CLAUDE_JOB_NAME,
+  BRREG_CLAUDE_JOB_NAME,
+] as const;
+
+function pickLatestDrainJob(
+  rows: ClaudeDrainJobRow[],
+  jobName: string,
+): ClaudeDrainJobRow | null {
+  for (const r of rows) {
+    if (r.name === jobName) return r;
+  }
+  return null;
+}
+
+function isLiveDrain(job: ClaudeDrainJobRow | null): boolean {
+  return !!job && job.status === "running" && job.finished_at == null;
+}
+
+function isRecentlyFinished(job: ClaudeDrainJobRow | null): boolean {
+  if (!job || !job.finished_at) return false;
+  const ageMs = Date.now() - new Date(job.finished_at).getTime();
+  return ageMs < 5 * 60 * 1000;
+}
+
+function progressPctNumber(v: number | string | null): number {
+  if (typeof v === "number") return v;
+  if (typeof v === "string") {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  }
+  return 0;
+}
 
 function classifyTunnel(lastSuccessAt: string | null): TunnelState {
   if (!lastSuccessAt) return "unknown";
@@ -253,6 +310,7 @@ export default async function LlmStatusPage({ searchParams }: Props) {
     authFailedRows,
     failureRows,
     llmJobs,
+    claudeDrainJobs,
   ] = await Promise.all([
     readMlxHealth(),
     sbFetch<CountRow[] | { count: number }>(
@@ -303,6 +361,12 @@ export default async function LlmStatusPage({ searchParams }: Props) {
         `&select=name,status,started_at,metadata&order=started_at.desc&limit=600`,
       { service: true },
     ).catch(() => [] as LlmJobRow[]),
+    sbFetch<ClaudeDrainJobRow[]>(
+      `/jobs?name=in.(${CLAUDE_DRAIN_JOB_NAMES.join(",")})` +
+        `&select=id,name,status,started_at,finished_at,current_step,progress_pct,metadata,rows_processed,error` +
+        `&order=started_at.desc&limit=10`,
+      { service: true },
+    ).catch(() => [] as ClaudeDrainJobRow[]),
   ]);
 
   const tunnel = classifyTunnel(health?.last_success_at ?? null);
@@ -319,6 +383,10 @@ export default async function LlmStatusPage({ searchParams }: Props) {
   const { processed: processed24h, fails: fails24h } = aggregate24h(llmJobs);
   const failureRatePct =
     processed24h > 0 ? (fails24h / processed24h) * 100 : null;
+  const claudeReady = anthropicConfigured() != null;
+  const navDrain = pickLatestDrainJob(claudeDrainJobs, NAV_CLAUDE_JOB_NAME);
+  const brregDrain = pickLatestDrainJob(claudeDrainJobs, BRREG_CLAUDE_JOB_NAME);
+  const anyDrainLive = isLiveDrain(navDrain) || isLiveDrain(brregDrain);
 
   return (
     <>
@@ -463,6 +531,54 @@ export default async function LlmStatusPage({ searchParams }: Props) {
               Ping endepunkt
             </SubmitButton>
           </form>
+        </CardContent>
+      </Card>
+
+      {anyDrainLive ? <AutoRefresh enabled intervalMs={15000} /> : null}
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 font-mono text-xs uppercase tracking-[0.18em]">
+            <Sparkles className="size-3.5" />
+            Backfill via Claude
+          </CardTitle>
+          <CardDescription>
+            Manuell drainering av Tier 2-køen for NAV og Oppstart via
+            Anthropic Claude Haiku 4.5. Ett trykk → bakgrunnsjobb som kjører
+            til hele backloggen er tom (eller du stopper). Hvert trykk
+            drainer kun den valgte pillaren — og media holder seg på MLX.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {!claudeReady ? (
+            <Alert>
+              <KeyRound />
+              <AlertTitle>ANTHROPIC_API_KEY mangler</AlertTitle>
+              <AlertDescription>
+                Sett <code className="font-mono">ANTHROPIC_API_KEY</code> i{" "}
+                <code className="font-mono">/opt/kibarometer/env/admin.env</code>{" "}
+                og re-deploy for å aktivere manuell backfill-drainering.
+                Sjekk Anthropic-tier-nivå før store drains —{" "}
+                <code className="font-mono">ANTHROPIC_CONCURRENCY</code> kan
+                senkes via env hvis Tier 1.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <>
+              <ClaudeDrainPillar
+                pillar="nav"
+                label="Jobbmarked (NAV)"
+                backlog={navT2}
+                job={navDrain}
+              />
+              <ClaudeDrainPillar
+                pillar="brreg"
+                label="Oppstart (Brreg)"
+                backlog={brregT2}
+                job={brregDrain}
+              />
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -624,4 +740,95 @@ function DomainQueueCard({
 
 function truncate(s: string, n: number): string {
   return s.length <= n ? s : `${s.slice(0, n - 1)}…`;
+}
+
+type ClaudeDrainPillarProps = {
+  pillar: "nav" | "brreg";
+  label: string;
+  backlog: number;
+  job: ClaudeDrainJobRow | null;
+};
+
+function ClaudeDrainPillar({
+  pillar,
+  label,
+  backlog,
+  job,
+}: ClaudeDrainPillarProps) {
+  const live = isLiveDrain(job);
+  const recentlyFinished = !live && isRecentlyFinished(job);
+  const pct = job ? progressPctNumber(job.progress_pct) : 0;
+
+  return (
+    <div className="rounded-md border bg-card/50 p-4">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">{label}</span>
+          <Badge variant="outline" className="font-mono text-[0.65rem]">
+            {backlog.toLocaleString("nb-NO")} i kø
+          </Badge>
+        </div>
+        {live ? (
+          <Badge
+            variant="outline"
+            className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 font-mono text-[0.65rem]"
+          >
+            Pågår
+          </Badge>
+        ) : null}
+      </div>
+
+      {live && job ? (
+        <div className="space-y-2">
+          <div className="text-xs text-muted-foreground">
+            {job.current_step ?? "Starter…"}
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full bg-foreground transition-[width]"
+              style={{ width: `${Math.max(2, Math.min(100, pct))}%` }}
+            />
+          </div>
+          <div className="flex items-center gap-2 pt-1">
+            <form action={stopClaudeDrainAction}>
+              <input type="hidden" name="pillar" value={pillar} />
+              <SubmitButton
+                size="sm"
+                variant="outline"
+                pendingLabel="Stopper…"
+              >
+                <StopCircle />
+                Stopp drainering
+              </SubmitButton>
+            </form>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {recentlyFinished && job ? (
+            <div className="text-xs text-muted-foreground">
+              Forrige kjøring:{" "}
+              <span className="text-foreground">{job.current_step}</span>
+              {job.finished_at ? (
+                <span> · {fmtDateTime(job.finished_at)}</span>
+              ) : null}
+            </div>
+          ) : null}
+          <form action={startClaudeDrainAction}>
+            <input type="hidden" name="pillar" value={pillar} />
+            <SubmitButton
+              size="sm"
+              disabled={backlog === 0}
+              pendingLabel="Starter…"
+            >
+              <Sparkles />
+              {backlog === 0
+                ? "Ingenting i køen"
+                : `Drain hele ${label}-backloggen (${backlog.toLocaleString("nb-NO")} rader)`}
+            </SubmitButton>
+          </form>
+        </div>
+      )}
+    </div>
+  );
 }

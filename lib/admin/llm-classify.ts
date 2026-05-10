@@ -37,7 +37,7 @@ const MAX_RATIONALE_CHARS = 400;
 const TIER2_MODEL_MAX_TOKENS = 600;
 const TIER2_MODEL_TEMPERATURE = 0.2;
 
-type Sb = typeof sbFetch;
+export type Sb = typeof sbFetch;
 type Trigger = "manual" | "cron";
 
 type CategoryAssignment = {
@@ -50,13 +50,13 @@ type Tier2Output = {
   rationale: string;
 };
 
-type Posting = {
+export type Posting = {
   id: string;
   title: string | null;
   description: string | null;
 };
 
-type TaxonomyRow = {
+export type TaxonomyRow = {
   slug: string;
   title: string;
   definition_md: string;
@@ -302,7 +302,7 @@ async function processOne(
   return { invalidSlugDrops };
 }
 
-function buildCategoriesBlock(taxonomy: TaxonomyRow[]): string {
+export function buildCategoriesBlock(taxonomy: TaxonomyRow[]): string {
   return taxonomy
     .map((t) => {
       const def = t.definition_md.trim();
@@ -388,7 +388,7 @@ function clampConfidence(c: unknown): number {
   return c;
 }
 
-async function loadLiveTaxonomy(sb: Sb): Promise<TaxonomyRow[]> {
+export async function loadLiveTaxonomy(sb: Sb): Promise<TaxonomyRow[]> {
   return sb<TaxonomyRow[]>(
     "/taxonomy_categories?retired_at=is.null" +
       "&select=slug,title,definition_md,sort_order&order=sort_order.asc",
@@ -396,7 +396,7 @@ async function loadLiveTaxonomy(sb: Sb): Promise<TaxonomyRow[]> {
   );
 }
 
-async function loadCurrentTaxonomyVersion(sb: Sb): Promise<number> {
+export async function loadCurrentTaxonomyVersion(sb: Sb): Promise<number> {
   const rows = await sb<{ version: number }[]>(
     "/taxonomy_versions?select=version&order=version.desc&limit=1",
     { service: true },

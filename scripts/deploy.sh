@@ -77,6 +77,19 @@ for KV in "MLX_BASE_URL=https://mlx.tenki.no/v1" "MLX_API_KEY="; do
   fi
 done
 
+# Manual-only Claude backfill drain: idempotently append ANTHROPIC_* placeholders.
+# ANTHROPIC_API_KEY blank by default — operator pastes a sk-ant-… key from the
+# Anthropic console. Until then, the /admin/llm "Backfill via Claude" card
+# renders the not-configured alert. ANTHROPIC_CONCURRENCY defaults to 4 inside
+# the orchestrator; raise to 8 once on Anthropic Tier 2+.
+for KV in "ANTHROPIC_API_KEY=" "ANTHROPIC_CONCURRENCY="; do
+  KEY=${KV%%=*}
+  if ! sudo grep -q "^${KEY}=" "$ADMIN_ENV_PRE"; then
+    echo "  appending $KEY to admin.env"
+    echo "$KV" | sudo tee -a "$ADMIN_ENV_PRE" >/dev/null
+  fi
+done
+
 cd "$INCOMING"
 
 echo "== merge admin secrets into .env.production =="
@@ -120,6 +133,19 @@ done
 # until the operator provisions a tnk_… token at tenki.no's
 # /admin/api-tokens/new. Once filled in, subsequent deploys propagate it.
 for KEY in MLX_BASE_URL MLX_API_KEY; do
+  VAL=$(sudo grep "^${KEY}=" "$ADMIN_ENV" 2>/dev/null | cut -d= -f2- || echo "")
+  if sudo grep -q "^${KEY}=" "$PROD_ENV"; then
+    sudo sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$PROD_ENV"
+  else
+    echo "${KEY}=${VAL}" | sudo tee -a "$PROD_ENV" >/dev/null
+  fi
+done
+
+# Mutable Anthropic config — gates the manual "Backfill via Claude" buttons
+# on /admin/llm. Blank by default; operator pastes a sk-ant-… key from the
+# Anthropic console. ANTHROPIC_CONCURRENCY can override the default p-limit
+# (4) for orgs on Anthropic Tier 2+ that can sustain higher RPM.
+for KEY in ANTHROPIC_API_KEY ANTHROPIC_CONCURRENCY; do
   VAL=$(sudo grep "^${KEY}=" "$ADMIN_ENV" 2>/dev/null | cut -d= -f2- || echo "")
   if sudo grep -q "^${KEY}=" "$PROD_ENV"; then
     sudo sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$PROD_ENV"
