@@ -241,9 +241,8 @@ export type BrregSnapshotFounderAgeYearly = {
 export type BrregSnapshotFounderAgeMonthly = {
   reg_month: string;               // YYYY-MM-01
   is_ai_relevant: boolean;
-  median_youngest_age: number | null;
-  p25_youngest_age: number | null;
-  p75_youngest_age: number | null;
+  mean_youngest_age: number | null;
+  stddev_youngest_age: number | null;
   sample_size: number;
 };
 
