@@ -30,35 +30,11 @@ import { backfillSourceAction, toggleActiveAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
-// Kjør availability per backfill_method:
-//   scrapegraph → always (sidecar handles everything)
-//   sitemap     → always (walks sitemap_url)
-//   site_search → only if legacy search_config is set
-//   rss_only    → never (relies on daily RSS-discover cron)
-function backfillButtonState(s: {
-  backfill_method: string;
-  search_config: unknown | null;
-}): { disabled: boolean; hint: string } {
-  const m = s.backfill_method;
-  if (m === "rss_only") {
-    return { disabled: true, hint: "rss_only — bruker daglig RSS-discover-cron" };
-  }
-  if (m === "site_search" && !s.search_config) {
-    return {
-      disabled: true,
-      hint: "site_search krever search_config — eller bytt til scrapegraph",
-    };
-  }
-  return { disabled: false, hint: `Tikk backfill (${m})` };
-}
-
 type Source = {
   id: string;
   name: string;
   domain: string;
   rss_url: string | null;
-  backfill_method: string;
-  search_config: unknown | null;
   crawl_delay_ms: number;
   is_active: boolean;
   last_polled_at: string | null;
@@ -105,7 +81,7 @@ export default async function MediaSourcesPage({ searchParams }: Props) {
 
   const [sources, queueRows] = await Promise.all([
     sbFetch<Source[]>(
-      `/media_sources?select=id,name,domain,rss_url,backfill_method,search_config,crawl_delay_ms,is_active,last_polled_at,backfill_cursor,notes` +
+      `/media_sources?select=id,name,domain,rss_url,crawl_delay_ms,is_active,last_polled_at,backfill_cursor,notes` +
         `&order=is_active.desc,name.asc` +
         filterQs,
       { service: true },
@@ -129,9 +105,6 @@ export default async function MediaSourcesPage({ searchParams }: Props) {
   const active = sources.filter((s) => s.is_active);
   const inactive = sources.filter((s) => !s.is_active);
 
-  // Stat counts use the same filtered set so the headline numbers
-  // reflect what's visible. Operators who want absolute counts can
-  // clear the filter (the "Nullstill" button).
   const totalForStats = sources;
   const filterApplied = q !== "" || status !== "all";
 
@@ -141,7 +114,7 @@ export default async function MediaSourcesPage({ searchParams }: Props) {
       <PageHeader
         eyebrow="Medie-dekning"
         title="Kilder & artikler"
-        description="Norske medieoutletter pipelinen poller, og artiklene de leverer. Nye kilder bør bruke scrapegraph-metoden — ingen per-outlet konfig nødvendig."
+        description="Norske medieoutletter pipelinen poller, og artiklene de leverer. URL-oppdaging kjøres via kiba-scraper-sidecaren (scrapegraph) — ingen per-outlet konfig nødvendig."
         action={
           <Button asChild>
             <Link href="/admin/media/sources/new">
@@ -153,7 +126,7 @@ export default async function MediaSourcesPage({ searchParams }: Props) {
       />
       <MediaSourcesArticlesTabs current="sources" />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <StatCard
           label="Aktive kilder"
           value={active.length}
@@ -163,13 +136,6 @@ export default async function MediaSourcesPage({ searchParams }: Props) {
           label="Med RSS"
           value={totalForStats.filter((s) => s.rss_url).length}
           hint="Daglig discover-cron poller disse"
-        />
-        <StatCard
-          label="Scrapegraph-metode"
-          value={
-            totalForStats.filter((s) => s.backfill_method === "scrapegraph").length
-          }
-          hint="Bruker kiba-scraper-sidecar"
         />
       </div>
 
@@ -301,7 +267,7 @@ function SourcesSection({
               <TableHead>Navn</TableHead>
               <TableHead>Domene</TableHead>
               <TableHead>RSS</TableHead>
-              <TableHead>Backfill</TableHead>
+              <TableHead>Cursor</TableHead>
               <TableHead className="text-right">Kø (P / F)</TableHead>
               <TableHead>Sist pollet</TableHead>
               <TableHead>Aktiv</TableHead>
@@ -335,8 +301,7 @@ function SourcesSection({
                     )}
                   </TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">
-                    {s.backfill_method}
-                    {s.backfill_cursor ? ` · ${s.backfill_cursor}` : ""}
+                    {s.backfill_cursor ?? "—"}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     <span>{q.pending.toLocaleString("nb-NO")}</span>
@@ -370,23 +335,17 @@ function SourcesSection({
                     </form>
                   </TableCell>
                   <TableCell className="text-right">
-                    {(() => {
-                      const { disabled, hint } = backfillButtonState(s);
-                      return (
-                        <form action={backfillSourceAction.bind(null, s.id)}>
-                          <SubmitButton
-                            variant="outline"
-                            size="sm"
-                            pendingLabel="Kjører…"
-                            disabled={disabled}
-                            title={hint}
-                          >
-                            <Download />
-                            Kjør
-                          </SubmitButton>
-                        </form>
-                      );
-                    })()}
+                    <form action={backfillSourceAction.bind(null, s.id)}>
+                      <SubmitButton
+                        variant="outline"
+                        size="sm"
+                        pendingLabel="Kjører…"
+                        title="Tikk scrapegraph-backfill"
+                      >
+                        <Download />
+                        Kjør
+                      </SubmitButton>
+                    </form>
                   </TableCell>
                   <TableCell className="text-right">
                     <Link

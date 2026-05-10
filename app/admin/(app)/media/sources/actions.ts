@@ -11,31 +11,20 @@ import { runMediaBackfill } from "@/lib/admin/legacy/media-backfill.js";
 import { discoverUrls as scraperDiscoverUrls } from "@/lib/admin/legacy/media-scraper-client.js";
 import { loadActiveMediaKeywords } from "@/lib/admin/legacy/media-processor.js";
 
-import { BACKFILL_METHODS, SOURCE_CATEGORIES } from "./_constants";
+import { SOURCE_CATEGORIES } from "./_constants";
 
 const LIST = "/admin/media/sources";
 
-const VALID_BACKFILL = new Set<string>(BACKFILL_METHODS);
 const VALID_CATEGORY = new Set<string>(SOURCE_CATEGORIES);
 
-// SourcePatch only includes the fields that were actually present in the
-// submitted form. Fields rendered conditionally (search_config etc. for
-// scrapegraph rows where the disclosure is hidden) are omitted entirely
-// so the PATCH doesn't null them.
 type SourcePatch = {
   name: string;
   domain: string;
   is_active: boolean;
   rss_url: string | null;
-  backfill_method: string;
   crawl_delay_ms: number;
   notes: string | null;
   category?: string;
-  search_config?: unknown | null;
-  sitemap_url?: string | null;
-  sitemap_index?: boolean;
-  extractor_config?: unknown | null;
-  requires_render?: boolean;
 };
 
 function parseForm(formData: FormData): SourcePatch {
@@ -45,7 +34,6 @@ function parseForm(formData: FormData): SourcePatch {
     .toLowerCase();
   const is_active = formData.get("is_active") === "on";
   const rss_url = nonEmpty(formData.get("rss_url"));
-  const backfill_method = String(formData.get("backfill_method") ?? "scrapegraph");
   const crawlRaw = String(formData.get("crawl_delay_ms") ?? "1000").trim();
   const notes = nonEmpty(formData.get("notes"));
 
@@ -53,9 +41,6 @@ function parseForm(formData: FormData): SourcePatch {
   if (!domain) throw new Error("Domene mangler");
   if (!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(domain)) {
     throw new Error("Ugyldig domene (forventet f.eks. digi.no)");
-  }
-  if (!VALID_BACKFILL.has(backfill_method)) {
-    throw new Error(`Ugyldig backfill-metode: ${backfill_method}`);
   }
   const crawl_delay_ms = Number(crawlRaw);
   if (!Number.isInteger(crawl_delay_ms) || crawl_delay_ms < 100) {
@@ -67,12 +52,10 @@ function parseForm(formData: FormData): SourcePatch {
     domain,
     is_active,
     rss_url,
-    backfill_method,
     crawl_delay_ms,
     notes,
   };
 
-  // Category is in the always-visible field set; treat as required-with-default.
   if (formData.has("category")) {
     const category = String(formData.get("category") ?? "other");
     if (!VALID_CATEGORY.has(category)) {
@@ -81,38 +64,7 @@ function parseForm(formData: FormData): SourcePatch {
     patch.category = category;
   }
 
-  // Legacy fields — only present in the form when the user has the
-  // "Avansert: legacy-konfig" disclosure rendered (i.e. backfill_method
-  // is site_search or sitemap). When omitted, do NOT overwrite the
-  // existing DB value.
-  if (formData.has("search_config")) {
-    const raw = String(formData.get("search_config") ?? "").trim();
-    patch.search_config = parseJsonOrNull(raw, "search_config");
-  }
-  if (formData.has("extractor_config")) {
-    const raw = String(formData.get("extractor_config") ?? "").trim();
-    patch.extractor_config = parseJsonOrNull(raw, "extractor_config");
-  }
-  if (formData.has("sitemap_url")) {
-    patch.sitemap_url = nonEmpty(formData.get("sitemap_url"));
-  }
-  if (formData.has("sitemap_index")) {
-    patch.sitemap_index = formData.get("sitemap_index") === "on";
-  }
-  // requires_render checkbox dropped from UI; we no longer write it.
-
   return patch;
-}
-
-function parseJsonOrNull(raw: string, label: string): unknown | null {
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch (err) {
-    throw new Error(
-      `${label}: ugyldig JSON — ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
 }
 
 function nonEmpty(v: FormDataEntryValue | null): string | null {
@@ -142,11 +94,7 @@ export async function createAction(formData: FormData) {
 export async function updateAction(id: string, formData: FormData) {
   try {
     const patch = parseForm(formData);
-    // return=representation so we can assert the write actually landed —
-    // a silent "Lagret" with stale search_config would block the operator
-    // from ever activating new outlets. We only verify search_config when
-    // the form actually included it (otherwise it's intentionally untouched).
-    const updated = await sbFetch<Array<{ search_config: unknown }>>(
+    const updated = await sbFetch<Array<{ id: string }>>(
       `/media_sources?id=eq.${encodeURIComponent(id)}`,
       {
         service: true,
@@ -155,20 +103,10 @@ export async function updateAction(id: string, formData: FormData) {
         prefer: "return=representation",
       },
     );
-    const row = updated[0];
-    if (!row) {
+    if (!updated[0]) {
       throw new Error(
         "PATCH returnerte ingen rad — kilden finnes ikke eller RLS blokkerte skrivingen",
       );
-    }
-    if ("search_config" in patch) {
-      const sentSc = JSON.stringify(patch.search_config ?? null);
-      const gotSc = JSON.stringify(row.search_config ?? null);
-      if (sentSc !== gotSc) {
-        throw new Error(
-          `search_config ble ikke skrevet. Sendt: ${sentSc.slice(0, 120)} · I DB: ${gotSc.slice(0, 120)}`,
-        );
-      }
     }
     redirect(`${LIST}/${id}/edit${flashQs({ ok: "Lagret" })}`);
   } catch (err) {
@@ -195,10 +133,10 @@ export async function toggleActiveAction(id: string, formData: FormData) {
   }
 }
 
-// Per-source backfill. Single tick — runs adapter (scrapegraph / search /
-// sitemap) for up to ~60 s, enqueues whatever URLs come back. The button
-// polls until stats.urls_found stops growing. We deliberately run inline
-// (not in a background task) so the operator sees the result in the flash QS.
+// Per-source backfill. Single tick — runs the scrapegraph adapter for up
+// to ~60 s, enqueues whatever URLs come back. The button polls until
+// stats.urls_found stops growing. We deliberately run inline (not in a
+// background task) so the operator sees the result in the flash QS.
 export async function backfillSourceAction(id: string) {
   try {
     const result = await runMediaBackfill({
@@ -251,10 +189,10 @@ function backfillFlashSuffix(result: {
   return bits.length > 0 ? ` (${bits.join("; ")})` : "";
 }
 
-// Dry-run: fetch the source's RSS once and parse it, OR fetch a sample URL
-// from search_config and run the extractor, OR run scrapegraph-discover for
-// one keyword and report the URLs it finds. Reports what came back so the
-// operator can validate adapter wiring before activating the source.
+// Dry-run: fetch the source's RSS once and parse it, OR run
+// scrapegraph-discover for one keyword and report the URLs it finds, OR
+// fetch a sample URL and run the legacy JSON-LD extractor. Reports what
+// came back so the operator can validate wiring before activating.
 export async function dryRunAction(id: string, formData: FormData) {
   const target = String(formData.get("target") ?? "rss");
   try {
@@ -263,11 +201,9 @@ export async function dryRunAction(id: string, formData: FormData) {
         domain: string;
         rss_url: string | null;
         crawl_delay_ms: number;
-        backfill_method: string;
-        search_config: { url_template?: string; queries?: string[] } | null;
       }>
     >(
-      `/media_sources?id=eq.${encodeURIComponent(id)}&select=domain,rss_url,crawl_delay_ms,backfill_method,search_config`,
+      `/media_sources?id=eq.${encodeURIComponent(id)}&select=domain,rss_url,crawl_delay_ms`,
       { service: true },
     );
     const src = rows[0];

@@ -42,7 +42,6 @@ type Source = {
   domain: string;
   is_active: boolean;
   rss_url: string | null;
-  backfill_method: string;
   backfill_cursor: string | null;
   crawl_delay_ms: number;
   last_polled_at: string | null;
@@ -87,7 +86,7 @@ export default async function MediaSourceDebugPage({ params, searchParams }: Pro
     await Promise.all([
       sbFetch<Source[]>(
         `/media_sources?id=eq.${encodeURIComponent(id)}` +
-          `&select=id,name,domain,is_active,rss_url,backfill_method,backfill_cursor,crawl_delay_ms,last_polled_at,notes`,
+          `&select=id,name,domain,is_active,rss_url,backfill_cursor,crawl_delay_ms,last_polled_at,notes`,
         { service: true },
       ).catch(() => [] as Source[]),
       sbFetch<CountRow[] | { count: number }>(
@@ -146,7 +145,7 @@ export default async function MediaSourceDebugPage({ params, searchParams }: Pro
       <PageHeader
         eyebrow="Mediedekning · Kilder"
         title={src.name}
-        description={`${src.domain} · ${src.backfill_method}${src.is_active ? "" : " · INAKTIV"}`}
+        description={`${src.domain}${src.is_active ? "" : " · INAKTIV"}`}
         action={
           <div className="flex gap-2">
             <Button asChild variant="outline">
