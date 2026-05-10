@@ -14,9 +14,9 @@ import type {
 } from "@/lib/supabase";
 
 import {
-  AIShareAreaChart,
+  AIVolumeAreaChart,
   type AIShareBucket,
-} from "@/app/(site)/_components/ai-share-area-chart";
+} from "@/app/(site)/_components/ai-volume-area-chart";
 import { LlmCoverageBanner } from "@/app/(site)/_components/llm-coverage-banner";
 import {
   StackedAreaChart,
@@ -201,11 +201,12 @@ export function Scroller({
             <TimeRangeToggle value={range} onChange={onRangeChange} />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
-            Andelen AI-relaterte stillinger av alle utlyste stillinger fra
-            NAVs feed, gruppert per dag eller måned.
+            Antall AI-relaterte stillinger publisert via NAVs feed, gruppert
+            per dag eller uke. Hold over en stolpe for å se andelen av
+            totalt utlyste stillinger.
           </p>
           <div className="min-h-0 flex-1">
-            <AIShareAreaChart buckets={aiShareBuckets} />
+            <AIVolumeAreaChart buckets={aiShareBuckets} />
           </div>
         </div>
       </section>
