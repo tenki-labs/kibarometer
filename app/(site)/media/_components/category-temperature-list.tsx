@@ -7,7 +7,7 @@ import type {
   MediaSnapshotCategoryDaily,
 } from "@/lib/supabase";
 
-import { dateKey } from "@/app/(site)/_lib/range";
+import { dateKey, type BucketGrain } from "@/app/(site)/_lib/range";
 
 import { Sparkline, type SparklinePoint } from "./sparkline";
 
@@ -15,7 +15,7 @@ type Props = {
   rows: MediaSnapshotCategoryDaily[];
   categories: MediaCategory[];
   cutoffMs: number | null;
-  monthly: boolean;
+  grain: BucketGrain;
 };
 
 const NB = new Intl.NumberFormat("nb-NO");
@@ -51,7 +51,7 @@ export function CategoryTemperatureList({
   rows,
   categories,
   cutoffMs,
-  monthly,
+  grain,
 }: Props) {
   const { ranked, bucketKeys } = useMemo(() => {
     const cutoff = cutoffMs ?? -Infinity;
@@ -72,7 +72,7 @@ export function CategoryTemperatureList({
       if (row.temperature !== null && Number.isFinite(row.temperature)) {
         cur.tempSum += row.temperature;
         cur.tempN += 1;
-        const key = dateKey(row.published_on, monthly);
+        const key = dateKey(row.published_on, grain);
         allBuckets.add(key);
         const b = cur.bucketTemps.get(key) ?? { sum: 0, n: 0 };
         b.sum += row.temperature;
@@ -107,7 +107,7 @@ export function CategoryTemperatureList({
       .sort((a, b) => b.ai - a.ai);
 
     return { ranked: items, bucketKeys: sortedBuckets };
-  }, [rows, categories, cutoffMs, monthly]);
+  }, [rows, categories, cutoffMs, grain]);
 
   if (ranked.length === 0) {
     return (

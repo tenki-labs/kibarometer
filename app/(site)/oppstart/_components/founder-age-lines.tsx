@@ -24,7 +24,7 @@ import {
 import type { BrregSnapshotFounderAgeMonthly } from "@/lib/supabase";
 
 import type { Range } from "@/app/(site)/_components/time-range-toggle";
-import { rangeCutoffMs } from "@/app/(site)/_lib/range";
+import { dateKey, rangeCutoffMs } from "@/app/(site)/_lib/range";
 
 type Props = {
   rows: BrregSnapshotFounderAgeMonthly[];
@@ -65,7 +65,7 @@ export function FounderAgeLines({ rows, range, nowMs }: Props) {
     for (const r of rows) {
       const monthMs = new Date(r.reg_month + "T00:00:00Z").getTime();
       if (monthMs < cutoffMs) continue;
-      const bucket = r.reg_month.slice(0, 7);
+      const bucket = dateKey(r.reg_month, "month");
       const cur =
         byMonth.get(bucket) ??
         ({

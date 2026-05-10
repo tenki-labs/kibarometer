@@ -186,6 +186,14 @@ three per-pipeline doc pages is editable from `/admin/content/<slug>`
 - **Cron handlers** under [app/admin/api/jobs/](app/admin/api/jobs/) —
   each declares `export const runtime = "nodejs"` and bearer-checks via
   `requireBearer` from [lib/admin/bearer.ts](lib/admin/bearer.ts).
+- **Time-range vocabulary and bucket grain.** Public scrollers share a
+  5-option `Range` (`1m | 6m | 1y | since-2024 | max`) defined in
+  [app/(site)/_components/time-range-toggle.tsx](app/(site)/_components/time-range-toggle.tsx).
+  Every range names a **trailing window ending at "now"** — "1m" = the
+  most recent 30 days, never "the first 30 days of data". Each range
+  has a canonical bucket grain (`day | week`) defined by
+  `bucketGrainForRange` in [app/(site)/_lib/range.ts](app/(site)/_lib/range.ts).
+  Don't fork either; extend the switch.
 - **Conventional Commits.** Sign Claude-authored commits with
   `Co-Authored-By: Claude <noreply@anthropic.com>`.
 

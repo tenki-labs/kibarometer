@@ -12,11 +12,12 @@ import {
   type Range,
 } from "@/app/(site)/_components/time-range-toggle";
 import {
+  bucketGrainForRange,
   coverageHorizonMs,
   dateKey,
-  effectiveMonthly,
   parseRange,
   rangeCutoffMs,
+  type BucketGrain,
 } from "@/app/(site)/_lib/range";
 import type {
   MediaAnomalyDaily,
@@ -44,7 +45,7 @@ type Props = {
 function buildCategorySeries(
   rows: MediaSnapshotCategoryDaily[],
   cutoffMs: number,
-  monthly: boolean,
+  grain: BucketGrain,
 ): Series {
   const buckets = new Map<string, Map<string, number>>();
   const keys = new Set<string>();
@@ -53,7 +54,7 @@ function buildCategorySeries(
     const t = new Date(row.published_on + "T00:00:00Z").getTime();
     if (t < cutoffMs) continue;
     if (row.ai_count === 0) continue;
-    const bucket = dateKey(row.published_on, monthly);
+    const bucket = dateKey(row.published_on, grain);
     keys.add(row.category_slug);
     if (!buckets.has(bucket)) buckets.set(bucket, new Map());
     const inner = buckets.get(bucket)!;
@@ -119,8 +120,9 @@ export function Scroller({
     return latestMs || 0;
   }, [indexHistory, categoryDaily]);
 
-  // Earliest data point across both snapshot tables. Drives the coverage
-  // banner and the daily/monthly bucket fallback.
+  // Earliest data point across both snapshot tables. Drives the
+  // "data goes back to X" coverage banner only — grain selection is
+  // independent (see bucketGrainForRange).
   const coverageMs = useMemo(() => {
     const a = coverageHorizonMs(indexHistory);
     const b = coverageHorizonMs(categoryDaily);
@@ -141,15 +143,12 @@ export function Scroller({
   }, [coverageMs, nowMs]);
 
   const cutoffMs = useMemo(() => rangeCutoffMs(range, nowMs), [range, nowMs]);
-  const monthly = useMemo(
-    () => effectiveMonthly(range, coverageMs, nowMs),
-    [range, coverageMs, nowMs],
-  );
+  const grain = useMemo(() => bucketGrainForRange(range), [range]);
   const indexCutoffMs = cutoffMs === -Infinity ? null : cutoffMs;
 
   const categorySeries = useMemo(
-    () => buildCategorySeries(categoryDaily, cutoffMs, monthly),
-    [categoryDaily, cutoffMs, monthly],
+    () => buildCategorySeries(categoryDaily, cutoffMs, grain),
+    [categoryDaily, cutoffMs, grain],
   );
 
   // Adapt media_categories into the TaxonomyCategory shape StackedAreaChart
@@ -242,7 +241,7 @@ export function Scroller({
             <IndexLine
               rows={indexHistory}
               cutoffMs={indexCutoffMs}
-              monthly={monthly}
+              grain={grain}
             />
           </div>
         </div>
@@ -290,7 +289,7 @@ export function Scroller({
               rows={categoryDaily}
               categories={categories}
               cutoffMs={indexCutoffMs}
-              monthly={monthly}
+              grain={grain}
             />
           </div>
         </div>
@@ -312,7 +311,7 @@ export function Scroller({
             <VolumeArea
               rows={categoryDaily}
               cutoffMs={indexCutoffMs}
-              monthly={monthly}
+              grain={grain}
             />
           </div>
         </div>

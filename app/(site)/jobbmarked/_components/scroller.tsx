@@ -25,10 +25,10 @@ import {
   type Range,
 } from "@/app/(site)/_components/time-range-toggle";
 import {
+  bucketGrainForRange,
   dateKey,
   parseRange,
   rangeCutoffMs,
-  shouldBucketMonthly,
 } from "@/app/(site)/_lib/range";
 
 import { Hero } from "./hero";
@@ -67,7 +67,7 @@ function buildSeries<R extends { posted_on: string; ai_count: number; total_coun
   metric: "ai" | "total",
   nowMs: number,
 ): Series {
-  const monthly = shouldBucketMonthly(range);
+  const grain = bucketGrainForRange(range);
   const cutoffMs = rangeCutoffMs(range, nowMs);
 
   // Group: dateBucket -> (categoryKey -> count)
@@ -79,7 +79,7 @@ function buildSeries<R extends { posted_on: string; ai_count: number; total_coun
     if (t < cutoffMs) continue;
     const value = metric === "ai" ? row.ai_count : (row.total_count ?? 0);
     if (value === 0) continue;
-    const bucket = dateKey(row.posted_on, monthly);
+    const bucket = dateKey(row.posted_on, grain);
     const key = getKey(row);
     keys.add(key);
     if (!buckets.has(bucket)) buckets.set(bucket, new Map());
@@ -155,15 +155,15 @@ export function Scroller({
   // Per-bucket (ai_count, total_count) for segment 2's AI-share area chart.
   // Reads snapshot_daily directly so numerator and denominator share the same
   // predicate as snapshot_headline.ai_count_30d (no `category is not null`
-  // filter). Buckets monthly under 1y/Maks for readability.
+  // filter). Bucket grain follows bucketGrainForRange (1m=day, rest=week).
   const aiShareBuckets = useMemo<AIShareBucket[]>(() => {
-    const monthly = shouldBucketMonthly(range);
+    const grain = bucketGrainForRange(range);
     const cutoffMs = rangeCutoffMs(range, nowMs);
     const buckets = new Map<string, { ai: number; total: number }>();
     for (const row of snapshotDaily) {
       const t = new Date(row.posted_on + "T00:00:00Z").getTime();
       if (t < cutoffMs) continue;
-      const bucket = dateKey(row.posted_on, monthly);
+      const bucket = dateKey(row.posted_on, grain);
       const cur = buckets.get(bucket) ?? { ai: 0, total: 0 };
       cur.ai += row.ai_count;
       cur.total += row.total_count;
