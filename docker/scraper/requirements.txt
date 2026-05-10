@@ -9,3 +9,12 @@ uvicorn[standard]==0.46.0
 # Pydantic for /discover input + /extract output validation.
 # scrapegraphai already pulls pydantic; we restate to lock the major.
 pydantic>=2.0,<3.0
+
+# DuckDuckGo search backend for SearchGraph. langchain-community renamed
+# its DDG provider's package from `duckduckgo-search` to `ddgs`, and the
+# version of langchain transitively pulled by scrapegraphai 1.76 imports
+# the new name. scrapegraphai does NOT declare it as a hard dep, so
+# every SearchGraph.run() raised
+#   "Could not import ddgs python package. Please install it with `pip install -U ddgs`."
+# until this line landed. Unpinned — let pip track langchain's contract.
+ddgs
