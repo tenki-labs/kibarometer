@@ -1,7 +1,14 @@
 // Shared time-range helpers for the public scrollers.
-// `Range` is exported from time-range-toggle so the toggle stays the
-// authoritative source for the vocabulary; the helpers here turn a `Range`
-// into cutoffs and bucket keys.
+//
+// IMPORTANT: every `Range` value names a TRAILING window ending at "now".
+// "1m"         = most recent 30 days (today−30 → today).
+// "6m"         = most recent ~182 days.
+// "1y"         = most recent 365 days.
+// "since-2024" = fixed start 2024-01-01 → today.
+// "max"        = earliest available data → today.
+// NEVER interpret any range as "the first N days of available data" — it
+// never means that, anywhere in this codebase. AI agents miscoding charts
+// that way is the exact failure mode this module is designed against.
 
 import type { Range } from "@/app/(site)/_components/time-range-toggle";
 
@@ -9,26 +16,54 @@ const VALID_RANGES: Range[] = ["1m", "6m", "1y", "since-2024", "max"];
 
 const SINCE_2024_MS = Date.UTC(2024, 0, 1);
 
-// Below this many calendar-month buckets, monthly bucketing degenerates
-// into a 1–2-point wedge under recharts' linear interpolation. Fall back
-// to daily bucketing instead.
-export const MIN_MONTHLY_BUCKETS = 3;
-
 export function parseRange(raw: string | null): Range {
   return VALID_RANGES.includes(raw as Range) ? (raw as Range) : "1m";
 }
 
-// For 1y / since-2024 / max we *prefer* monthly bucketing. Whether it's
-// actually used also depends on data coverage — see effectiveMonthly().
-export function shouldBucketMonthly(r: Range): boolean {
-  return r === "1y" || r === "since-2024" || r === "max";
+// Canonical Range → bucket-grain mapping. Adding a new `Range` value
+// forces an exhaustive update here at compile time. Don't fork — extend.
+//
+// Note: `month` is a valid grain but is never produced by `bucketGrainForRange`
+// — no public range maps to monthly. It exists for charts that read from
+// an intrinsically-monthly snapshot table (e.g. brreg_snapshot_founder_age_monthly),
+// which pass `"month"` directly to `dateKey`.
+export type BucketGrain = "day" | "week" | "month";
+
+export function bucketGrainForRange(r: Range): BucketGrain {
+  switch (r) {
+    case "1m":          return "day";
+    case "6m":          return "week";
+    case "1y":          return "week";
+    case "since-2024":  return "week";
+    case "max":         return "week";
+  }
 }
 
-// YYYY-MM (monthly) or YYYY-MM-DD (daily) projected from an ISO date.
-export function dateKey(iso: string, monthly: boolean): string {
-  return monthly ? iso.slice(0, 7) : iso.slice(0, 10);
+// YYYY-MM-DD (daily), YYYY-Www (ISO 8601 weekly), or YYYY-MM (monthly)
+// projected from an ISO date. Bucket keys sort lexicographically in
+// chronological order in all three formats, including across year boundaries.
+export function dateKey(iso: string, grain: BucketGrain): string {
+  switch (grain) {
+    case "day":   return iso.slice(0, 10);
+    case "week":  return isoWeekKey(iso);
+    case "month": return iso.slice(0, 7);
+  }
 }
 
+function isoWeekKey(iso: string): string {
+  const d = new Date(iso + "T00:00:00Z");
+  // ISO 8601: Thursday's calendar year = the week's year. Norwegian
+  // convention follows ISO; week starts Monday.
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const year = d.getUTCFullYear();
+  const yearStart = Date.UTC(year, 0, 1);
+  const week = Math.ceil(((d.getTime() - yearStart) / 86_400_000 + 1) / 7);
+  return `${year}-W${String(week).padStart(2, "0")}`;
+}
+
+// Lower bound (inclusive) of the trailing window in milliseconds. Pair
+// with `if (t < cutoff) continue;` to keep rows newer than the cutoff.
+// Never an upper bound; the upper bound is always "now".
 export function rangeCutoffMs(r: Range, nowMs: number): number {
   switch (r) {
     case "1m":          return nowMs - 30 * 86_400_000;
@@ -41,6 +76,8 @@ export function rangeCutoffMs(r: Range, nowMs: number): number {
 
 // Earliest data point in milliseconds. Returns +Infinity for an empty
 // dataset so callers can fall back to nowMs without a special case.
+// Used by /media's scroller to drive the "data goes back to X" coverage
+// banner — independent of grain selection.
 export function coverageHorizonMs(
   rows: ReadonlyArray<{ published_on?: string; date?: string }>,
 ): number {
@@ -52,31 +89,4 @@ export function coverageHorizonMs(
     if (Number.isFinite(t) && t < earliest) earliest = t;
   }
   return earliest;
-}
-
-// Decide whether a chart should bucket monthly given the active range and
-// the data's coverage. Returns true only when the visible window spans
-// at least MIN_MONTHLY_BUCKETS calendar months of actual data.
-//
-// Without this guard, picking "1 år" or "Maks" on a dataset that only
-// goes back five weeks renders monthly-bucketed as 1–2 points and
-// recharts interpolates a triangular wedge. Falling back to daily keeps
-// the chart honest and continuous.
-export function effectiveMonthly(
-  r: Range,
-  coverageMs: number,
-  nowMs: number,
-): boolean {
-  if (!shouldBucketMonthly(r)) return false;
-  if (!Number.isFinite(coverageMs)) return false;
-  const cutoff = rangeCutoffMs(r, nowMs);
-  const start = Math.max(cutoff, coverageMs);
-  if (start > nowMs) return false;
-  const startDate = new Date(start);
-  const endDate = new Date(nowMs);
-  const months =
-    (endDate.getUTCFullYear() - startDate.getUTCFullYear()) * 12 +
-    (endDate.getUTCMonth() - startDate.getUTCMonth()) +
-    1;
-  return months >= MIN_MONTHLY_BUCKETS;
 }

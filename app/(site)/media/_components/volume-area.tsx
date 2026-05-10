@@ -21,12 +21,12 @@ import {
   formatBucket,
   formatBucketShort,
 } from "@/app/(site)/_components/bucket-format";
-import { dateKey } from "@/app/(site)/_lib/range";
+import { dateKey, type BucketGrain } from "@/app/(site)/_lib/range";
 
 type Props = {
   rows: MediaSnapshotCategoryDaily[];
   cutoffMs: number | null;
-  monthly: boolean;
+  grain: BucketGrain;
 };
 
 const NB = new Intl.NumberFormat("nb-NO");
@@ -38,10 +38,10 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-export function VolumeArea({ rows, cutoffMs, monthly }: Props) {
+export function VolumeArea({ rows, cutoffMs, grain }: Props) {
   const data = useMemo(() => {
     // Each row in `rows` is one (published_on, category_slug) — sum across
-    // categories per bucket to get the daily/monthly total AI count. Drops
+    // categories per bucket to get the per-bucket total AI count. Drops
     // distinct-story dedup since the public chart wants raw volume.
     const byBucket = new Map<string, number>();
     const cutoff = cutoffMs ?? -Infinity;
@@ -49,13 +49,13 @@ export function VolumeArea({ rows, cutoffMs, monthly }: Props) {
       const t = new Date(r.published_on + "T00:00:00Z").getTime();
       if (t < cutoff) continue;
       if (r.ai_count === 0) continue;
-      const key = dateKey(r.published_on, monthly);
+      const key = dateKey(r.published_on, grain);
       byBucket.set(key, (byBucket.get(key) ?? 0) + r.ai_count);
     }
     return [...byBucket.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, count]) => ({ date, count }));
-  }, [rows, cutoffMs, monthly]);
+  }, [rows, cutoffMs, grain]);
 
   if (data.length === 0) {
     return (

@@ -1,6 +1,13 @@
-// Shared bucket-key formatters for the chart components. Buckets are either
-// YYYY-MM-DD (daily) or YYYY-MM (monthly) — formatBucket detects the length
-// and renders accordingly.
+// Shared bucket-key formatters for the chart components. Bucket keys come
+// in three shapes:
+//   YYYY-MM-DD  (length 10) — daily, from dateKey(iso, "day")
+//   YYYY-Www    (length 8)  — ISO 8601 weekly, from dateKey(iso, "week")
+//   YYYY-MM     (length 7)  — monthly, only from charts that read
+//                              intrinsically-monthly snapshot tables
+//                              (e.g. brreg_snapshot_founder_age_monthly).
+//                              No range value produces YYYY-MM via dateKey.
+// See bucketGrainForRange in app/(site)/_lib/range.ts for the canonical
+// Range → grain mapping.
 
 const NO_DATE_FMT_FULL = new Intl.DateTimeFormat("nb-NO", {
   day: "2-digit",
@@ -23,7 +30,15 @@ const NO_DATE_FMT_SHORT_MONTH = new Intl.DateTimeFormat("nb-NO", {
   year: "2-digit",
 });
 
+function isWeekKey(bucket: string): boolean {
+  return bucket.length === 8 && bucket[4] === "-" && bucket[5] === "W";
+}
+
 export function formatBucket(bucket: string): string {
+  if (isWeekKey(bucket)) {
+    const [year, w] = bucket.split("-W");
+    return `Uke ${w} · ${year}`;
+  }
   if (bucket.length === 7) {
     return NO_DATE_FMT_MONTH.format(new Date(bucket + "-01T00:00:00Z"));
   }
@@ -31,6 +46,10 @@ export function formatBucket(bucket: string): string {
 }
 
 export function formatBucketShort(bucket: string): string {
+  if (isWeekKey(bucket)) {
+    const [, w] = bucket.split("-W");
+    return `u${w}`;
+  }
   if (bucket.length === 7) {
     return NO_DATE_FMT_SHORT_MONTH.format(new Date(bucket + "-01T00:00:00Z"));
   }

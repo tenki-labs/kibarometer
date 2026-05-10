@@ -22,11 +22,12 @@ import {
   formatBucket,
   formatBucketShort,
 } from "@/app/(site)/_components/bucket-format";
+import { dateKey, type BucketGrain } from "@/app/(site)/_lib/range";
 
 type Props = {
   rows: MediaSnapshotIndex[];
   cutoffMs: number | null;
-  monthly: boolean;
+  grain: BucketGrain;
 };
 
 const PLOT_MARGIN = { top: 12, right: 12, bottom: 0, left: 8 };
@@ -47,16 +48,16 @@ function indexLabel(value: number): string {
   return "Bekymret tilt";
 }
 
-export function IndexLine({ rows, cutoffMs, monthly }: Props) {
-  // Aggregate rows into daily/monthly buckets and average the index value per
-  // bucket. Same logic as the old IndexBar — only the chart shape changes.
+export function IndexLine({ rows, cutoffMs, grain }: Props) {
+  // Aggregate rows into per-bucket averages of the index value. Bucket
+  // grain is whatever the caller decided via bucketGrainForRange.
   const data = useMemo(() => {
     const cutoff = cutoffMs ?? -Infinity;
     const buckets = new Map<string, { sum: number; n: number }>();
     for (const row of rows) {
       const t = new Date(row.date + "T00:00:00Z").getTime();
       if (t < cutoff) continue;
-      const key = monthly ? row.date.slice(0, 7) : row.date.slice(0, 10);
+      const key = dateKey(row.date, grain);
       const cur = buckets.get(key) ?? { sum: 0, n: 0 };
       cur.sum += row.index_value;
       cur.n += 1;
@@ -68,7 +69,7 @@ export function IndexLine({ rows, cutoffMs, monthly }: Props) {
         date,
         index: Math.round(v.sum / Math.max(1, v.n)),
       }));
-  }, [rows, cutoffMs, monthly]);
+  }, [rows, cutoffMs, grain]);
 
   // Track the chart's pixel height so the thermometer gradient maps to the
   // absolute 0–100 plot area, not the line's bounding box. A line hovering at

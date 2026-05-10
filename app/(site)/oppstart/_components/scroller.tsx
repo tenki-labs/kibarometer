@@ -16,10 +16,10 @@ import {
   type Range,
 } from "@/app/(site)/_components/time-range-toggle";
 import {
+  bucketGrainForRange,
   dateKey,
   parseRange,
   rangeCutoffMs,
-  shouldBucketMonthly,
 } from "@/app/(site)/_lib/range";
 import {
   NorwayMap,
@@ -87,12 +87,12 @@ function buildAiShareBuckets(
   nowMs: number,
 ): AIShareBucket[] {
   const cutoffMs = rangeCutoffMs(range, nowMs);
-  const monthly = shouldBucketMonthly(range);
+  const grain = bucketGrainForRange(range);
   const buckets = new Map<string, { ai: number; total: number }>();
   for (const row of rows) {
     const t = new Date(row.registrert_dato + "T00:00:00Z").getTime();
     if (t < cutoffMs) continue;
-    const key = dateKey(row.registrert_dato, monthly);
+    const key = dateKey(row.registrert_dato, grain);
     const cur = buckets.get(key) ?? { ai: 0, total: 0 };
     cur.ai += row.ai_relevant_count;
     cur.total += row.count;
@@ -114,7 +114,7 @@ function buildCategoryMixSeries(
   nowMs: number,
 ): Series {
   const cutoffMs = rangeCutoffMs(range, nowMs);
-  const monthly = shouldBucketMonthly(range);
+  const grain = bucketGrainForRange(range);
   const buckets = new Map<string, Map<string, number>>();
   const slugTotals = new Map<string, number>();
   for (const row of rows) {
@@ -122,7 +122,7 @@ function buildCategoryMixSeries(
     if (t < cutoffMs) continue;
     if (row.ai_relevant_count === 0) continue;
     if (HIDDEN_CATEGORY_SLUGS.has(row.nace_category_slug)) continue;
-    const bucket = dateKey(row.registrert_dato, monthly);
+    const bucket = dateKey(row.registrert_dato, grain);
     if (!buckets.has(bucket)) buckets.set(bucket, new Map());
     const inner = buckets.get(bucket)!;
     inner.set(
