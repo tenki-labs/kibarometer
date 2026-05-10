@@ -226,7 +226,7 @@ export default async function QueuePage({ searchParams }: Props) {
                 pendingLabel="Starter…"
                 disabled={pending === 0}
               >
-                Tøm rollekø ({pending.toLocaleString("nb-NO")})
+                Hent roller nå ({pending.toLocaleString("nb-NO")})
               </SubmitButton>
             </form>
           </div>
