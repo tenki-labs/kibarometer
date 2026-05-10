@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -96,7 +97,8 @@ export function SiteNav() {
           </span>
         </div>
 
-        {/* Right: desktop NavigationMenu */}
+        {/* Right cluster: desktop nav + theme toggle + mobile burger */}
+        <div className="flex items-center gap-1">
         <NavigationMenu
           className="hidden sm:flex"
           viewport={false}
@@ -155,6 +157,8 @@ export function SiteNav() {
             </NavigationMenuItem>
           </NavigationMenuList>
         </NavigationMenu>
+
+        <ThemeToggle />
 
         {/* Right: mobile burger (DropdownMenu) */}
         <DropdownMenu open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -222,6 +226,7 @@ export function SiteNav() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        </div>
       </div>
     </header>
   );
