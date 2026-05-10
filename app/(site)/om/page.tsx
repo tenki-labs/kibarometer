@@ -4,6 +4,16 @@
 // the row is missing (build-time prerender, fresh install before the seed
 // has run, etc.) so the page never breaks.
 
+import Link from "next/link";
+
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import { sb } from "@/lib/supabase";
 import { renderMarkdown } from "@/lib/admin/markdown";
 
@@ -46,6 +56,20 @@ export default async function OmPage() {
 
   return (
     <main className="metode">
+      <Breadcrumb className="mb-6">
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <Link href="/">Hjem</Link>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>Om</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
       <h1 className="title">{title}</h1>
       {renderMarkdown(body)}
     </main>

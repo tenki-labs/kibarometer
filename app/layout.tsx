@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
+
+import { ThemeProvider } from "@/components/theme-provider";
+
 import "./globals.css";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
@@ -60,13 +63,26 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#0a0a0a",
-  colorScheme: "light",
+  colorScheme: "light dark",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="nb" className={`${GeistSans.variable} ${GeistMono.variable}`}>
-      <body className="font-sans antialiased">{children}</body>
+    <html
+      lang="nb"
+      className={`${GeistSans.variable} ${GeistMono.variable}`}
+      suppressHydrationWarning
+    >
+      <body className="font-sans antialiased">
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          {children}
+        </ThemeProvider>
+      </body>
     </html>
   );
 }
