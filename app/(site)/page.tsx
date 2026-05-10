@@ -5,12 +5,12 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
 export const metadata: Metadata = {
   title: { absolute: "kibarometer" },
-  description: "Et uavhengig barometer for norsk arbeidsmarked.",
+  description: "Open source barometer for Norges kunstig intelligens adopsjon.",
   alternates: { canonical: "/" },
   openGraph: {
     url: "/",
     title: "kibarometer",
-    description: "Et uavhengig barometer for norsk arbeidsmarked.",
+    description: "Open source barometer for Norges kunstig intelligens adopsjon.",
   },
 };
 
@@ -45,10 +45,10 @@ export default function LandingPage() {
     <main className="flex min-h-[calc(100svh-3.5rem)] items-center justify-center px-6">
       <div className="max-w-xl text-center">
         <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">
-          Et uavhengig barometer for norsk arbeidsmarked.
+          Open source kartlegging av kunstig intelligens i Norge.
         </h1>
         <p className="mt-6 text-sm text-muted-foreground">
-          Daglig oppdaterte tall basert på NAVs stillingsfeed.
+          Daglig oppdaterte tall fra Norges arbeidsmarked, selskapsstiftelse og mediedekning.
         </p>
         <Link
           href="/jobbmarked"
