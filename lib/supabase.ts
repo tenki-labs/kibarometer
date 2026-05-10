@@ -104,6 +104,18 @@ export type SnapshotSkillCategoryDaily = {
   ai_count: number;
 };
 
+// Per-day Tier 2 backfill coverage. Drives the public "LLM-validert: X%
+// av AI-treff i valgt periode" banner. coverage_pct is a stored generated
+// column (clipped to 100 when ai_total = 0). One row per pillar:
+// public.snapshot_tier2_coverage_daily / media_…/brreg_… have identical
+// schema (see 0056_tier2_coverage_daily.sql).
+export type SnapshotTier2CoverageDaily = {
+  date: string;             // YYYY-MM-DD
+  ai_total: number;
+  tier2_done: number;
+  coverage_pct: number;     // 0-100
+};
+
 // AI-skill category snapshot (LLM Tier 2 classification rolled up per slug).
 // See 0021_skill_snapshot.sql. The home page reads the rows for the latest
 // `computed_for` and joins with taxonomy_categories on slug to pick up the

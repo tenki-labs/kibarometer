@@ -16,10 +16,12 @@ nav_postings ──────── (raw rows: title, description, posted_at, 
    │
    ▼  Tier 0 — keyword match (lib/admin/legacy/nav-processor.js)
 nav_postings.is_ai = bool, nav_postings.matched_keywords = text[]
+   │  AI-relevance is decided HERE. Both LLM tiers below trust this gate.
    │
-   ▼  Tier 1 — relevance + verbatim phrase extraction (LLM)
+   ▼  Tier 1 — verbatim AI-phrase extraction (LLM)
    │  app/admin/api/jobs/llm-discover, lib/admin/llm-discover.ts
-   │  writes ai_phrases, ai_relevance_confirmed
+   │  writes llm_ai_phrases (verbatim phrases for keyword-catalog growth)
+   │  Does NOT validate AI-relevance. Does NOT set is_ai.
    │
    ▼  Tier 2 — taxonomy classification (LLM)
    │  app/admin/api/jobs/llm-classify, lib/admin/llm-classify.ts
@@ -31,9 +33,9 @@ nav_postings.is_ai = bool, nav_postings.matched_keywords = text[]
 snapshot_*  ────►  PostgREST  ────►  /jobbmarked
 ```
 
-`is_ai` is set by Tier 0 (cheap keyword match). `category` and skill `slug` are
-only populated after the LLM tiers finish — so any snapshot keyed on either
-field is *a subset* of what `is_ai` alone counts.
+`is_ai` is set by Tier 0 (cheap keyword match) and never written by any LLM.
+`category` and skill `slug` are only populated after Tier 2 finishes — so any
+snapshot keyed on those is *a subset* of what `is_ai` alone counts.
 
 ## Snapshot tables consumed by `/jobbmarked`
 

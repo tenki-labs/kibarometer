@@ -19,6 +19,7 @@ import {
   type SnapshotHeadline,
   type SnapshotKeyword,
   type SnapshotSkillCategoryDaily,
+  type SnapshotTier2CoverageDaily,
   type TaxonomyCategory,
 } from "@/lib/supabase";
 
@@ -75,6 +76,7 @@ export default async function JobbmarkedPage() {
     keywords,
     geography,
     taxonomy,
+    tier2Coverage,
   ] = await Promise.all([
     sb<SnapshotHeadline[]>(
       "/snapshot_headline?order=computed_for.desc&limit=1",
@@ -92,6 +94,9 @@ export default async function JobbmarkedPage() {
     sb<TaxonomyCategory[]>(
       "/taxonomy_categories?select=slug,title,definition_md,sort_order&order=sort_order.asc&limit=500",
     ),
+    sb<SnapshotTier2CoverageDaily[]>(
+      "/snapshot_tier2_coverage_daily?order=date.asc&limit=20000",
+    ),
   ]);
 
   const headline = headlineRows[0] ?? null;
@@ -106,6 +111,7 @@ export default async function JobbmarkedPage() {
           keywords={keywords}
           geography={geography}
           taxonomy={taxonomy}
+          tier2Coverage={tier2Coverage}
           norwayPaths={NORWAY_FYLKE_PATHS}
           norwayViewBox={NORWAY_VIEWBOX}
         />

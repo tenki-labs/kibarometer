@@ -26,8 +26,8 @@ import { loadActivePrompt } from "@/lib/admin/llm-prompts";
 
 const JOB_NAME = "llm_classify";
 
-const K_PER_TICK = 4;
-const WALL_TIME_MS = 60_000;
+const DEFAULT_K_PER_TICK = 4;
+const DEFAULT_WALL_TIME_MS = 60_000;
 const HEARTBEAT_STALE_MS = 5 * 60 * 1000;
 const RETRY_LIMIT = 3;
 
@@ -80,8 +80,15 @@ export type RunClassifyResult = {
 export async function runClassify(args: {
   sb: Sb;
   trigger: Trigger;
+  k?: number;
+  wallTimeMs?: number;
 }): Promise<RunClassifyResult> {
-  const { sb, trigger } = args;
+  const {
+    sb,
+    trigger,
+    k: K_PER_TICK = DEFAULT_K_PER_TICK,
+    wallTimeMs: WALL_TIME_MS = DEFAULT_WALL_TIME_MS,
+  } = args;
 
   if (!mlxConfigured()) {
     return { status: "skipped", reason: "no_api_key" };

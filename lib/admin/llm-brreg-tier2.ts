@@ -96,11 +96,15 @@ export async function runBrregTier2(args: {
     buildCategoriesBlock(taxonomy),
   );
 
+  // Tier 2 gates on the keyword-driven `is_ai_relevant=true` directly,
+  // not on `tier1_completed_at`. Decoupling from Tier 1 lets Tier 2
+  // categorize historical companies that Tier 1 never visited (Tier 1
+  // is forward-only on `ingest_mode='live'`).
   const candidates = await sb<Company[]>(
-    `/brreg_companies?tier1_completed_at=not.is.null&tier2_completed_at=is.null` +
-      `&is_ai_relevant=is.true&llm_retry_count=lt.${RETRY_LIMIT}` +
+    `/brreg_companies?is_ai_relevant=is.true&tier2_completed_at=is.null` +
+      `&llm_retry_count=lt.${RETRY_LIMIT}` +
       `&select=orgnr,aktivitet,llm_ai_phrases` +
-      `&order=tier1_completed_at.desc&limit=${k}`,
+      `&order=registrert_dato.desc&limit=${k}`,
     { service: true },
   );
 

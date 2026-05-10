@@ -41,7 +41,6 @@ export type RunMediaTier1Result = {
   job_id?: string;
   metadata?: {
     processed: number;
-    ai_relevant: number;
     phrases_persisted: number;
     parse_fails: number;
     http_fails: number;
@@ -101,7 +100,6 @@ export async function runMediaTier1(args: {
   if (candidates.length === 0) {
     const meta = {
       processed: 0,
-      ai_relevant: 0,
       phrases_persisted: 0,
       parse_fails: 0,
       http_fails: 0,
@@ -114,7 +112,6 @@ export async function runMediaTier1(args: {
 
   const start = Date.now();
   let processed = 0;
-  let aiRelevant = 0;
   let phrasesPersisted = 0;
   let parseFails = 0;
   let httpFails = 0;
@@ -131,7 +128,6 @@ export async function runMediaTier1(args: {
       try {
         const r = await processOne(sb, article, prompt.body, prompt.id);
         processed += 1;
-        if (r.aiRelevant) aiRelevant += 1;
         phrasesPersisted += r.phraseCount;
       } catch (err) {
         if (err instanceof MlxError && err.kind === "auth") {
@@ -153,14 +149,13 @@ export async function runMediaTier1(args: {
           pct: ((idx + 1) / candidates.length) * 100,
           step:
             `${idx + 1} / ${candidates.length} · ${processed} ok · ` +
-            `${aiRelevant} AI · ${parseFails + httpFails + authFails} feil`,
+            `${phrasesPersisted} fraser · ${parseFails + httpFails + authFails} feil`,
         });
       }
     }
 
     const meta = {
       processed,
-      ai_relevant: aiRelevant,
       phrases_persisted: phrasesPersisted,
       parse_fails: parseFails,
       http_fails: httpFails,
@@ -172,7 +167,6 @@ export async function runMediaTier1(args: {
   } catch (err) {
     await finalize(sb, job.id, "failed", {
       processed,
-      ai_relevant: aiRelevant,
       phrases_persisted: phrasesPersisted,
       parse_fails: parseFails,
       http_fails: httpFails,
@@ -189,7 +183,7 @@ async function processOne(
   article: Article,
   systemPrompt: string,
   promptId: string,
-): Promise<{ aiRelevant: boolean; phraseCount: number }> {
+): Promise<{ phraseCount: number }> {
   const headline = article.headline ?? "";
   const userInput = `Overskrift: ${headline}`;
 
@@ -210,7 +204,6 @@ async function processOne(
 
   const validatedPhrases = validatePhrases(parsed.phrases, headline);
   const persisted = {
-    ai_relevant: parsed.ai_relevant,
     phrases: validatedPhrases,
     phrases_returned: parsed.phrases.length,
   };
@@ -228,7 +221,6 @@ async function processOne(
   });
 
   return {
-    aiRelevant: parsed.ai_relevant,
     phraseCount: validatedPhrases.length,
   };
 }

@@ -105,10 +105,15 @@ export async function runMediaTier2(args: {
     buildCategoriesBlock(taxonomy),
   );
 
+  // Tier 2 gates on the keyword-driven `is_ai_related=true` directly,
+  // not on `tier1_completed_at`. Decoupling from Tier 1 lets Tier 2
+  // categorize historical rows (ingest_mode='backfill') that Tier 1
+  // never visits — Tier 1 is forward-only on live ingest, while
+  // categorization needs to fill in history.
   const candidates = await sb<Article[]>(
-    `/media_articles?tier1_completed_at=not.is.null&tier2_completed_at=is.null` +
+    `/media_articles?is_ai_related=is.true&tier2_completed_at=is.null` +
       `&deleted_at=is.null&llm_retry_count=lt.${RETRY_LIMIT}` +
-      `&select=id,headline,llm_ai_phrases&order=tier1_completed_at.desc&limit=${k}`,
+      `&select=id,headline,llm_ai_phrases&order=created_at.desc&limit=${k}`,
     { service: true },
   );
 

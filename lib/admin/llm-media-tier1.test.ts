@@ -3,27 +3,21 @@ import { parseTier1, validatePhrases } from "./llm-media-parse";
 
 describe("parseTier1", () => {
   it("parses raw JSON", () => {
-    const out = parseTier1(
-      '{"ai_relevant": true, "phrases": [{"text": "ChatGPT"}]}',
-    );
+    const out = parseTier1('{"phrases": [{"text": "ChatGPT"}]}');
     expect(out).toEqual({
-      ai_relevant: true,
       phrases: [{ text: "ChatGPT" }],
     });
   });
 
   it("strips ```json fences", () => {
-    const out = parseTier1(
-      '```json\n{"ai_relevant": false, "phrases": []}\n```',
-    );
-    expect(out).toEqual({ ai_relevant: false, phrases: [] });
+    const out = parseTier1('```json\n{"phrases": []}\n```');
+    expect(out).toEqual({ phrases: [] });
   });
 
   it("extracts the first object when prose surrounds it", () => {
     const out = parseTier1(
-      'Sure, here you go: {"ai_relevant": true, "phrases": [{"text": "AI"}]} hope that helps.',
+      'Sure, here you go: {"phrases": [{"text": "AI"}]} hope that helps.',
     );
-    expect(out?.ai_relevant).toBe(true);
     expect(out?.phrases).toEqual([{ text: "AI" }]);
   });
 
@@ -33,15 +27,19 @@ describe("parseTier1", () => {
   });
 
   it("coerces missing phrases to []", () => {
-    expect(parseTier1('{"ai_relevant": true}')).toEqual({
-      ai_relevant: true,
-      phrases: [],
-    });
+    expect(parseTier1("{}")).toEqual({ phrases: [] });
+  });
+
+  it("ignores legacy ai_relevant field if present", () => {
+    const out = parseTier1(
+      '{"ai_relevant": true, "phrases": [{"text": "ok"}]}',
+    );
+    expect(out).toEqual({ phrases: [{ text: "ok" }] });
   });
 
   it("drops phrase entries without a string `text`", () => {
     const out = parseTier1(
-      '{"ai_relevant": true, "phrases": [{"text": "ok"}, {"foo": 1}, "bare"]}',
+      '{"phrases": [{"text": "ok"}, {"foo": 1}, "bare"]}',
     );
     expect(out?.phrases).toEqual([{ text: "ok" }]);
   });

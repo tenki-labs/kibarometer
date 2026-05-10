@@ -25,12 +25,20 @@ they share the LLM stack, the admin shell, and the marketing site.
 | Oppstart       | Brønnøysundregistrene                                       | /oppstart   | /admin/startups   | brreg-*                    |
 
 **Shared LLM pattern.** Each pillar runs the same two-stage pipeline
-against the external MLX endpoint (Gemma 3 4B-IT 4-bit at `mlx.tenki.no`):
+against the external MLX endpoint (Gemma 3 4B-IT 4-bit at `mlx.tenki.no`).
+**AI-relevance is keyword-driven, never LLM-driven.** The keyword matcher
+writes `is_ai` (NAV), `is_ai_related` (media), and the generated
+`is_ai_relevant` (BRREG) at ingest time. The LLM tiers do NOT set those
+booleans — they only enrich already-flagged rows.
 
-- **Tier 1 (discovery)** — relevance confirmation + verbatim AI-phrase
-  extraction. K≈15 rows per tick, ~3 s/call, ~45 s budget.
-- **Tier 2 (classification)** — assigns the pillar's taxonomy slug, plus
-  (media only) stance + intensity. K≈4 rows per tick, ~12 s/call.
+- **Tier 1 (discovery)** — verbatim AI-phrase extraction from rows
+  already flagged AI by the keyword matcher (`is_ai*=true`). Phrases
+  feed the keyword-catalog growth loop at `/admin/keywords`. Operates
+  on `ingest_mode='live'` rows only — forward discovery on new ingest,
+  never re-runs on completed rows. K≈15 rows per tick, ~3 s/call.
+- **Tier 2 (categorization)** — assigns the pillar's taxonomy slug to
+  keyword-flagged rows, plus (media only) stance + intensity. Backfill
+  processes newest-first. K≈4 rows per tick, ~12 s/call.
 
 Tier ticks across pillars are offset to keep the single Mac mini from
 seeing overlapping calls — see [scripts/fetcher-crontab](scripts/fetcher-crontab)
@@ -194,6 +202,11 @@ three per-pipeline doc pages is editable from `/admin/content/<slug>`
   has a canonical bucket grain (`day | week`) defined by
   `bucketGrainForRange` in [app/(site)/_lib/range.ts](app/(site)/_lib/range.ts).
   Don't fork either; extend the switch.
+- **Tier 1 vs Tier 2 roles.** AI-relevance comes from the keyword
+  matcher (`is_ai*` columns), not from any LLM. Tier 1 is verbatim
+  phrase extraction for keyword-catalog growth — it does NOT set
+  `is_ai*`. Tier 2 is taxonomy categorization (and media: stance +
+  intensity). See §2 for the full pipeline.
 - **Conventional Commits.** Sign Claude-authored commits with
   `Co-Authored-By: Claude <noreply@anthropic.com>`.
 

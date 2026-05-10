@@ -1,8 +1,8 @@
 // Pure parsers + validators for the brreg LLM pipeline. Reuses
-// llm-media-parse for the Tier 1 shape (same {ai_relevant, phrases}
-// JSON contract) but defines its own Tier 2 shape because brreg
-// companies don't carry an editorial stance — output is just
-// {categories, rationale}, closer to NAV's tier2 than to media's.
+// llm-media-parse for the Tier 1 shape (same {phrases} JSON contract)
+// but defines its own Tier 2 shape because brreg companies don't carry
+// an editorial stance — output is just {categories, rationale}, closer
+// to NAV's tier2 than to media's.
 
 import {
   parseTier1 as parseMediaTier1,

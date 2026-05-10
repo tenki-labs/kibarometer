@@ -9,6 +9,7 @@ import type {
   SnapshotHeadline,
   SnapshotKeyword,
   SnapshotSkillCategoryDaily,
+  SnapshotTier2CoverageDaily,
   TaxonomyCategory,
 } from "@/lib/supabase";
 
@@ -16,6 +17,7 @@ import {
   AIShareAreaChart,
   type AIShareBucket,
 } from "@/app/(site)/_components/ai-share-area-chart";
+import { LlmCoverageBanner } from "@/app/(site)/_components/llm-coverage-banner";
 import {
   StackedAreaChart,
   type Series,
@@ -52,6 +54,7 @@ type Props = {
   keywords: SnapshotKeyword[];
   geography: SnapshotGeography[];
   taxonomy: TaxonomyCategory[];
+  tier2Coverage: SnapshotTier2CoverageDaily[];
   norwayPaths: readonly NorwayFylkePath[];
   norwayViewBox: string;
 };
@@ -106,6 +109,7 @@ export function Scroller({
   keywords,
   geography,
   taxonomy,
+  tier2Coverage,
   norwayPaths,
   norwayViewBox,
 }: Props) {
@@ -221,6 +225,11 @@ export function Scroller({
             nødvendigvis hovedtallet, og én stilling kan tilhøre flere
             kategorier (området summerer 100 %).
           </p>
+          <LlmCoverageBanner
+            rows={tier2Coverage}
+            range={range}
+            nowMs={nowMs}
+          />
           <div className="min-h-0 flex-1">
             <StackedAreaChart
               series={skillSeries}

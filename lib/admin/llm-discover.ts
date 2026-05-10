@@ -40,7 +40,6 @@ type Trigger = "manual" | "cron";
 
 type Phrase = { text: string };
 type Tier1Output = {
-  ai_relevant: boolean;
   phrases: Phrase[];
 };
 
@@ -56,7 +55,6 @@ export type RunDiscoverResult = {
   job_id?: string;
   metadata?: {
     processed: number;
-    ai_relevant: number;
     phrases_persisted: number;
     parse_fails: number;
     http_fails: number;
@@ -82,9 +80,12 @@ export async function runDiscover(args: {
     return { status: "skipped", reason: "no_prompt" };
   }
 
+  // Tier 1 only runs on rows the keyword matcher already flagged AI
+  // (`is_ai=true`). AI-relevance is keyword-driven; Tier 1 is verbatim
+  // phrase extraction for keyword-catalog growth, not relevance validation.
   const candidates = await sb<Posting[]>(
     `/nav_postings?tier1_completed_at=is.null&llm_retry_count=lt.${RETRY_LIMIT}` +
-      `&ingest_mode=eq.live` +
+      `&ingest_mode=eq.live&is_ai=eq.true` +
       `&select=id,title,description&order=posted_at.desc&limit=${K_PER_TICK}`,
     { service: true },
   );
@@ -108,7 +109,6 @@ export async function runDiscover(args: {
   if (candidates.length === 0) {
     await finalize(sb, job.id, "success", {
       processed: 0,
-      ai_relevant: 0,
       phrases_persisted: 0,
       parse_fails: 0,
       http_fails: 0,
@@ -120,7 +120,6 @@ export async function runDiscover(args: {
       job_id: job.id,
       metadata: {
         processed: 0,
-        ai_relevant: 0,
         phrases_persisted: 0,
         parse_fails: 0,
         http_fails: 0,
@@ -132,7 +131,6 @@ export async function runDiscover(args: {
 
   const start = Date.now();
   let processed = 0;
-  let aiRelevant = 0;
   let phrasesPersisted = 0;
   let parseFails = 0;
   let httpFails = 0;
@@ -149,7 +147,6 @@ export async function runDiscover(args: {
       try {
         const r = await processOne(sb, posting, prompt.body, prompt.id);
         processed += 1;
-        if (r.aiRelevant) aiRelevant += 1;
         phrasesPersisted += r.phraseCount;
       } catch (err) {
         if (err instanceof MlxError && err.kind === "auth") {
@@ -172,14 +169,13 @@ export async function runDiscover(args: {
           pct: ((idx + 1) / candidates.length) * 100,
           step:
             `${idx + 1} / ${candidates.length} · ${processed} ok · ` +
-            `${aiRelevant} AI · ${parseFails + httpFails + authFails} feil`,
+            `${phrasesPersisted} fraser · ${parseFails + httpFails + authFails} feil`,
         });
       }
     }
 
     const meta = {
       processed,
-      ai_relevant: aiRelevant,
       phrases_persisted: phrasesPersisted,
       parse_fails: parseFails,
       http_fails: httpFails,
@@ -191,7 +187,6 @@ export async function runDiscover(args: {
   } catch (err) {
     await finalize(sb, job.id, "failed", {
       processed,
-      ai_relevant: aiRelevant,
       phrases_persisted: phrasesPersisted,
       parse_fails: parseFails,
       http_fails: httpFails,
@@ -208,7 +203,7 @@ async function processOne(
   posting: Posting,
   systemPrompt: string,
   promptId: string,
-): Promise<{ aiRelevant: boolean; phraseCount: number }> {
+): Promise<{ phraseCount: number }> {
   const description = posting.description ?? "";
   const userInput =
     `Tittel: ${posting.title ?? ""}\n\n` +
@@ -231,7 +226,6 @@ async function processOne(
 
   const validatedPhrases = validatePhrases(parsed.phrases, description);
   const persisted = {
-    ai_relevant: parsed.ai_relevant,
     phrases: validatedPhrases,
     // Drop count for observability — the gap between returned and persisted
     // phrases is the hallucination signal.
@@ -251,7 +245,6 @@ async function processOne(
   });
 
   return {
-    aiRelevant: parsed.ai_relevant,
     phraseCount: validatedPhrases.length,
   };
 }
@@ -276,10 +269,9 @@ function parseTier1(content: string): Tier1Output | null {
   }
   if (!obj || typeof obj !== "object") return null;
 
-  const aiRelevant = Boolean((obj as { ai_relevant?: unknown }).ai_relevant);
   const rawPhrases = (obj as { phrases?: unknown }).phrases;
   if (!Array.isArray(rawPhrases)) {
-    return { ai_relevant: aiRelevant, phrases: [] };
+    return { phrases: [] };
   }
   const phrases: Phrase[] = [];
   for (const p of rawPhrases) {
@@ -291,7 +283,7 @@ function parseTier1(content: string): Tier1Output | null {
       phrases.push({ text: (p as { text: string }).text });
     }
   }
-  return { ai_relevant: aiRelevant, phrases };
+  return { phrases };
 }
 
 // Brace-balanced scan that respects strings + escapes. Cheaper than running
