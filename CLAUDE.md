@@ -29,7 +29,13 @@ against the external MLX endpoint (Gemma 3 4B-IT 4-bit at `mlx.tenki.no`).
 **AI-relevance is keyword-driven, never LLM-driven.** The keyword matcher
 writes `is_ai` (NAV), `is_ai_related` (media), and the generated
 `is_ai_relevant` (BRREG) at ingest time. The LLM tiers do NOT set those
-booleans — they only enrich already-flagged rows.
+booleans — they only enrich already-flagged rows. Because matching is
+forward-only at ingest, historical rows can drift when the keyword
+catalog grows. NAV corrects this via a weekly Sunday 03:30 UTC retag
+cron (see [scripts/fetcher-crontab](scripts/fetcher-crontab)) and
+`reprocessNavPostings` chains into `refreshSnapshots` on success, so the
+/jobbmarked dashboard reflects the current keyword state without
+waiting for the daily 04:00 snapshot tick.
 
 - **Tier 1 (discovery)** — verbatim AI-phrase extraction from rows
   already flagged AI by the keyword matcher (`is_ai*=true`). Phrases
