@@ -12,7 +12,6 @@ import {
 import {
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
 import type { MediaSnapshotCategoryDaily } from "@/lib/supabase";
@@ -21,6 +20,8 @@ import {
   formatBucket,
   formatBucketShort,
 } from "@/app/(site)/_components/bucket-format";
+import { ChartHoverPanel } from "@/app/(site)/_components/chart-hover-panel";
+import { useChartInteraction } from "@/app/(site)/_components/use-chart-interaction";
 import { dateKey, type BucketGrain } from "@/app/(site)/_lib/range";
 
 type Props = {
@@ -39,6 +40,8 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 export function VolumeArea({ rows, cutoffMs, grain }: Props) {
+  const { tooltipTrigger } = useChartInteraction();
+
   const data = useMemo(() => {
     // Each row in `rows` is one (published_on, category_slug) — sum across
     // categories per bucket to get the per-bucket total AI count. Drops
@@ -87,26 +90,28 @@ export function VolumeArea({ rows, cutoffMs, grain }: Props) {
           allowDecimals={false}
         />
         <ChartTooltip
-          cursor={false}
+          trigger={tooltipTrigger}
+          cursor={{ strokeDasharray: "3 3" }}
           content={
-            <ChartTooltipContent
-              indicator="dot"
-              labelFormatter={(value) =>
-                typeof value === "string"
-                  ? formatBucket(value)
-                  : String(value)
+            <ChartHoverPanel
+              mode="single"
+              header={(label) =>
+                typeof label === "string" ? formatBucket(label) : String(label)
               }
-              formatter={(value) => {
+              rows={(payload) => {
+                const item = payload[0];
                 const numeric =
-                  typeof value === "number" ? value : Number(value) || 0;
-                return (
-                  <div className="flex w-full items-center justify-between gap-3">
-                    <span className="text-muted-foreground">AI-artikler</span>
-                    <span className="font-mono font-medium tabular-nums text-foreground">
-                      {NB.format(numeric)}
-                    </span>
-                  </div>
-                );
+                  typeof item?.value === "number"
+                    ? item.value
+                    : Number(item?.value) || 0;
+                return [
+                  {
+                    key: "count",
+                    label: "AI-artikler",
+                    color: item?.color,
+                    value: NB.format(numeric),
+                  },
+                ];
               }}
             />
           }

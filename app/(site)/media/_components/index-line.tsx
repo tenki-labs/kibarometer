@@ -13,7 +13,6 @@ import {
 import {
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
 import type { MediaSnapshotIndex } from "@/lib/supabase";
@@ -22,6 +21,8 @@ import {
   formatBucket,
   formatBucketShort,
 } from "@/app/(site)/_components/bucket-format";
+import { ChartHoverPanel } from "@/app/(site)/_components/chart-hover-panel";
+import { useChartInteraction } from "@/app/(site)/_components/use-chart-interaction";
 import { dateKey, type BucketGrain } from "@/app/(site)/_lib/range";
 
 type Props = {
@@ -49,6 +50,8 @@ function indexLabel(value: number): string {
 }
 
 export function IndexLine({ rows, cutoffMs, grain }: Props) {
+  const { tooltipTrigger } = useChartInteraction();
+
   // Aggregate rows into per-bucket averages of the index value. Bucket
   // grain is whatever the caller decided via bucketGrainForRange.
   const data = useMemo(() => {
@@ -145,31 +148,30 @@ export function IndexLine({ rows, cutoffMs, grain }: Props) {
             ifOverflow="visible"
           />
           <ChartTooltip
-            cursor={false}
+            trigger={tooltipTrigger}
+            cursor={{ strokeDasharray: "3 3" }}
             content={
-              <ChartTooltipContent
-                indicator="dot"
-                labelFormatter={(value) =>
-                  typeof value === "string"
-                    ? formatBucket(value)
-                    : String(value)
+              <ChartHoverPanel
+                mode="single"
+                header={(label) =>
+                  typeof label === "string"
+                    ? formatBucket(label)
+                    : String(label)
                 }
-                formatter={(value) => {
+                rows={(payload) => {
+                  const item = payload[0];
                   const numeric =
-                    typeof value === "number" ? value : Number(value) || 0;
-                  return (
-                    <div className="flex w-full flex-col gap-1">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-muted-foreground">Indeks</span>
-                        <span className="font-mono font-medium tabular-nums text-foreground">
-                          {numeric}
-                        </span>
-                      </div>
-                      <span className="font-mono text-[0.65rem] uppercase tracking-[0.16em] text-muted-foreground">
-                        {indexLabel(numeric)} (50 = balansert)
-                      </span>
-                    </div>
-                  );
+                    typeof item?.value === "number"
+                      ? item.value
+                      : Number(item?.value) || 0;
+                  return [
+                    {
+                      key: "index",
+                      label: "Indeks",
+                      value: String(numeric),
+                      sub: `${indexLabel(numeric)} (50 = balansert)`,
+                    },
+                  ];
                 }}
               />
             }

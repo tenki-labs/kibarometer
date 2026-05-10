@@ -12,12 +12,13 @@ import {
 import {
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
 import { AI_COLOR } from "@/lib/palette";
 
 import { formatBucket, formatBucketShort } from "./bucket-format";
+import { ChartHoverPanel } from "./chart-hover-panel";
+import { useChartInteraction } from "./use-chart-interaction";
 
 export type AIShareBucket = {
   date: string;
@@ -34,6 +35,8 @@ type Props = {
 const SHARE_KEY = "share";
 
 export function AIShareAreaChart({ buckets, unitLabel = "stillinger" }: Props) {
+  const { tooltipTrigger } = useChartInteraction();
+
   const data = useMemo(
     () =>
       buckets
@@ -87,33 +90,30 @@ export function AIShareAreaChart({ buckets, unitLabel = "stillinger" }: Props) {
           }
         />
         <ChartTooltip
-          cursor={false}
+          trigger={tooltipTrigger}
+          cursor={{ strokeDasharray: "3 3" }}
           content={
-            <ChartTooltipContent
-              indicator="dot"
-              labelFormatter={(value) =>
-                typeof value === "string" ? formatBucket(value) : String(value)
+            <ChartHoverPanel
+              mode="single"
+              header={(label) =>
+                typeof label === "string" ? formatBucket(label) : String(label)
               }
-              formatter={(_value, _name, item) => {
-                const p = item.payload as
+              rows={(payload) => {
+                const item = payload[0];
+                const p = item?.payload as
                   | { aiCount: number; totalCount: number }
                   | undefined;
-                if (!p) return null;
+                if (!p) return [];
                 const share = p.totalCount > 0 ? p.aiCount / p.totalCount : 0;
-                return (
-                  <div className="flex w-full flex-col gap-1">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-muted-foreground">AI-andel</span>
-                      <span className="font-mono font-medium tabular-nums text-foreground">
-                        {(share * 100).toFixed(2).replace(".", ",")} %
-                      </span>
-                    </div>
-                    <span className="font-mono text-[0.65rem] uppercase tracking-[0.16em] text-muted-foreground">
-                      {p.aiCount.toLocaleString("nb-NO")} av{" "}
-                      {p.totalCount.toLocaleString("nb-NO")} {unitLabel}
-                    </span>
-                  </div>
-                );
+                return [
+                  {
+                    key: SHARE_KEY,
+                    label: "AI-andel",
+                    color: item?.color,
+                    value: `${(share * 100).toFixed(2).replace(".", ",")} %`,
+                    sub: `${p.aiCount.toLocaleString("nb-NO")} av ${p.totalCount.toLocaleString("nb-NO")} ${unitLabel}`,
+                  },
+                ];
               }}
             />
           }
