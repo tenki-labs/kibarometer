@@ -36,12 +36,10 @@ type Props = {
 type Point = {
   bucket: string;                  // YYYY-MM for x-axis formatting
   monthMs: number;
-  aiMedian: number | null;
-  nonAiMedian: number | null;
-  aiP25: number | null;
-  aiP75: number | null;
-  nonAiP25: number | null;
-  nonAiP75: number | null;
+  aiMean: number | null;
+  nonAiMean: number | null;
+  aiStddev: number | null;
+  nonAiStddev: number | null;
   aiSample: number;
   nonAiSample: number;
 };
@@ -50,13 +48,18 @@ const NB = new Intl.NumberFormat("nb-NO");
 const SAMPLE_FLOOR = 25;
 
 const chartConfig = {
-  aiMedian: { label: "AI-relevante", color: "var(--chart-1)" },
-  nonAiMedian: { label: "Ikke-AI", color: "var(--chart-3)" },
+  aiMean: { label: "AI-relevante", color: "var(--chart-1)" },
+  nonAiMean: { label: "Ikke-AI", color: "var(--chart-3)" },
 } satisfies ChartConfig;
 
 function fmtAge(v: number | null): string {
   if (v === null) return "—";
   return v.toFixed(1).replace(".", ",") + " år";
+}
+
+function fmtStddev(v: number | null): string {
+  if (v === null) return "—";
+  return "± " + v.toFixed(1).replace(".", ",") + " år";
 }
 
 export function FounderAgeLines({ rows, range, nowMs }: Props) {
@@ -74,24 +77,20 @@ export function FounderAgeLines({ rows, range, nowMs }: Props) {
         ({
           bucket,
           monthMs,
-          aiMedian: null,
-          nonAiMedian: null,
-          aiP25: null,
-          aiP75: null,
-          nonAiP25: null,
-          nonAiP75: null,
+          aiMean: null,
+          nonAiMean: null,
+          aiStddev: null,
+          nonAiStddev: null,
           aiSample: 0,
           nonAiSample: 0,
         } as Point);
       if (r.is_ai_relevant) {
-        cur.aiMedian = r.median_youngest_age;
-        cur.aiP25 = r.p25_youngest_age;
-        cur.aiP75 = r.p75_youngest_age;
+        cur.aiMean = r.mean_youngest_age;
+        cur.aiStddev = r.stddev_youngest_age;
         cur.aiSample = r.sample_size;
       } else {
-        cur.nonAiMedian = r.median_youngest_age;
-        cur.nonAiP25 = r.p25_youngest_age;
-        cur.nonAiP75 = r.p75_youngest_age;
+        cur.nonAiMean = r.mean_youngest_age;
+        cur.nonAiStddev = r.stddev_youngest_age;
         cur.nonAiSample = r.sample_size;
       }
       byMonth.set(bucket, cur);
@@ -109,9 +108,7 @@ export function FounderAgeLines({ rows, range, nowMs }: Props) {
 
   // Auto Y-domain. Pad both ends for breathing room; floor at 0.
   const allAges = points.flatMap((p) =>
-    [p.aiMedian, p.nonAiMedian, p.aiP25, p.aiP75, p.nonAiP25, p.nonAiP75].filter(
-      (v): v is number => v != null,
-    ),
+    [p.aiMean, p.nonAiMean].filter((v): v is number => v != null),
   );
   const minAge =
     allAges.length === 0
@@ -159,22 +156,19 @@ export function FounderAgeLines({ rows, range, nowMs }: Props) {
                 payload
                   .map((item) => {
                     const key = String(item.dataKey ?? item.name ?? "");
-                    if (key !== "aiMedian" && key !== "nonAiMedian") return null;
+                    if (key !== "aiMean" && key !== "nonAiMean") return null;
                     const p = item.payload as Point | undefined;
                     if (!p) return null;
-                    const isAi = key === "aiMedian";
-                    const median =
+                    const isAi = key === "aiMean";
+                    const mean =
                       typeof item.value === "number"
                         ? item.value
                         : Number(item.value) || null;
-                    const p25 = isAi ? p.aiP25 : p.nonAiP25;
-                    const p75 = isAi ? p.aiP75 : p.nonAiP75;
+                    const stddev = isAi ? p.aiStddev : p.nonAiStddev;
                     const sample = isAi ? p.aiSample : p.nonAiSample;
                     const lowSample = sample < SAMPLE_FLOOR;
-                    const iqr =
-                      p25 !== null && p75 !== null
-                        ? `IQR ${fmtAge(p25)} – ${fmtAge(p75)}`
-                        : null;
+                    const stddevStr =
+                      stddev !== null ? fmtStddev(stddev) : null;
                     const sampleStr = `n = ${NB.format(sample)}${
                       lowSample ? " · lavt utvalg" : ""
                     }`;
@@ -182,11 +176,11 @@ export function FounderAgeLines({ rows, range, nowMs }: Props) {
                       key,
                       label: isAi ? "AI-relevante" : "Ikke-AI",
                       color: item.color,
-                      value: fmtAge(median),
+                      value: fmtAge(mean),
                       sub: (
                         <>
-                          {iqr ? (
-                            <span className="block">{iqr}</span>
+                          {stddevStr ? (
+                            <span className="block">{stddevStr}</span>
                           ) : null}
                           <span
                             className={
@@ -209,18 +203,18 @@ export function FounderAgeLines({ rows, range, nowMs }: Props) {
         />
         <ChartLegend content={<ChartLegendContent />} />
         <Line
-          dataKey="aiMedian"
+          dataKey="aiMean"
           type="monotone"
-          stroke="var(--color-aiMedian)"
+          stroke="var(--color-aiMean)"
           strokeWidth={2}
           dot={showDots}
           connectNulls
           isAnimationActive={false}
         />
         <Line
-          dataKey="nonAiMedian"
+          dataKey="nonAiMean"
           type="monotone"
-          stroke="var(--color-nonAiMedian)"
+          stroke="var(--color-nonAiMean)"
           strokeWidth={2}
           dot={showDots}
           connectNulls

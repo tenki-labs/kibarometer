@@ -389,14 +389,14 @@ export function Scroller({
         <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
           <div className="flex items-baseline justify-between gap-4">
             <h2 className="text-lg font-medium tracking-tight sm:text-xl">
-              Median alder ved registrering — AI vs ikke-AI
+              Gjennomsnittlig alder ved registrering — AI vs ikke-AI
             </h2>
             <TimeRangeToggle value={range} onChange={onRangeChange} />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
-            Medianalder på yngste registrerte rolleinnehaver ved
+            Gjennomsnittlig alder på yngste registrerte rolleinnehaver ved
             registreringstidspunktet, per måned. To linjer sammenligner
-            AI-relevante foretak mot resten. Tooltip viser kvartilavstand
+            AI-relevante foretak mot resten. Tooltip viser standardavvik
             og utvalg.
           </p>
           <div className="min-h-0 flex-1">
