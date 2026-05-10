@@ -62,11 +62,18 @@ MLX_MODEL = os.getenv(
 # raises "unexpected keyword argument 'model_tokens'" and kills every
 # graph.run() before any I/O. The "Max input tokens for model X not
 # found" warning it used to suppress is harmless.
+#
+# max_retries=0 disables the OpenAI client's default exponential
+# back-off (60 s × 5 attempts per 5xx). When MLX returns a transient
+# 502, we'd rather lose one query in milliseconds than stall the entire
+# /discover loop for five minutes. max_retries is a first-class
+# ChatOpenAI parameter so it doesn't leak through as an unknown kwarg.
 _LLM_CONFIG = {
     "model": f"openai/{MLX_MODEL}",
     "api_key": MLX_API_KEY,
     "base_url": MLX_BASE_URL,
     "temperature": 0,
+    "max_retries": 0,
 }
 
 
@@ -195,6 +202,15 @@ async def discover(req: DiscoverRequest):
     stopped = "completed"
 
     for term in req.queries:
+        # Self-imposed wall budget. ddgs queries multiple search engines
+        # and scrapegraphai loads results via Playwright + MLX, so a
+        # single keyword can take 5-15 s. Without this break, a 20-keyword
+        # batch can run 3-5 minutes and the JS client times out before
+        # we get to return what we found. Return partial results so the
+        # JS sees a successful 200 with a non-empty urls array.
+        if time.time() - started > req.max_wall_seconds:
+            stopped = "wall_time"
+            break
         cleaned = term.strip()
         q = f"site:{req.site} {cleaned}" if req.site else cleaned
         prompt = (
