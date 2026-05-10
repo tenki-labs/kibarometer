@@ -13,7 +13,12 @@
 --
 -- Each row aggregates a single calendar date:
 --   ai_total     — rows flagged AI by the keyword matcher on that date
---   tier2_done   — of those, how many also have tier2_completed_at NOT NULL
+--   tier2_done   — of those, how many produced at least one usable
+--                  Tier 2 category (i.e. show up on the chart). Matches
+--                  the chart's eligibility predicate: a row with
+--                  `tier2_completed_at IS NOT NULL` but empty
+--                  llm_categories doesn't contribute to the chart, so
+--                  it doesn't count as "done" here either.
 --   coverage_pct — generated column = round(tier2_done / ai_total * 100, 2)
 --                  (100 when ai_total = 0 — no data is "perfect coverage"
 --                   so the banner doesn't render a misleading 0%)
@@ -51,7 +56,13 @@ begin
   select
     posted_at::date as date,
     count(*) filter (where is_ai)::int as ai_total,
-    count(*) filter (where is_ai and tier2_completed_at is not null)::int as tier2_done
+    count(*) filter (
+      where is_ai
+        and llm_categories is not null
+        and jsonb_array_length(
+          coalesce(llm_categories->'categories', '[]'::jsonb)
+        ) > 0
+    )::int as tier2_done
   from public.nav_postings
   where posted_at is not null
   group by posted_at::date
@@ -87,7 +98,13 @@ begin
   select
     published_at::date as date,
     count(*) filter (where is_ai_related)::int as ai_total,
-    count(*) filter (where is_ai_related and tier2_completed_at is not null)::int as tier2_done
+    count(*) filter (
+      where is_ai_related
+        and llm_categories is not null
+        and jsonb_array_length(
+          coalesce(llm_categories->'categories', '[]'::jsonb)
+        ) > 0
+    )::int as tier2_done
   from public.media_articles
   where published_at is not null
     and deleted_at is null

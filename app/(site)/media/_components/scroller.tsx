@@ -294,11 +294,6 @@ export function Scroller({
             Sortert etter antall AI-artikler. Negativ = bekymret, positiv =
             begeistret.
           </p>
-          <LlmCoverageBanner
-            rows={tier2Coverage}
-            range={range}
-            nowMs={nowMs}
-          />
           <div className="min-h-0 flex-1 overflow-auto">
             <CategoryTemperatureList
               rows={categoryDaily}

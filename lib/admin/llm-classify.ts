@@ -86,8 +86,8 @@ export async function runClassify(args: {
   const {
     sb,
     trigger,
-    k: K_PER_TICK = DEFAULT_K_PER_TICK,
-    wallTimeMs: WALL_TIME_MS = DEFAULT_WALL_TIME_MS,
+    k = DEFAULT_K_PER_TICK,
+    wallTimeMs = DEFAULT_WALL_TIME_MS,
   } = args;
 
   if (!mlxConfigured()) {
@@ -115,7 +115,7 @@ export async function runClassify(args: {
   const candidates = await sb<Posting[]>(
     `/nav_postings?is_ai=is.true&tier2_completed_at=is.null` +
       `&llm_retry_count=lt.${RETRY_LIMIT}` +
-      `&select=id,title,description&order=posted_at.desc&limit=${K_PER_TICK}`,
+      `&select=id,title,description&order=posted_at.desc&limit=${k}`,
     { service: true },
   );
 
@@ -172,7 +172,7 @@ export async function runClassify(args: {
 
   try {
     for (let idx = 0; idx < candidates.length; idx += 1) {
-      if (Date.now() - start > WALL_TIME_MS) {
+      if (Date.now() - start > wallTimeMs) {
         stopped = "wall_time";
         break;
       }
