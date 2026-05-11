@@ -57,6 +57,50 @@ and `/docs/api` (JSON snippets) — five cards on `/docs/`. Prose for the
 three per-pipeline doc pages is editable from `/admin/content/<slug>`
 (see §7).
 
+### NAV pillar data limitations — READ THIS
+
+**Multiple sessions have missed this and burned hours debugging "AI
+spikes" that were actually classifier-input artifacts. Don't be one of
+them.**
+
+1. **NAV's public API returns description text only for ACTIVE postings.**
+   Once an ad goes INACTIVE (filled or expired), the per-id detail endpoint
+   either 404s or returns only `{uuid, status, sistEndret}` — no
+   description. Documented in
+   [lib/admin/legacy/nav-client.js:76-79](lib/admin/legacy/nav-client.js#L76-L79)
+   and [lib/admin/legacy/nav-processor.js:78-81](lib/admin/legacy/nav-processor.js#L78-L81).
+
+2. **The keyword matcher needs description.** Title-only matching catches
+   ~0.2% of AI postings; full-text matching catches ~2%. Rows that went
+   INACTIVE before `enrichNav` reached them (~15 min after ingest tick)
+   are permanently stuck on title-only matching and undercount AI by
+   roughly 10x. There is no way to recover their description from NAV's
+   public API.
+
+3. **Historical reach is bounded by project age.** Kibarometer started
+   ingesting live NAV data 2026-05-04. Anything posted before that was
+   backfilled from NAV's archive feed and was INACTIVE at ingest — no
+   description, no enrichment, no path to recover. The /jobbmarked
+   chart truncates to **2026-04-13** (first week where description
+   coverage crosses 25%) via the constant in
+   [app/(site)/_lib/data-cutoff.ts](app/(site)/_lib/data-cutoff.ts).
+
+4. **Don't propose retroactive backfill schemes against NAV's API.** The
+   data isn't there to recover. If a future session has a clever idea
+   ("just drop the `status=eq.ACTIVE` filter in enrichNav!"), it has
+   already been considered and verified impossible — see commit
+   [git log fix/honest-jobbmarked-data-limits](https://github.com/tenki-labs/kibarometer/pulls?q=is%3Apr+honest-jobbmarked-data-limits)
+   and the two doc comments cited above. The only paths forward are
+   (a) accumulate live data over months, or (b) a non-public NAV
+   dataset (Oscar emailed `nav.team.arbeidsplassen@nav.no` 2026-05-11
+   asking; if that comes through, update this section).
+
+5. **Audit /media and /oppstart for analogous constraints.** Both pillars
+   use forward-only ingest patterns. The same "stuck-at-summary" shape
+   may exist for media articles (paywalled? deleted? scraper failed?)
+   and brreg companies (struck off? merged?). Hasn't been investigated
+   formally yet; flag if you spot weird historical drift.
+
 ## 3. Hard rules (do not negotiate)
 
 1. **Idempotent migrations.** Numbered `00NN_name.sql`. `create table if not
