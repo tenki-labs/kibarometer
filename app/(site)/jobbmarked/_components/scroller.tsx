@@ -65,8 +65,18 @@ const MAP_UNIT: NorwayMapUnit = {
   shareNoun: "AI-stillingene",
 };
 
+export type HeroMomentum = {
+  /** Percent change for the hero's big number. Server-computed in page.tsx
+   *  so we can flip between week-over-week (pre-2026-06-12, both windows
+   *  fully post-cutoff) and 30/30 (after, snapshot_headline trusted)
+   *  without client-side date logic. */
+  pct: number | null;
+  caption: string;
+};
+
 type Props = {
   headline: SnapshotHeadline | null;
+  momentum: HeroMomentum;
   /** Per-day NAV-posting totals: ai_count + total_count, no enrichment
    *  filter — sums match snapshot_headline.ai_count_30d exactly. Drives
    *  segment 2's AI-share area chart. */
@@ -125,6 +135,7 @@ function buildSeries<R extends { posted_on: string; ai_count: number; total_coun
 
 export function Scroller({
   headline,
+  momentum,
   snapshotDaily,
   skillCategoryDaily,
   keywords,
@@ -212,13 +223,11 @@ export function Scroller({
       <section className="snap-segment sm:snap-start sm:snap-always">
         {headline ? (
           (() => {
-            const momentumPct =
-              headline.ai_count_prev_30d > 0
-                ? ((headline.ai_count_30d - headline.ai_count_prev_30d) /
-                    headline.ai_count_prev_30d) *
-                  100
-                : null;
-            const m = fmtMomentumPct(momentumPct);
+            // Pct number comes from `momentum` (server-built in page.tsx)
+            // so we can show week-over-week now and auto-flip to 30/30 on
+            // 2026-06-12. See app/(site)/_lib/data-cutoff.ts for the
+            // JOBBMARKED_THIRTY_DAY_VALID_FROM threshold and why it exists.
+            const m = fmtMomentumPct(momentum.pct);
             const stats: PillarHeroStat[] = [
               {
                 label: "KI-jobber siste 30 dager",
@@ -240,7 +249,7 @@ export function Scroller({
                 description="Daglig oppdaterte tall fra NAVs stillingsfeed."
                 big={{
                   value: m.display,
-                  caption: "siste 30 dager vs. foregående 30",
+                  caption: momentum.caption,
                 }}
                 stats={stats}
                 footer={
