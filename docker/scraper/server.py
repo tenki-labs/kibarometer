@@ -1,19 +1,29 @@
 """
-kiba-scraper sidecar — FastAPI wrapper around scrapegraphai's
-SearchGraph (URL discovery) and SmartScraperGraph (article extraction).
+kiba-scraper sidecar — FastAPI app for media URL discovery + article
+body extraction.
 
-Talks only to:
-  - DuckDuckGo (search backend, free, bundled with scrapegraphai)
-  - The article publisher's site (Playwright fetch)
-  - MLX LLM at MLX_BASE_URL (OpenAI-compatible HTTPS, bearer token)
+  - /discover uses the ddgs package directly (no LLM in the loop).
+    SearchGraph used to back this endpoint, but its pipeline runs a
+    multi-step LLM chain — Playwright fetch each result page + N MLX
+    synthesis calls per keyword — which burned 5-15 s per query and
+    made the whole call hostage to MLX uptime. We don't need an LLM to
+    list URLs; the downstream pipeline (keyword matcher + Tier 1/2)
+    does the semantic work.
+  - /extract still uses scrapegraphai's SmartScraperGraph against MLX.
+    Pulling headline/body/date/author out of arbitrary publisher HTML
+    is the part where the LLM genuinely earns its keep.
+
+Talks to:
+  - DuckDuckGo (and the other engines ddgs aggregates) over plain HTTP
+  - The article publisher's site (Playwright fetch — /extract only)
+  - MLX LLM at MLX_BASE_URL (OpenAI-compatible HTTPS — /extract only)
 
 Three endpoints:
   POST /discover  — keyword queries → article URLs
   POST /extract   — article URL → {title, body, published_at, author}
-  GET  /healthz   — readiness probe (LLM + Chromium handshake)
+  GET  /healthz   — readiness probe (MLX bearer reachable)
 
-See ../scraper/schemas.py for the strict request/response shapes that
-double as scrapegraphai output validation.
+See ../scraper/schemas.py for the strict request/response shapes.
 """
 
 from __future__ import annotations
@@ -26,10 +36,11 @@ from contextlib import asynccontextmanager
 from typing import Optional
 
 import httpx
+from ddgs import DDGS
 from fastapi import FastAPI, HTTPException, status
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
-from scrapegraphai.graphs import SearchGraph, SmartScraperGraph
+from scrapegraphai.graphs import SmartScraperGraph
 
 from schemas import (
     DiscoverRequest,
@@ -148,46 +159,14 @@ async def healthz():
     return body
 
 
-def _shape_of(result: object) -> str:
-    """One-line fingerprint of what SearchGraph.run() returned, surfaced
-    in DiscoverStats.result_shapes so an operator on /admin/processes/{id}
-    can tell at a glance whether the parser silently dropped a non-empty
-    result. Examples:
-      "keys=urls"
-      "keys=answer,considered_urls"
-      "list[12]"
-      "type=str"
-    """
-    if isinstance(result, dict):
-        keys = sorted(result.keys()) if result else []
-        return "keys=" + ",".join(keys) if keys else "keys=<empty>"
-    if isinstance(result, list):
-        return f"list[{len(result)}]"
-    return f"type={type(result).__name__}"
-
-
-def _extract_candidates(result: object) -> list[str]:
-    """Pull URL strings out of whatever SearchGraph returned. Handles the
-    handful of shapes observed in scrapegraphai 1.76. If a new shape
-    appears in /admin/processes/{id}'s metadata.result_shapes, add it
-    here AND to test_server.py so the parser doesn't silently regress."""
-    if isinstance(result, dict):
-        for key in ("urls", "links", "considered_urls"):
-            v = result.get(key)
-            if isinstance(v, list):
-                return [str(u) for u in v]
-        for outer in ("result", "answer"):
-            inner = result.get(outer)
-            if isinstance(inner, list):
-                return [str(u) for u in inner]
-            if isinstance(inner, dict):
-                for key in ("urls", "links", "considered_urls"):
-                    v = inner.get(key)
-                    if isinstance(v, list):
-                        return [str(u) for u in v]
-    elif isinstance(result, list):
-        return [str(u) for u in result]
-    return []
+def _ddgs_search(query: str, max_results: int) -> list[dict]:
+    """Sync DDG search via the ddgs package. Called from asyncio.to_thread
+    inside /discover so we don't block the event loop. ddgs aggregates
+    several engines (DuckDuckGo HTML, Brave, Mojeek, Wikipedia) and
+    returns one merged list of {title, href, body} dicts. region=no-no
+    biases toward Norwegian-language results."""
+    with DDGS() as ddg:
+        return list(ddg.text(query, max_results=max_results, region="no-no"))
 
 
 @app.post("/discover", response_model=DiscoverResponse)
@@ -195,79 +174,55 @@ async def discover(req: DiscoverRequest):
     started = time.time()
     urls: list[str] = []
     seen: set[str] = set()
-    pages_fetched = 0
     queries_run = 0
     dropped_off_domain = 0
-    result_shapes: list[str] = []
     stopped = "completed"
 
     for term in req.queries:
-        # Self-imposed wall budget. ddgs queries multiple search engines
-        # and scrapegraphai loads results via Playwright + MLX, so a
-        # single keyword can take 5-15 s. Without this break, a 20-keyword
-        # batch can run 3-5 minutes and the JS client times out before
-        # we get to return what we found. Return partial results so the
-        # JS sees a successful 200 with a non-empty urls array.
+        # Wall budget: a healthy ddgs call is ~0.5-2 s, so 20 keywords
+        # comfortably fit under max_wall_seconds. The check fires
+        # between iterations — that's accurate now because no single
+        # iteration runs long enough to blow past the budget.
         if time.time() - started > req.max_wall_seconds:
             stopped = "wall_time"
             break
         cleaned = term.strip()
         q = f"site:{req.site} {cleaned}" if req.site else cleaned
-        prompt = (
-            f"Find recent Norwegian news articles matching: {q}. "
-            "Return ONLY a JSON object with a 'urls' array of full "
-            "publisher URLs (one per article). Do not invent URLs."
-        )
-        graph = SearchGraph(
-            prompt=prompt,
-            config=_graph_config({"max_results": req.num_results}),
-        )
         try:
-            # scrapegraphai's run() is sync; offload to a thread so we
-            # don't block the event loop.
-            result = await asyncio.to_thread(graph.run)
+            hits = await asyncio.to_thread(_ddgs_search, q, req.num_results)
         except Exception as exc:  # noqa: BLE001
-            log.warning("SearchGraph failed for %r: %s", q, exc)
+            log.warning("ddgs failed for %r: %s", q, exc)
             stopped = "search_error"
             continue
 
         queries_run += 1
-        shape = _shape_of(result)
-        result_shapes.append(shape)
-        candidates = _extract_candidates(result)
-
-        if not candidates and result not in (None, {}, []):
-            # Non-empty result that the parser couldn't read. Log the
-            # raw value so it's visible in `docker logs kiba-scraper`,
-            # capped at 500 chars.
-            log.info(
-                "SearchGraph returned shape=%s but no URLs parsed for %r: %s",
-                shape, q, repr(result)[:500],
-            )
-
-        for u in candidates:
-            if not u.startswith(("http://", "https://")):
+        for r in hits:
+            url = r.get("href") if isinstance(r, dict) else None
+            if not isinstance(url, str) or not url.startswith(("http://", "https://")):
                 continue
-            if req.site and req.site.lower() not in u.lower():
-                # Defensive: SearchGraph occasionally returns off-domain
-                # results despite the site: filter.
+            if req.site and req.site.lower() not in url.lower():
+                # ddgs occasionally returns off-domain results even with
+                # site: in the query (different engines vary in how
+                # strictly they apply the operator).
                 dropped_off_domain += 1
                 continue
-            if u in seen:
+            if url in seen:
                 continue
-            seen.add(u)
-            urls.append(u)
-            pages_fetched += 1
+            seen.add(url)
+            urls.append(url)
 
     duration_ms = int((time.time() - started) * 1000)
     return DiscoverResponse(
         urls=urls,
         stats=DiscoverStats(
             queries_run=queries_run,
-            pages_fetched=pages_fetched,
+            pages_fetched=len(urls),
             duration_ms=duration_ms,
             stopped=stopped,
-            result_shapes=result_shapes,
+            # result_shapes was SearchGraph diagnostics; ddgs results
+            # are always {title, href, body} so the field is now empty
+            # but kept for response-schema compat.
+            result_shapes=[],
             dropped_off_domain=dropped_off_domain,
         ),
     )
