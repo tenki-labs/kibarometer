@@ -55,6 +55,7 @@ ed -s "$ENV_DIR/supabase.env" <<EOF
 ,s|^DISABLE_SIGNUP=.*|DISABLE_SIGNUP=true|
 ,s|^SUPABASE_PUBLIC_URL=.*|SUPABASE_PUBLIC_URL=https://kibarometer.no/supabase|
 ,s|^API_EXTERNAL_URL=.*|API_EXTERNAL_URL=https://kibarometer.no/supabase|
+,s|^PGRST_DB_MAX_ROWS=.*|PGRST_DB_MAX_ROWS=1000000|
 w
 q
 EOF
