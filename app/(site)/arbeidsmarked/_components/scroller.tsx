@@ -41,6 +41,7 @@ import {
   fmtMomentumPct,
   fmtNumber,
 } from "@/app/(site)/_lib/format-headline";
+import type { JobsMomentum } from "@/app/(site)/_lib/data-cutoff";
 
 import { KeywordList } from "./keyword-list";
 import { NorwayMap, type NorwayMapUnit } from "./norway-map";
@@ -65,18 +66,9 @@ const MAP_UNIT: NorwayMapUnit = {
   shareNoun: "AI-stillingene",
 };
 
-export type HeroMomentum = {
-  /** Percent change for the hero's big number. Server-computed in page.tsx
-   *  so we can flip between week-over-week (pre-2026-06-12, both windows
-   *  fully post-cutoff) and 30/30 (after, snapshot_headline trusted)
-   *  without client-side date logic. */
-  pct: number | null;
-  caption: string;
-};
-
 type Props = {
   headline: SnapshotHeadline | null;
-  momentum: HeroMomentum;
+  momentum: JobsMomentum;
   /** Per-day NAV-posting totals: ai_count + total_count, no enrichment
    *  filter — sums match snapshot_headline.ai_count_30d exactly. Drives
    *  segment 2's AI-share area chart. */
