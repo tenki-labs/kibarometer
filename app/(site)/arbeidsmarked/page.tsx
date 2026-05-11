@@ -25,10 +25,10 @@ import {
 
 import {
   JOBBMARKED_DATA_CUTOFF,
-  JOBBMARKED_THIRTY_DAY_VALID_FROM,
+  buildJobsMomentum,
 } from "@/app/(site)/_lib/data-cutoff";
 
-import { Scroller, type HeroMomentum } from "./_components/scroller";
+import { Scroller } from "./_components/scroller";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
@@ -110,7 +110,7 @@ export default async function ArbeidsmarkedPage() {
   ]);
 
   const headline = headlineRows[0] ?? null;
-  const momentum = buildMomentum(headline, snapshotDaily);
+  const momentum = buildJobsMomentum(headline, snapshotDaily);
 
   return (
     <>
@@ -134,46 +134,4 @@ export default async function ArbeidsmarkedPage() {
       />
     </>
   );
-}
-
-// Derive the hero's pct-change number from honest data. Until
-// JOBBMARKED_THIRTY_DAY_VALID_FROM (2026-06-12), snapshot_headline's
-// prior_30d window dips into pre-cutoff title-only-classified rows and
-// produces inflated ratios (e.g. +791% on 2026-05-11 when the real
-// AI-percent has been roughly stable). Auto-flip on/after that date.
-function buildMomentum(
-  headline: SnapshotHeadline | null,
-  snapshotDaily: SnapshotDaily[],
-): HeroMomentum {
-  const today = new Date().toISOString().slice(0, 10);
-  if (today >= JOBBMARKED_THIRTY_DAY_VALID_FROM && headline) {
-    const pct =
-      headline.ai_count_prev_30d > 0
-        ? ((headline.ai_count_30d - headline.ai_count_prev_30d) /
-            headline.ai_count_prev_30d) *
-          100
-        : null;
-    return { pct, caption: "siste 30 dager vs. foregående 30" };
-  }
-  // Week-over-week from cutoff-truncated snapshot_daily. Anchor "now" to the
-  // latest posted_on in the snapshot rather than wall clock — keeps the
-  // window stable across 04:00 UTC snapshot rebuilds.
-  let latest = 0;
-  for (const row of snapshotDaily) {
-    const t = new Date(row.posted_on + "T00:00:00Z").getTime();
-    if (t > latest) latest = t;
-  }
-  if (latest === 0) return { pct: null, caption: "siste 7 dager vs. foregående 7" };
-  const dayMs = 86_400_000;
-  const sevenAgo = latest - 7 * dayMs;
-  const fourteenAgo = latest - 14 * dayMs;
-  let ai7 = 0;
-  let aiPrev7 = 0;
-  for (const row of snapshotDaily) {
-    const t = new Date(row.posted_on + "T00:00:00Z").getTime();
-    if (t > sevenAgo && t <= latest) ai7 += row.ai_count;
-    else if (t > fourteenAgo && t <= sevenAgo) aiPrev7 += row.ai_count;
-  }
-  const pct = aiPrev7 > 0 ? ((ai7 - aiPrev7) / aiPrev7) * 100 : null;
-  return { pct, caption: "siste 7 dager vs. foregående 7" };
 }

@@ -12,6 +12,10 @@ import type {
 
 import { fmtMomentumPct, fmtNumber } from "./_lib/format-headline";
 import {
+  JOBBMARKED_DATA_CUTOFF,
+  buildJobsMomentum,
+} from "./_lib/data-cutoff";
+import {
   TemperaturCard,
   TemperaturCardEmpty,
 } from "./_components/temperatur-card";
@@ -129,8 +133,13 @@ export default async function LandingPage() {
       sb<SnapshotHeadline[]>(
         "/snapshot_headline?order=computed_for.desc&limit=1",
       ).catch(() => null),
+      // snapshot_daily filtered to JOBBMARKED_DATA_CUTOFF — pre-cutoff
+      // rows are tagged title-only and undercount AI by ~10x; including
+      // them in the gauge series + momentum computation publishes the
+      // same artifact the /arbeidsmarked page already truncates away.
+      // See app/(site)/_lib/data-cutoff.ts.
       sb<JobsDailyRow[]>(
-        "/snapshot_daily?order=posted_on.desc&limit=150&select=posted_on,ai_count",
+        `/snapshot_daily?order=posted_on.desc&posted_on=gte.${JOBBMARKED_DATA_CUTOFF}&limit=150&select=posted_on,ai_count`,
       ).catch(() => null),
       sb<BrregSnapshotHeadline[]>(
         "/brreg_snapshot_headline?order=computed_for.desc&limit=1",
@@ -150,19 +159,17 @@ export default async function LandingPage() {
       jobsDaily.map((d) => ({ date: d.posted_on, ai: d.ai_count })),
     );
     const gauge = gaugeFromSeries(jobs.ai_count_30d, series);
-    const momentumPct =
-      jobs.ai_count_prev_30d > 0
-        ? ((jobs.ai_count_30d - jobs.ai_count_prev_30d) /
-            jobs.ai_count_prev_30d) *
-          100
-        : null;
-    const m = fmtMomentumPct(momentumPct);
+    // Momentum pct is week-over-week until 2026-06-12, then auto-flips
+    // to 30/30 — see app/(site)/_lib/data-cutoff.ts for why the 30/30
+    // ratio from snapshot_headline is misleading right now.
+    const momentum = buildJobsMomentum(jobs, jobsDaily);
+    const m = fmtMomentumPct(momentum.pct);
     jobsCard = (
       <TemperaturCard
         href="/arbeidsmarked"
         pillarLabel="Arbeidsmarked"
         headlineValue={m.display}
-        headlineCaption="siste 30 dager vs. foregående 30"
+        headlineCaption={momentum.caption}
         levelLabel={levelDescriptor(jobs.ai_count_30d, gauge)}
         levelCaption={`${fmtNumber(jobs.ai_count_30d)} ai-stillinger siste 30 dager`}
         gauge={gauge}
