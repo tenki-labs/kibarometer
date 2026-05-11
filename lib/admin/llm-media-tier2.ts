@@ -113,7 +113,8 @@ export async function runMediaTier2(args: {
   const candidates = await sb<Article[]>(
     `/media_articles?is_ai_related=is.true&tier2_completed_at=is.null` +
       `&deleted_at=is.null&llm_retry_count=lt.${RETRY_LIMIT}` +
-      `&select=id,headline,llm_ai_phrases&order=created_at.desc&limit=${k}`,
+      `&select=id,headline,llm_ai_phrases` +
+      `&order=published_at.desc.nullslast,created_at.desc&limit=${k}`,
     { service: true },
   );
 
