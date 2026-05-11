@@ -1,12 +1,11 @@
 """
 Smoke tests for the kiba-scraper FastAPI app.
 
-Strategy: stub the MLX endpoint with a tiny in-process HTTP server that
-returns canned chat-completion responses. Patch scrapegraphai's
-SmartScraperGraph and SearchGraph at the import boundary so we don't
-actually fetch live pages — the goal here is to verify the FastAPI
+Strategy: patch DDGS at the import boundary so /discover doesn't hit
+the live search backends, and patch SmartScraperGraph so /extract
+doesn't drive Playwright or MLX. The goal is to verify the FastAPI
 wiring (request parsing, response shape, validator gate, healthcheck)
-not to retest scrapegraphai's internals.
+not to retest ddgs or scrapegraphai's internals.
 
 Run: pytest test_server.py -v
 """
@@ -50,51 +49,58 @@ def test_healthz_ok(client):
 # ---- /discover ----------------------------------------------------------
 
 
-class _FakeSearchGraph:
-    """Replaces SearchGraph; returns predetermined URLs based on query."""
-
-    last_prompts: list[str] = []
-
-    def __init__(self, prompt, config):
-        self.prompt = prompt
-        self.config = config
-        _FakeSearchGraph.last_prompts.append(prompt)
-
-    def run(self):
-        # If the prompt has a site: filter, return only that domain.
-        if "site:nrk.no" in self.prompt:
-            return {"urls": ["https://www.nrk.no/article-1", "https://www.nrk.no/article-2"]}
-        return {"urls": [
-            "https://www.aftenposten.no/i/abc/something",
-            "https://www.digi.no/artikkel/openai",
-            "https://example.com/external-but-should-pass",
-        ]}
+def _stub_ddgs(per_query_hits):
+    """Build a patcher for server._ddgs_search that returns a canned list
+    of {href, title, body} dicts for every query. `per_query_hits` can be
+    either a list (same hits for every query) or a callable
+    `(query, max_results) -> list` for query-dependent behaviour."""
+    if callable(per_query_hits):
+        return patch("server._ddgs_search", side_effect=per_query_hits)
+    return patch("server._ddgs_search", return_value=list(per_query_hits))
 
 
 def test_discover_basic(client):
-    _FakeSearchGraph.last_prompts.clear()
-    with patch("server.SearchGraph", _FakeSearchGraph):
+    hits = [
+        {"href": "https://www.aftenposten.no/i/abc/something",
+         "title": "AI", "body": ""},
+        {"href": "https://www.digi.no/artikkel/openai",
+         "title": "OpenAI", "body": ""},
+        {"href": "https://example.com/external-but-should-pass",
+         "title": "x", "body": ""},
+    ]
+    with _stub_ddgs(hits):
         r = client.post("/discover", json={"queries": ["AI"], "num_results": 5})
     assert r.status_code == 200
     body = r.json()
     assert len(body["urls"]) == 3
     assert body["stats"]["queries_run"] == 1
+    assert body["stats"]["pages_fetched"] == 3
 
 
 def test_discover_site_filter_keeps_only_matching(client):
-    _FakeSearchGraph.last_prompts.clear()
-    with patch("server.SearchGraph", _FakeSearchGraph):
+    calls: list[tuple[str, int]] = []
+
+    def by_query(query, max_results):
+        calls.append((query, max_results))
+        return [
+            {"href": "https://www.nrk.no/article-1", "title": "", "body": ""},
+            {"href": "https://www.nrk.no/article-2", "title": "", "body": ""},
+        ]
+
+    with _stub_ddgs(by_query):
         r = client.post("/discover", json={
             "queries": ["AI", "KI"],
             "site": "nrk.no",
             "num_results": 5,
         })
+
     body = r.json()
-    # Both queries hit the nrk.no branch → 2 unique URLs (deduped).
+    # Same two URLs across both queries → deduped to 2.
     assert all("nrk.no" in u for u in body["urls"])
     assert len(body["urls"]) == 2
-    # Both prompts include the site: filter.
-    assert all("site:nrk.no" in p for p in _FakeSearchGraph.last_prompts)
+    # Both queries are prefixed with site: in the search string we pass
+    # through to ddgs.
+    assert all(q.startswith("site:nrk.no ") for q, _ in calls)
 
 
 def test_discover_rejects_blank_queries(client):
@@ -107,92 +113,43 @@ def test_discover_rejects_too_many_queries(client):
     assert r.status_code == 422
 
 
-class _FakeSearchGraphUnparseable:
-    """Returns a dict shape the parser doesn't know — simulates the
-    VG.no failure mode where SearchGraph hands back an LLM-shaped dict
-    and we silently drop everything."""
-
-    def __init__(self, prompt, config):
-        pass
-
-    def run(self):
-        return {
-            "answer": "Here are some Norwegian news URLs",
-            "considered_urls": ["https://www.vg.no/i/Mlavbg/x"],
-        }
-
-
-def test_discover_unparseable_shape_logs_and_recovers(client, caplog):
-    """A non-empty result the parser can't read should:
-      1. still 200 (we don't blow up),
-      2. surface the shape in stats.result_shapes,
-      3. log the raw value so an operator can debug,
-      4. now actually pull URLs from `considered_urls` (the parser was
-         extended to handle this shape — was the silent VG.no bug)."""
-    import logging
-
-    with patch("server.SearchGraph", _FakeSearchGraphUnparseable):
-        with caplog.at_level(logging.INFO, logger="kiba-scraper"):
-            r = client.post("/discover", json={
-                "queries": ["AI"],
-                "site": "vg.no",
-                "num_results": 5,
-            })
-
-    assert r.status_code == 200
-    body = r.json()
-    # Parser now extracts considered_urls — VG.no fix.
-    assert body["urls"] == ["https://www.vg.no/i/Mlavbg/x"]
-    assert body["stats"]["result_shapes"] == ["keys=answer,considered_urls"]
-    assert body["stats"]["dropped_off_domain"] == 0
-
-
-class _FakeSearchGraphTrulyOpaque:
-    """Returns a shape with no URL-bearing keys at all — exercises the
-    'log raw value' branch."""
-
-    def __init__(self, prompt, config):
-        pass
-
-    def run(self):
-        return {"answer": "I don't know"}
-
-
-def test_discover_truly_opaque_shape_logs_raw(client, caplog):
-    import logging
-
-    with patch("server.SearchGraph", _FakeSearchGraphTrulyOpaque):
-        with caplog.at_level(logging.INFO, logger="kiba-scraper"):
-            r = client.post("/discover", json={"queries": ["x"]})
-
-    assert r.status_code == 200
-    body = r.json()
-    assert body["urls"] == []
-    assert body["stats"]["result_shapes"] == ["keys=answer"]
-    # The "no URLs parsed" log line fired with the raw repr.
-    assert any("no URLs parsed" in rec.message for rec in caplog.records)
-
-
-class _FakeSearchGraphAllOffDomain:
-    """Every URL returned is off-domain when site filter is applied."""
-
-    def __init__(self, prompt, config):
-        pass
-
-    def run(self):
-        return {"urls": [
-            "https://www.aftenposten.no/x",
-            "https://www.dagbladet.no/y",
-        ]}
-
-
 def test_discover_dropped_off_domain_counted(client):
-    with patch("server.SearchGraph", _FakeSearchGraphAllOffDomain):
+    hits = [
+        {"href": "https://www.aftenposten.no/x", "title": "", "body": ""},
+        {"href": "https://www.dagbladet.no/y", "title": "", "body": ""},
+    ]
+    with _stub_ddgs(hits):
         r = client.post("/discover", json={"queries": ["x"], "site": "vg.no"})
     body = r.json()
     assert body["urls"] == []
     assert body["stats"]["dropped_off_domain"] == 2
-    assert body["stats"]["result_shapes"] == ["keys=urls"]
+    # result_shapes is preserved as an empty list for schema compat now
+    # that we don't parse arbitrary SearchGraph shapes anymore.
+    assert body["stats"]["result_shapes"] == []
+
+
+def test_discover_search_error_continues_to_next_query(client):
+    """One ddgs failure shouldn't kill the whole batch — surface
+    stopped='search_error' but keep processing remaining keywords."""
+    calls: list[str] = []
+
+    def flake(query, max_results):
+        calls.append(query)
+        if "AI" in query:
+            raise RuntimeError("ddgs network glitch")
+        return [{"href": "https://www.nrk.no/x", "title": "", "body": ""}]
+
+    with _stub_ddgs(flake):
+        r = client.post("/discover", json={
+            "queries": ["AI", "KI"], "site": "nrk.no", "num_results": 5,
+        })
+
+    assert r.status_code == 200
+    body = r.json()
+    assert body["urls"] == ["https://www.nrk.no/x"]
+    assert body["stats"]["queries_run"] == 1  # KI succeeded, AI didn't
+    assert body["stats"]["stopped"] == "search_error"
+    assert len(calls) == 2  # both queries attempted
 
 
 # ---- /extract ----------------------------------------------------------
