@@ -24,7 +24,7 @@ import {
 import {
   NorwayMap,
   type NorwayMapUnit,
-} from "@/app/(site)/jobbmarked/_components/norway-map";
+} from "@/app/(site)/arbeidsmarked/_components/norway-map";
 import type { NorwayFylkePath } from "@/lib/norway-paths";
 import type {
   BrregSnapshotDaily,
@@ -277,7 +277,7 @@ export function Scroller({
   // Sync the URL via history.replaceState rather than Next.js router.replace
   // so the snap-scroll container's scroll position is never perturbed — the
   // router path can interact subtly with the segment layout and bounce the
-  // user back to the hero on each click. Mirrors /jobbmarked.
+  // user back to the hero on each click. Mirrors /arbeidsmarked.
   function onRangeChange(next: Range) {
     setRange(next);
     const params = new URLSearchParams(searchParams.toString());

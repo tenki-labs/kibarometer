@@ -159,7 +159,7 @@ export function Scroller({
     if (next === "1m") params.delete("range");
     else params.set("range", next);
     const qs = params.toString();
-    const url = qs ? `/jobbmarked?${qs}` : "/jobbmarked";
+    const url = qs ? `/arbeidsmarked?${qs}` : "/arbeidsmarked";
     if (typeof window !== "undefined") {
       window.history.replaceState(null, "", url);
     }
@@ -244,7 +244,7 @@ export function Scroller({
             ];
             return (
               <PillarHero
-                breadcrumb="Jobbmarked"
+                breadcrumb="Arbeidsmarked"
                 title="Kunstig intelligens på norsk arbeidsmarked"
                 description="Daglig oppdaterte tall fra NAVs stillingsfeed."
                 big={{
@@ -263,7 +263,7 @@ export function Scroller({
           })()
         ) : (
           <PillarHeroEmpty
-            breadcrumb="Jobbmarked"
+            breadcrumb="Arbeidsmarked"
             message="Snapshots ikke regnet ennå."
           />
         )}
@@ -287,7 +287,7 @@ export function Scroller({
             inaktive før vi rakk å hente fulltekst — klassifisering ut fra
             tittel alene ble for upålitelig til å publisere. Se{" "}
             <a
-              href="/docs/jobbmarked"
+              href="/docs/arbeidsmarked"
               className="underline underline-offset-2 hover:text-foreground"
             >
               metode

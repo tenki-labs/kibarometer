@@ -12,7 +12,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/jobb-barometer",
-        destination: "/jobbmarked",
+        destination: "/arbeidsmarked",
         permanent: true,
       },
       // /mediedekning content merged into /media (one page per kibarometer).

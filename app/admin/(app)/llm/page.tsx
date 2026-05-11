@@ -477,7 +477,7 @@ export default async function LlmStatusPage({ searchParams }: Props) {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <DomainQueueCard
           icon={<Briefcase className="size-3.5" />}
-          title="Jobbmarked"
+          title="Arbeidsmarked"
           subtitle="NAV-stillinger"
           rows={[
             { label: "Tier 1-kø", value: navT1 },
@@ -567,7 +567,7 @@ export default async function LlmStatusPage({ searchParams }: Props) {
             <>
               <ClaudeDrainPillar
                 pillar="nav"
-                label="Jobbmarked (NAV)"
+                label="Arbeidsmarked (NAV)"
                 backlog={navT2}
                 job={navDrain}
               />

@@ -118,7 +118,7 @@ export function Scroller({
   // Sync the URL via history.replaceState rather than Next.js router.replace
   // so the snap-scroll container's scroll position is never perturbed — the
   // router path can interact subtly with the segment layout and bounce the
-  // user back to the hero on each click. Mirrors /jobbmarked's scroller.
+  // user back to the hero on each click. Mirrors /arbeidsmarked's scroller.
   function onRangeChange(next: Range) {
     setRange(next);
     const params = new URLSearchParams(searchParams.toString());

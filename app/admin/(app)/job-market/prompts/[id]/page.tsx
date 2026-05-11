@@ -42,7 +42,7 @@ export default async function NavPromptRevisionPage({
       <>
         <Flash searchParams={sp} />
         <PromptRevisionNotFound
-          eyebrow="Jobbmarked"
+          eyebrow="Arbeidsmarked"
           basePath="/admin/job-market/prompts"
         />
       </>
@@ -61,7 +61,7 @@ export default async function NavPromptRevisionPage({
       <>
         <Flash searchParams={sp} />
         <PromptRevisionNotFound
-          eyebrow="Jobbmarked"
+          eyebrow="Arbeidsmarked"
           basePath="/admin/job-market/prompts"
         />
       </>
@@ -77,7 +77,7 @@ export default async function NavPromptRevisionPage({
       <PromptRevisionEditor
         rev={rev}
         title={ROLE_TITLES[rev.role]}
-        eyebrow="Jobbmarked"
+        eyebrow="Arbeidsmarked"
         basePath="/admin/job-market/prompts"
         createRevision={create}
         setActive={setActive}

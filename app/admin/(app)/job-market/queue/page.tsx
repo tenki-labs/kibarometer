@@ -122,7 +122,7 @@ export default async function NavQueuePage({ searchParams }: Props) {
     <>
       <Flash searchParams={sp} />
       <PageHeader
-        eyebrow="Jobbmarked"
+        eyebrow="Arbeidsmarked"
         title="Kø"
         description="Pågående pipeline-trinn for NAV. Cron drainer normaltilstand — disse tellingene skal trende mot null mellom kjøringer. Operasjoner-kortet under er escape hatches."
       />

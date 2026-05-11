@@ -29,7 +29,7 @@ const PUBLIC_PATH: Record<string, string> = {
   om: "/om",
   docs: "/docs",
   media: "/media",
-  "docs-jobbmarked": "/docs/jobbmarked",
+  "docs-jobbmarked": "/docs/arbeidsmarked",
   "docs-media": "/docs/media",
   "docs-oppstart": "/docs/oppstart",
 };

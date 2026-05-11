@@ -24,7 +24,7 @@ type SiteContent = {
 
 const FALLBACK = {
   title: "Sammendrag",
-  body_md: `Kibarometeret er et uavhengig dashbord som sporer hvordan kunstig intelligens påvirker norsk arbeidsliv, mediebilde og næringsetablering. Tre datapipeliner mater dashboardene: [NAVs stillingsfeed](/docs/jobbmarked), [RSS-feeder fra norske medier](/docs/media), og [Brønnøysundregistrene](/docs/oppstart).
+  body_md: `Kibarometeret er et uavhengig dashbord som sporer hvordan kunstig intelligens påvirker norsk arbeidsliv, mediebilde og næringsetablering. Tre datapipeliner mater dashboardene: [NAVs stillingsfeed](/docs/arbeidsmarked), [RSS-feeder fra norske medier](/docs/media), og [Brønnøysundregistrene](/docs/oppstart).
 
 Hver pipeline har sin egen klassifiseringslogikk og kjente begrensninger — klikk på et av kortene over for å lese hvordan den enkelte fungerer.`,
 };
@@ -40,8 +40,8 @@ export const revalidate = 60;
 
 const DOC_SECTIONS = [
   {
-    href: "/docs/jobbmarked",
-    title: "Jobbmarked",
+    href: "/docs/arbeidsmarked",
+    title: "Arbeidsmarked",
     description: "AI-stillinger fra NAVs offentlige stillingsfeed.",
   },
   {

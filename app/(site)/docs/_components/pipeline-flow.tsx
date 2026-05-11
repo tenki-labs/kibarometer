@@ -1,4 +1,4 @@
-// Inline SVG flow diagram used by /docs/jobbmarked, /docs/media, /docs/oppstart.
+// Inline SVG flow diagram used by /docs/arbeidsmarked, /docs/media, /docs/oppstart.
 // Six horizontal boxes (Kilde → 4 prosess-stadier → Dashboard), arrows
 // between, cadence label below each transition. Uses CSS-variable colors so
 // the diagram adapts to light + dark mode without extra logic.

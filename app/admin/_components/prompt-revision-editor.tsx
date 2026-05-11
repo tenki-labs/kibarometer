@@ -36,7 +36,7 @@ export type PromptRevisionEditorProps = {
   rev: PromptRevisionFull;
   // E.g. "Tier 1 — Discovery" or "Media · Tier 1 — Relevans".
   title: string;
-  // Eyebrow shown above the title — domain-specific ("Jobbmarked", "Medie-dekning").
+  // Eyebrow shown above the title — domain-specific ("Arbeidsmarked", "Medie-dekning").
   eyebrow: string;
   basePath: string;
   // Bound server actions for this row.

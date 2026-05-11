@@ -159,8 +159,8 @@ export default async function LandingPage() {
     const m = fmtMomentumPct(momentumPct);
     jobsCard = (
       <TemperaturCard
-        href="/jobbmarked"
-        pillarLabel="Jobbmarked"
+        href="/arbeidsmarked"
+        pillarLabel="Arbeidsmarked"
         headlineValue={m.display}
         headlineCaption="siste 30 dager vs. foregående 30"
         levelLabel={levelDescriptor(jobs.ai_count_30d, gauge)}
@@ -170,7 +170,7 @@ export default async function LandingPage() {
     );
   } else {
     jobsCard = (
-      <TemperaturCardEmpty href="/jobbmarked" pillarLabel="Jobbmarked" />
+      <TemperaturCardEmpty href="/arbeidsmarked" pillarLabel="Arbeidsmarked" />
     );
   }
 

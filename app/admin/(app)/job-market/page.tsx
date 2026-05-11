@@ -139,7 +139,7 @@ export default async function JobMarketOverviewPage({ searchParams }: Props) {
       />
       <Flash searchParams={params} />
       <PageHeader
-        eyebrow="Jobbmarked"
+        eyebrow="Arbeidsmarked"
         title="Oversikt"
         description="NAV-pipelinen: fetch fra stillingsfeed, berikelse av aktive stillinger, klassifisering og snapshot-bygging. Operasjoner ligger på Kø."
         action={
