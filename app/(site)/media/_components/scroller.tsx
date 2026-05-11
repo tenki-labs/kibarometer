@@ -29,12 +29,34 @@ import type {
 } from "@/lib/supabase";
 
 import { LlmCoverageBanner } from "@/app/(site)/_components/llm-coverage-banner";
+import {
+  PillarHero,
+  PillarHeroEmpty,
+  type PillarHeroStat,
+} from "@/app/(site)/_components/pillar-hero";
+import { fmtNumber } from "@/app/(site)/_lib/format-headline";
 
 import { AnomalyFeed } from "./anomaly-feed";
 import { CategoryTemperatureList } from "./category-temperature-list";
-import { Hero, type TopCategory } from "./hero";
 import { IndexLine } from "./index-line";
 import { VolumeArea } from "./volume-area";
+
+type TopCategory = { label: string; aiCount: number };
+
+const NB = new Intl.NumberFormat("nb-NO");
+const NO_LONG_DATE = new Intl.DateTimeFormat("nb-NO", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
+
+function indexLabel(value: number): string {
+  if (value >= 65) return "Begeistret tilt";
+  if (value >= 55) return "Lett positiv";
+  if (value >= 45) return "Balansert";
+  if (value >= 35) return "Lett negativ";
+  return "Bekymret tilt";
+}
 
 type Props = {
   latest: MediaSnapshotIndex | null;
@@ -220,13 +242,64 @@ export function Scroller({
       "
     >
       <section className="snap-segment sm:snap-start sm:snap-always">
-        <Hero
-          latest={latest}
-          prior={prior}
-          topCategoryLast7d={topCategoryLast7d}
-          coverageStart={coverageStart}
-          coverageDays={coverageDays}
-        />
+        {latest ? (
+          (() => {
+            const indexValue = latest.index_value;
+            const priorIndex = prior?.index_value ?? null;
+            const indexDelta =
+              priorIndex !== null ? indexValue - priorIndex : null;
+            const stats: PillarHeroStat[] = [
+              {
+                label: "AI-artikler siste 7 dager",
+                value: fmtNumber(latest.ai_article_count_7d),
+              },
+              {
+                label: "Toppkategori siste 7 dager",
+                value: topCategoryLast7d?.label ?? "—",
+                hint: topCategoryLast7d
+                  ? `${NB.format(topCategoryLast7d.aiCount)} ${
+                      topCategoryLast7d.aiCount === 1
+                        ? "artikkel"
+                        : "artikler"
+                    }`
+                  : "Ingen klassifiserte artikler siste 7 dager",
+              },
+              {
+                label: "Endring vs forrige uke",
+                value:
+                  indexDelta !== null
+                    ? `${indexDelta >= 0 ? "+" : ""}${indexDelta}`
+                    : "—",
+                hint: indexDelta !== null ? "indekspunkter" : undefined,
+              },
+            ];
+            const coverageBanner = coverageStart
+              ? `Data fra ${NO_LONG_DATE.format(
+                  new Date(coverageStart + "T00:00:00Z"),
+                )} — ${NB.format(coverageDays)} ${
+                  coverageDays === 1 ? "dag" : "dager"
+                } dekning`
+              : "Ingen klassifiserte artikler ennå";
+            return (
+              <PillarHero
+                breadcrumb="Mediedekning"
+                title="Norsk medieklima for kunstig intelligens"
+                description="Daglig kibarometer-indeks (0–100) over hvor positivt eller bekymret norske medier omtaler kunstig intelligens. Glattet over en 7-dagers rullerende periode."
+                big={{
+                  value: `${indexValue} / 100`,
+                  caption: `Kibarometer-indeks · ${indexLabel(indexValue)}`,
+                }}
+                stats={stats}
+                footer={coverageBanner}
+              />
+            );
+          })()
+        ) : (
+          <PillarHeroEmpty
+            breadcrumb="Mediedekning"
+            message="Ingen klassifiserte artikler ennå."
+          />
+        )}
       </section>
 
       <section className="snap-segment sm:snap-start sm:snap-always">
