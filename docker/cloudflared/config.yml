@@ -1,0 +1,26 @@
+# docker/cloudflared/config.yml — ingress config for the cloudflared sidecar.
+# Mounted into the container at /etc/cloudflared/config.yml (read-only) and
+# synced from this file by scripts/deploy.sh before every `docker compose up`.
+#
+# The UUID below is per-tunnel — replace the placeholder once after running
+# `cloudflared tunnel create kibarometer-apollo` on the host (the command
+# prints the UUID and saves credentials.json into ~/.cloudflared/). Then
+# copy credentials.json to /opt/kibarometer/cloudflared/credentials.json.
+#
+# Ingress rules: every public hostname forwards to kiba-edge-caddy:80;
+# Caddy then path-routes between kiba-web, kiba-supabase-kong, and
+# kiba-umami (see docker/edge/sites/kibarometer.caddy). Keep these in sync
+# with the DNS records you set up via `cloudflared tunnel route dns ...`.
+
+tunnel: c8f058f4-50ee-458d-b4d9-a054ee3c5249
+credentials-file: /etc/cloudflared/credentials.json
+
+ingress:
+  - hostname: kibarometer.no
+    service: http://kiba-edge-caddy:80
+  - hostname: www.kibarometer.no
+    service: http://kiba-edge-caddy:80
+  - hostname: apollo-test.kibarometer.no
+    service: http://kiba-edge-caddy:80
+  # Catch-all — required by cloudflared, returns 404 for any unmatched host.
+  - service: http_status:404

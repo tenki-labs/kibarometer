@@ -8,34 +8,37 @@ concurrency:
   cancel-in-progress: false
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    # Runs on the self-hosted GitHub Actions runner installed on Apollo as
+    # the `deploy` user. The runner is a systemd service; see the migration
+    # runbook for the one-time install. No SSH plumbing between GitHub and
+    # the host — the runner pulls jobs and executes them locally.
+    #
+    # IMPORTANT: the repo setting "Fork pull request workflows from outside
+    # collaborators" must be set to "Require approval for all outside
+    # collaborators". Otherwise a fork PR could inject malicious workflow
+    # steps and run them on Apollo with the deploy user's docker access.
+    runs-on: [self-hosted, apollo]
     environment: production
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
-      - name: Clear incoming on VPS
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: rm -rf /opt/kibarometer/incoming/* && mkdir -p /opt/kibarometer/incoming
-
-      - name: Upload source to VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "."
-          target: /opt/kibarometer/incoming/
-          strip_components: 0
+      - name: Stage source at /opt/kibarometer/incoming/
+        # rsync from the runner's persistent workspace into the deploy
+        # staging dir. --delete keeps incoming/ clean across runs.
+        # node_modules and .next are excluded because the runner workspace
+        # persists between jobs and they'd otherwise grow indefinitely; the
+        # actual build pulls fresh deps inside the Docker build.
+        run: |
+          rm -rf /opt/kibarometer/incoming/*
+          mkdir -p /opt/kibarometer/incoming
+          rsync -a --delete \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='.next' \
+            "${{ github.workspace }}/" /opt/kibarometer/incoming/
 
       - name: Run deploy.sh
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: chmod +x /opt/kibarometer/incoming/scripts/deploy.sh && bash /opt/kibarometer/incoming/scripts/deploy.sh
+        run: |
+          chmod +x /opt/kibarometer/incoming/scripts/deploy.sh
+          bash /opt/kibarometer/incoming/scripts/deploy.sh

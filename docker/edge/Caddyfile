@@ -1,0 +1,32 @@
+# docker/edge/Caddyfile — top-level Caddyfile for kiba-edge-caddy.
+# Mounted into the container at /etc/caddy/Caddyfile (read-only) and synced
+# from this file by scripts/deploy.sh before every `docker compose up`.
+#
+# This is the umbrella that loads every per-site fragment under sites/ and
+# defines snippets shared by those fragments. Today there's just
+# kibarometer.caddy; add more files to sites/ if we ever host additional
+# domains from this stack.
+
+{
+	# Cloudflare Tunnel terminates TLS at Cloudflare's edge; this Caddy
+	# instance only speaks HTTP on the docker network. ACME is unused.
+	auto_https off
+	admin :2019
+}
+
+# Shared security headers snippet imported by per-site fragments. Caddy
+# applies these as response headers on every request that imports it.
+(security_headers) {
+	header {
+		# HSTS — browser sees HTTPS end-to-end (Cloudflare edge), so this
+		# is meaningful even though Caddy itself only speaks HTTP.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		-Server
+	}
+}
+
+import /etc/caddy/sites/*.caddy
