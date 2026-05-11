@@ -26,7 +26,11 @@ import { StatCard } from "@/app/admin/_components/stat-card";
 import { SubmitButton } from "@/app/admin/_components/submit-button";
 import { fmtDateTime } from "@/lib/admin/flash";
 import { sbFetch } from "@/lib/admin/sb";
-import { backfillSourceAction, toggleActiveAction } from "./actions";
+import {
+  backfillSourceAction,
+  backfillTo2020Action,
+  toggleActiveAction,
+} from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +43,8 @@ type Source = {
   is_active: boolean;
   last_polled_at: string | null;
   backfill_cursor: string | null;
+  backfill_method: string;
+  sitemap_url: string | null;
   notes: string | null;
 };
 
@@ -81,7 +87,8 @@ export default async function MediaSourcesPage({ searchParams }: Props) {
 
   const [sources, queueRows] = await Promise.all([
     sbFetch<Source[]>(
-      `/media_sources?select=id,name,domain,rss_url,crawl_delay_ms,is_active,last_polled_at,backfill_cursor,notes` +
+      `/media_sources?select=id,name,domain,rss_url,crawl_delay_ms,is_active,` +
+        `last_polled_at,backfill_cursor,backfill_method,sitemap_url,notes` +
         `&order=is_active.desc,name.asc` +
         filterQs,
       { service: true },
@@ -335,17 +342,36 @@ function SourcesSection({
                     </form>
                   </TableCell>
                   <TableCell className="text-right">
-                    <form action={backfillSourceAction.bind(null, s.id)}>
-                      <SubmitButton
-                        variant="outline"
-                        size="sm"
-                        pendingLabel="Kjører…"
-                        title="Tikk scrapegraph-backfill"
-                      >
-                        <Download />
-                        Kjør
-                      </SubmitButton>
-                    </form>
+                    <div className="inline-flex items-center gap-1.5">
+                      <form action={backfillSourceAction.bind(null, s.id)}>
+                        <SubmitButton
+                          variant="outline"
+                          size="sm"
+                          pendingLabel="Kjører…"
+                          title="Tikk scrapegraph-backfill"
+                        >
+                          <Download />
+                          Kjør
+                        </SubmitButton>
+                      </form>
+                      <form action={backfillTo2020Action.bind(null, s.id)}>
+                        <SubmitButton
+                          variant="secondary"
+                          size="sm"
+                          pendingLabel="Kjører…"
+                          disabled={
+                            s.backfill_method !== "sitemap" || !s.sitemap_url
+                          }
+                          title={
+                            s.backfill_method === "sitemap" && s.sitemap_url
+                              ? "Sitemap-backfill, since=app_settings.media_backfill_floor_date"
+                              : "Krever backfill_method='sitemap' og sitemap_url (sett via psql)"
+                          }
+                        >
+                          Til 2020
+                        </SubmitButton>
+                      </form>
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <Link

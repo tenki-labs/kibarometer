@@ -158,6 +158,60 @@ export async function backfillSourceAction(id: string) {
   }
 }
 
+// "Backfill til 2020" — runs the sitemap adapter against the source's
+// sitemap.xml with `since = app_settings.media_backfill_floor_date`. The
+// walker filters <url> entries by <lastmod> and skips sub-sitemaps
+// whose own <lastmod> is older than the floor, so a 2020-onwards
+// backfill on an outlet with monthly sitemaps reaching back to 2010
+// only fetches the post-2020 sub-sitemaps.
+//
+// One tick walks up to wall-budget seconds of sub-sitemaps. URL dedup
+// at the queue layer (`Prefer: resolution=ignore-duplicates` on
+// url_hash) means re-clicking is idempotent. For very large archives
+// the operator clicks repeatedly until enqueued=0; cursor walk-back
+// (resumption state) is a planned follow-up.
+//
+// Disabled on the page when the source isn't set up for sitemap
+// backfill — operators flip a source via psql:
+//   update media_sources
+//      set backfill_method = 'sitemap',
+//          sitemap_url    = 'https://www.nrk.no/sitemap.xml',
+//          sitemap_index  = true
+//    where id = '...';
+export async function backfillTo2020Action(id: string) {
+  try {
+    const settings = await sbFetch<
+      Array<{ media_backfill_floor_date: string }>
+    >("/app_settings?id=eq.1&select=media_backfill_floor_date", {
+      service: true,
+    });
+    const floor = settings[0]?.media_backfill_floor_date;
+    if (!floor) {
+      throw new Error(
+        "media_backfill_floor_date mangler i app_settings (migration 0063 ikke kjørt?)",
+      );
+    }
+    const result = await runMediaBackfill({
+      sb: sbFetch,
+      sourceId: id,
+      trigger: "manual",
+      since: floor,
+    });
+    redirect(
+      `${LIST}${flashQs({
+        ok:
+          `Backfill til ${floor.slice(0, 4)} for ${result.domain}: ` +
+          `${result.urls_found} URL-er funnet, ` +
+          `${result.enqueued} nye i kø` +
+          backfillFlashSuffix(result),
+      })}`,
+    );
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    redirect(`${LIST}${flashQs({ error: msg(err) })}`);
+  }
+}
+
 // When urls_found is 0, the default "Backfill X: 0 URL-er funnet" reads
 // like a successful no-op even when the adapter actually misbehaved.
 // Append whatever signal we have (stopped reason, scrapegraph result
