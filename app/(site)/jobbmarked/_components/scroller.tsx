@@ -19,6 +19,11 @@ import {
 } from "@/app/(site)/_components/ai-volume-area-chart";
 import { LlmCoverageBanner } from "@/app/(site)/_components/llm-coverage-banner";
 import {
+  PillarHero,
+  PillarHeroEmpty,
+  type PillarHeroStat,
+} from "@/app/(site)/_components/pillar-hero";
+import {
   StackedAreaChart,
   type Series,
 } from "@/app/(site)/_components/stacked-area-chart";
@@ -32,11 +37,27 @@ import {
   parseRange,
   rangeCutoffMs,
 } from "@/app/(site)/_lib/range";
+import {
+  fmtMomentumPct,
+  fmtNumber,
+} from "@/app/(site)/_lib/format-headline";
 
-import { Hero } from "./hero";
 import { KeywordList } from "./keyword-list";
 import { NorwayMap, type NorwayMapUnit } from "./norway-map";
 import type { NorwayFylkePath } from "@/lib/norway-paths";
+
+const NO_DATETIME = new Intl.DateTimeFormat("nb-NO", {
+  day: "2-digit",
+  month: "long",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+function fmtSharePct(n: number | null | undefined): string {
+  if (n === null || n === undefined) return "—";
+  return `${(n * 100).toFixed(1).replace(".", ",")} %`;
+}
 
 const MAP_UNIT: NorwayMapUnit = {
   ariaLabel: "Kart over AI-stillinger per fylke",
@@ -189,7 +210,54 @@ export function Scroller({
       "
     >
       <section className="snap-segment sm:snap-start sm:snap-always">
-        <Hero headline={headline} />
+        {headline ? (
+          (() => {
+            const momentumPct =
+              headline.ai_count_prev_30d > 0
+                ? ((headline.ai_count_30d - headline.ai_count_prev_30d) /
+                    headline.ai_count_prev_30d) *
+                  100
+                : null;
+            const m = fmtMomentumPct(momentumPct);
+            const stats: PillarHeroStat[] = [
+              {
+                label: "KI-jobber siste 30 dager",
+                value: fmtNumber(headline.ai_count_30d),
+              },
+              {
+                label: "Andel av alle stillinger",
+                value: fmtSharePct(headline.ai_share_30d),
+              },
+              {
+                label: "Siste 7 dager",
+                value: fmtNumber(headline.ai_count_7d),
+              },
+            ];
+            return (
+              <PillarHero
+                breadcrumb="Jobbmarked"
+                title="Kunstig intelligens på norsk arbeidsmarked"
+                description="Daglig oppdaterte tall fra NAVs stillingsfeed."
+                big={{
+                  value: m.display,
+                  caption: "siste 30 dager vs. foregående 30",
+                }}
+                stats={stats}
+                footer={
+                  <>
+                    Oppdatert{" "}
+                    {NO_DATETIME.format(new Date(headline.computed_at))}
+                  </>
+                }
+              />
+            );
+          })()
+        ) : (
+          <PillarHeroEmpty
+            breadcrumb="Jobbmarked"
+            message="Snapshots ikke regnet ennå."
+          />
+        )}
       </section>
 
       <section className="snap-segment sm:snap-start sm:snap-always">

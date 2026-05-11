@@ -10,6 +10,7 @@ import type {
   SnapshotHeadline,
 } from "@/lib/supabase";
 
+import { fmtMomentumPct, fmtNumber } from "./_lib/format-headline";
 import {
   TemperaturCard,
   TemperaturCardEmpty,
@@ -65,30 +66,11 @@ type GaugeData = {
   p90: number;
 };
 
-const NB = new Intl.NumberFormat("nb-NO");
 const NO_LONG_DATE = new Intl.DateTimeFormat("nb-NO", {
   day: "numeric",
   month: "long",
   year: "numeric",
 });
-
-function fmtNumber(n: number): string {
-  return NB.format(n);
-}
-
-function fmtMomentumPct(pct: number | null): {
-  display: string;
-  pct: number | null;
-} {
-  if (pct === null || !Number.isFinite(pct)) return { display: "—", pct: null };
-  if (Math.abs(pct) < 1) return { display: "≈ 0 %", pct };
-  const arrow = pct > 0 ? "↑" : "↓";
-  const sign = pct > 0 ? "+" : "−";
-  const abs = Math.abs(pct);
-  const formatted =
-    abs >= 10 ? abs.toFixed(0) : abs.toFixed(1).replace(".", ",");
-  return { display: `${arrow} ${sign}${formatted} %`, pct };
-}
 
 function compute30dRollingSeries(
   daily: Array<{ date: string; ai: number }>,

@@ -36,9 +36,36 @@ import type {
   TaxonomyCategory,
 } from "@/lib/supabase";
 
+import {
+  PillarHero,
+  PillarHeroEmpty,
+  type PillarHeroStat,
+} from "@/app/(site)/_components/pillar-hero";
+import {
+  fmtMomentumPct,
+  fmtNumber,
+} from "@/app/(site)/_lib/format-headline";
+
 import { FounderAgeLines } from "./founder-age-lines";
-import { Hero } from "./hero";
 import { KeywordList } from "./keyword-list";
+
+const NB = new Intl.NumberFormat("nb-NO");
+const NO_DATETIME = new Intl.DateTimeFormat("nb-NO", {
+  day: "2-digit",
+  month: "long",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+// Snapshot is refreshed nightly (kiba-fetcher cron). Anything older than 48h
+// indicates the cron has missed at least two runs — flag it visually.
+const STALE_AFTER_MS = 48 * 60 * 60 * 1000;
+
+function fmtSharePct(n: number | null | undefined, digits = 1): string {
+  if (n === null || n === undefined) return "—";
+  return `${(n * 100).toFixed(digits).replace(".", ",")} %`;
+}
 
 const MAP_UNIT: NorwayMapUnit = {
   ariaLabel: "Kart over nye AI-relevante foretak per fylke",
@@ -237,6 +264,16 @@ export function Scroller({
   const initialRange = parseRange(searchParams.get("range"));
   const [range, setRange] = useState<Range>(initialRange);
 
+  // Stale check captured once at mount via useState lazy init — Date.now()
+  // is impure and react-hooks/purity bans it inside render. The 48h
+  // threshold isn't time-critical enough to need a live timer.
+  const [heroStale] = useState(() => {
+    if (!headline) return false;
+    const ms = new Date(headline.computed_at).getTime();
+    if (!Number.isFinite(ms)) return false;
+    return Date.now() - ms > STALE_AFTER_MS;
+  });
+
   // Sync the URL via history.replaceState rather than Next.js router.replace
   // so the snap-scroll container's scroll position is never perturbed — the
   // router path can interact subtly with the segment layout and bounce the
@@ -319,7 +356,61 @@ export function Scroller({
       "
     >
       <section className="snap-segment sm:snap-start sm:snap-always">
-        <Hero headline={headline} />
+        {headline ? (
+          (() => {
+            const momentumPct =
+              headline.ai_relevant_mom_growth !== null
+                ? headline.ai_relevant_mom_growth * 100
+                : null;
+            const m = fmtMomentumPct(momentumPct);
+            const stats: PillarHeroStat[] = [
+              {
+                label: "AI-relevante foretak 30d",
+                value: fmtNumber(headline.ai_relevant_count_30d),
+              },
+              {
+                label: "Median aksjekap. KI-AS",
+                value:
+                  headline.aksjekapital_median_ai_relevant_as_30d != null
+                    ? `${NB.format(headline.aksjekapital_median_ai_relevant_as_30d)} kr`
+                    : "—",
+              },
+              {
+                label: "AS-andel av KI-rel.",
+                value: fmtSharePct(headline.as_share_of_ai_relevant_30d),
+              },
+            ];
+            return (
+              <PillarHero
+                breadcrumb="Oppstart"
+                title="Kunstig intelligens i norsk selskapsstiftelse"
+                description="Daglig oppdaterte tall fra Brønnøysundregistrene over nyregistrerte foretak knyttet til kunstig intelligens."
+                big={{
+                  value: m.display,
+                  caption: "siste 30 dager vs. foregående 30",
+                }}
+                stats={stats}
+                footer={
+                  <>
+                    Oppdatert{" "}
+                    <span
+                      className={
+                        heroStale ? "text-amber-600 dark:text-amber-400" : undefined
+                      }
+                    >
+                      {NO_DATETIME.format(new Date(headline.computed_at))}
+                    </span>
+                  </>
+                }
+              />
+            );
+          })()
+        ) : (
+          <PillarHeroEmpty
+            breadcrumb="Oppstart"
+            message="Snapshots ikke regnet ennå."
+          />
+        )}
       </section>
 
       <section className="snap-segment sm:snap-start sm:snap-always">
