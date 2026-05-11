@@ -25,3 +25,15 @@
 // Reassess this threshold quarterly — once we have a year of reliable
 // data, we can drop the cutoff or push it later.
 export const JOBBMARKED_DATA_CUTOFF = "2026-04-13";
+
+// Earliest date at which snapshot_headline's ai_count_30d / ai_count_prev_30d
+// comparison is honest. The prior-30-day window must end after the data
+// cutoff for the comparison to be apples-to-apples — that means
+// (today − 30 days) ≥ cutoff, i.e. today ≥ cutoff + 60 days = 2026-06-12.
+//
+// Until that date, the /jobbmarked hero shows a week-over-week pct (last
+// 7d vs prior 7d, both fully post-cutoff) computed in page.tsx from
+// snapshot_daily. On/after this date, it auto-flips to the 30/30 ratio
+// from snapshot_headline. No code change required to flip — the date
+// check in page.tsx is just (today >= JOBBMARKED_THIRTY_DAY_VALID_FROM).
+export const JOBBMARKED_THIRTY_DAY_VALID_FROM = "2026-06-12";
