@@ -273,6 +273,18 @@ export function Scroller({
             per dag eller uke. Hold over en stolpe for å se andelen av
             totalt utlyste stillinger.
           </p>
+          <p className="max-w-[60ch] text-xs text-muted-foreground/80">
+            Viser data fra og med 13. april 2026. Eldre NAV-stillinger gikk
+            inaktive før vi rakk å hente fulltekst — klassifisering ut fra
+            tittel alene ble for upålitelig til å publisere. Se{" "}
+            <a
+              href="/docs/jobbmarked"
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              metode
+            </a>{" "}
+            for detaljer.
+          </p>
           <div className="min-h-0 flex-1">
             <AIVolumeAreaChart buckets={aiShareBuckets} />
           </div>
