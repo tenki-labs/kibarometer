@@ -23,6 +23,8 @@ import {
   type TaxonomyCategory,
 } from "@/lib/supabase";
 
+import { JOBBMARKED_DATA_CUTOFF } from "@/app/(site)/_lib/data-cutoff";
+
 import { Scroller } from "./_components/scroller";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
@@ -81,11 +83,16 @@ export default async function JobbmarkedPage() {
     sb<SnapshotHeadline[]>(
       "/snapshot_headline?order=computed_for.desc&limit=1",
     ),
+    // Daily snapshots filter to JOBBMARKED_DATA_CUTOFF — pre-cutoff rows
+    // were ingested via backfill from NAV's archive feed and never had
+    // their description fetched (INACTIVE-at-ingest), so the classifier
+    // saw title-only text and undercounts AI by ~10x. See
+    // app/(site)/_lib/data-cutoff.ts for the methodology.
     sb<SnapshotDaily[]>(
-      "/snapshot_daily?order=posted_on.asc&limit=20000",
+      `/snapshot_daily?order=posted_on.asc&posted_on=gte.${JOBBMARKED_DATA_CUTOFF}&limit=20000`,
     ),
     sb<SnapshotSkillCategoryDaily[]>(
-      "/snapshot_skill_category_daily?order=posted_on.asc&limit=200000",
+      `/snapshot_skill_category_daily?order=posted_on.asc&posted_on=gte.${JOBBMARKED_DATA_CUTOFF}&limit=200000`,
     ),
     sb<SnapshotKeyword[]>("/snapshot_keywords?order=rank.asc&limit=20"),
     sb<SnapshotGeography[]>(
@@ -95,7 +102,7 @@ export default async function JobbmarkedPage() {
       "/taxonomy_categories?select=slug,title,definition_md,sort_order&order=sort_order.asc&limit=500",
     ),
     sb<SnapshotTier2CoverageDaily[]>(
-      "/snapshot_tier2_coverage_daily?order=date.asc&limit=20000",
+      `/snapshot_tier2_coverage_daily?order=date.asc&date=gte.${JOBBMARKED_DATA_CUTOFF}&limit=20000`,
     ),
   ]);
 
