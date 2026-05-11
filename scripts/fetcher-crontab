@@ -25,7 +25,7 @@
 # NAV retag: re-apply the current canonical keyword matcher to every
 # nav_postings row. Forward-only ingest means historical rows retain the
 # matcher's verdict from their ingest time — without a periodic retag, the
-# is_ai flag drifts as canonical keywords get promoted (see /jobbmarked
+# is_ai flag drifts as canonical keywords get promoted (see /arbeidsmarked
 # Temperatur card +676% incident, May 10 2026). reprocessNavPostings
 # chains into refreshSnapshots on success, so the dashboard is fresh
 # before the daily 04:00 refresh tick runs. Sundays 03:30 UTC — well

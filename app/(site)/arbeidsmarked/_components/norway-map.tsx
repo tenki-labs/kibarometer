@@ -28,7 +28,7 @@ const LABEL_OFFSETS: Partial<Record<Fylke, { dx: number; dy: number }>> = {
 };
 
 // Unit-of-measure copy threaded in by the page so the same component can
-// label NAV-job-posting data on /jobbmarked and brreg-company data on
+// label NAV-job-posting data on /arbeidsmarked and brreg-company data on
 // /oppstart without leaking either's terminology into the other.
 export type NorwayMapUnit = {
   /** SVG aria-label, e.g. "Kart over AI-stillinger per fylke". */

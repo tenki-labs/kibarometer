@@ -9,7 +9,7 @@ import { flashQs } from "@/lib/admin/flash";
 // Slugs whose live page lives at a non-flat path. The default is `/<slug>` —
 // these need explicit mapping so an admin save purges the right ISR cache.
 const SLUG_REVALIDATE_PATHS: Record<string, string> = {
-  "docs-jobbmarked": "/docs/jobbmarked",
+  "docs-jobbmarked": "/docs/arbeidsmarked",
   "docs-media": "/docs/media",
   "docs-oppstart": "/docs/oppstart",
 };

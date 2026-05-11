@@ -1,5 +1,5 @@
 // app/(site)/_components/pillar-hero.tsx — shared top segment for
-// /jobbmarked, /media, /oppstart. Sits inside snap-segment 1 of each
+// /arbeidsmarked, /media, /oppstart. Sits inside snap-segment 1 of each
 // pillar dashboard. The cinematic snap-scroll between segments serves
 // as the page's TOC; no in-hero list is needed.
 

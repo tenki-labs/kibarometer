@@ -1,4 +1,4 @@
-// Data cutoff for /jobbmarked charts.
+// Data cutoff for /arbeidsmarked charts.
 //
 // NAV's public API only serves full posting detail (description) for ACTIVE
 // ads. Once an ad goes INACTIVE, the detail endpoint either 404s or returns
@@ -31,7 +31,7 @@ export const JOBBMARKED_DATA_CUTOFF = "2026-04-13";
 // cutoff for the comparison to be apples-to-apples — that means
 // (today − 30 days) ≥ cutoff, i.e. today ≥ cutoff + 60 days = 2026-06-12.
 //
-// Until that date, the /jobbmarked hero shows a week-over-week pct (last
+// Until that date, the /arbeidsmarked hero shows a week-over-week pct (last
 // 7d vs prior 7d, both fully post-cutoff) computed in page.tsx from
 // snapshot_daily. On/after this date, it auto-flips to the 30/30 ratio
 // from snapshot_headline. No code change required to flip — the date

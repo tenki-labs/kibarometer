@@ -4,7 +4,7 @@
 // admin (e.g. /admin/keywords, /admin/job-market/categories, /admin/media/sources)
 // reflects here without redeploy.
 //
-// This page is the destination for deep links from the /jobbmarked dashboard:
+// This page is the destination for deep links from the /arbeidsmarked dashboard:
 // keyword chips link to #kw-<term>, category bars link to #cat-<slug>.
 
 import Link from "next/link";

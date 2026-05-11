@@ -20,7 +20,7 @@ they share the LLM stack, the admin shell, and the marketing site.
 
 | Pillar         | Source                                                      | Public      | Admin             | Cron prefix                |
 | -------------- | ----------------------------------------------------------- | ----------- | ----------------- | -------------------------- |
-| Jobbmarked     | NAV stillingsfeed                                           | /jobbmarked | /admin/job-market | backfill/enrich-nav, llm-* |
+| Arbeidsmarked  | NAV stillingsfeed                                           | /arbeidsmarked | /admin/job-market | backfill/enrich-nav, llm-* |
 | Medie-dekning  | scrapegraphai via `kiba-scraper` (+ RSS for legacy sources) | /media      | /admin/media      | media-*                    |
 | Oppstart       | Brønnøysundregistrene                                       | /oppstart   | /admin/startups   | brreg-*                    |
 
@@ -34,7 +34,7 @@ forward-only at ingest, historical rows can drift when the keyword
 catalog grows. NAV corrects this via a weekly Sunday 03:30 UTC retag
 cron (see [scripts/fetcher-crontab](scripts/fetcher-crontab)) and
 `reprocessNavPostings` chains into `refreshSnapshots` on success, so the
-/jobbmarked dashboard reflects the current keyword state without
+/arbeidsmarked dashboard reflects the current keyword state without
 waiting for the daily 04:00 snapshot tick.
 
 - **Tier 1 (discovery)** — verbatim AI-phrase extraction from rows
@@ -51,7 +51,7 @@ seeing overlapping calls — see [scripts/fetcher-crontab](scripts/fetcher-cront
 for the exact schedule. All Tier jobs no-op silently when `MLX_API_KEY`
 is unset.
 
-**Public docs.** Per-pillar methodology lives at `/docs/jobbmarked`,
+**Public docs.** Per-pillar methodology lives at `/docs/arbeidsmarked`,
 `/docs/media`, and `/docs/oppstart`, plus `/docs/nokkelord` (taxonomy)
 and `/docs/api` (JSON snippets) — five cards on `/docs/`. Prose for the
 three per-pipeline doc pages is editable from `/admin/content/<slug>`
@@ -80,7 +80,7 @@ them.**
 3. **Historical reach is bounded by project age.** Kibarometer started
    ingesting live NAV data 2026-05-04. Anything posted before that was
    backfilled from NAV's archive feed and was INACTIVE at ingest — no
-   description, no enrichment, no path to recover. The /jobbmarked
+   description, no enrichment, no path to recover. The /arbeidsmarked
    chart truncates to **2026-04-13** (first week where description
    coverage crosses 25%) via the constant in
    [app/(site)/_lib/data-cutoff.ts](app/(site)/_lib/data-cutoff.ts).
@@ -208,7 +208,7 @@ them.**
   (versioned) and are edited via `/admin/{job-market,media,startups}/prompts`.
 - **Marketing Next.js:** [app/(site)/](app/(site)/) (server components by
   default), [lib/env.ts](lib/env.ts) (zod-validated env). Pillar pages
-  live at `/jobbmarked`, `/media`, `/oppstart`; methodology at `/docs/*`.
+  live at `/arbeidsmarked`, `/media`, `/oppstart`; methodology at `/docs/*`.
 - **Networks:** our containers are on the `kiba` network only. Edge-caddy
   joins `kiba` post-up so it can reach `kiba-supabase-kong` (the only ingress
   point). NOT on `edge_net` — joining edge_net would put `kiba-*` on the same
@@ -269,11 +269,11 @@ them.**
    `searchParams`, renders shadcn primitives).
 4. Server actions: `app/admin/(app)/<name>/actions.ts` (`"use server"`,
    each action calls `sbFetch` and `redirect()` with a flash QS).
-5. Add nav entry to `ADMIN_NAV` in [app/admin/_components/admin-nav.ts](app/admin/_components/admin-nav.ts) — pick **Drift**, **Jobbmarked**, **Medie-dekning**, **Oppstart**, **Data**, or **Nettside**, or add a new section.
+5. Add nav entry to `ADMIN_NAV` in [app/admin/_components/admin-nav.ts](app/admin/_components/admin-nav.ts) — pick **Drift**, **Arbeidsmarked**, **Medie-dekning**, **Oppstart**, **Data**, or **Nettside**, or add a new section.
 6. Test locally (`./local-dev/setup.sh` + `pnpm dev`), commit, push.
 
 **Editable static copy.** Prose for `/om`, `/media`, and
-`/docs/{jobbmarked,media,oppstart}` lives in
+`/docs/{arbeidsmarked,media,oppstart}` lives in
 [`public.site_content`](supabase/migrations/0011_site_content.sql), edited
 via `/admin/content/<slug>`. Per-pipeline doc seeds were added in
 [0043_site_content_docs.sql](supabase/migrations/0043_site_content_docs.sql);

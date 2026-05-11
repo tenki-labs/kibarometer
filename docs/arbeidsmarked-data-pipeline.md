@@ -1,4 +1,4 @@
-# `/jobbmarked` data pipeline reference
+# `/arbeidsmarked` data pipeline reference
 
 How the page is wired together — what every visible number comes from, which
 snapshot it reads, and the predicate footguns that have already burned us.
@@ -30,14 +30,14 @@ nav_postings.is_ai = bool, nav_postings.matched_keywords = text[]
    ▼  Nightly snapshot refresh (04:00 cron, scripts/fetcher-crontab)
    │  RPC: refresh_all_snapshots() — 0027_…sql
    ▼
-snapshot_*  ────►  PostgREST  ────►  /jobbmarked
+snapshot_*  ────►  PostgREST  ────►  /arbeidsmarked
 ```
 
 `is_ai` is set by Tier 0 (cheap keyword match) and never written by any LLM.
 `category` and skill `slug` are only populated after Tier 2 finishes — so any
 snapshot keyed on those is *a subset* of what `is_ai` alone counts.
 
-## Snapshot tables consumed by `/jobbmarked`
+## Snapshot tables consumed by `/arbeidsmarked`
 
 | Table                            | Predicate                                  | Used by               | Notes                                                                       |
 | -------------------------------- | ------------------------------------------ | --------------------- | --------------------------------------------------------------------------- |
@@ -47,7 +47,7 @@ snapshot keyed on those is *a subset* of what `is_ai` alone counts.
 | `snapshot_keywords`              | `is_ai` AND keyword match                  | Keyword list (seg 4)  | Top 20 by 30-day count.                                                     |
 | `snapshot_geography`             | `is_ai`, county aggregate                  | Norway map (seg 5)    | Per-fylke `ai_count_30d` + `total_count_30d`.                               |
 
-`snapshot_category_daily` is **not** consumed by `/jobbmarked` (it was wired up
+`snapshot_category_daily` is **not** consumed by `/arbeidsmarked` (it was wired up
 in the AI-share rewrite of PR #106 and removed in this PR — see "Pitfalls"
 below).
 
@@ -74,7 +74,7 @@ the `rest` and `studio` services. PostgREST silently caps any query to that
 limit unless the URL pins an explicit `&limit=…`. With `order=posted_on.asc`,
 *the most recent rows are dropped first* — exactly the rows users care about.
 
-Every snapshot fetch in `app/(site)/jobbmarked/page.tsx` therefore pins a
+Every snapshot fetch in `app/(site)/arbeidsmarked/page.tsx` therefore pins a
 limit comfortably above its realistic ceiling:
 
 ```ts
@@ -89,7 +89,7 @@ limit comfortably above its realistic ceiling:
 
 ## Client-side bucketing
 
-`app/(site)/jobbmarked/_components/scroller.tsx` slices the per-day snapshots
+`app/(site)/arbeidsmarked/_components/scroller.tsx` slices the per-day snapshots
 client-side using helpers from `app/(site)/_lib/range.ts`:
 
 - `parseRange(searchParams.get("range"))` → `"1m" | "1q" | "1y" | "max"`
@@ -155,8 +155,8 @@ Read the migration before summing across rows of any `*_count` column.
 
 ## Files
 
-- [app/(site)/jobbmarked/page.tsx](../app/(site)/jobbmarked/page.tsx) — server-side data fetch
-- [app/(site)/jobbmarked/_components/scroller.tsx](../app/(site)/jobbmarked/_components/scroller.tsx) — client-side bucketing + segment layout
+- [app/(site)/arbeidsmarked/page.tsx](../app/(site)/arbeidsmarked/page.tsx) — server-side data fetch
+- [app/(site)/arbeidsmarked/_components/scroller.tsx](../app/(site)/arbeidsmarked/_components/scroller.tsx) — client-side bucketing + segment layout
 - [app/(site)/_components/ai-share-area-chart.tsx](../app/(site)/_components/ai-share-area-chart.tsx) — segment 2 chart
 - [app/(site)/_components/stacked-area-chart.tsx](../app/(site)/_components/stacked-area-chart.tsx) — segment 3 chart (with `normalize` prop)
 - [app/(site)/_lib/range.ts](../app/(site)/_lib/range.ts) — shared cutoff/bucket helpers

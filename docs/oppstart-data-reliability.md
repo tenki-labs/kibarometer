@@ -190,7 +190,7 @@ and lets the page's 60s revalidation handle long-lived staleness.
 
 ## Out of scope here
 
-- The same patterns apply to `/jobbmarked` (`snapshot_*`) and `/media`
+- The same patterns apply to `/arbeidsmarked` (`snapshot_*`) and `/media`
   (`media_snapshot_*`). The PostgREST cap fix benefits all three; the
   filter / transparency UI is per-page.
 - A `tier1_ai_relevant boolean generated always as ((llm_ai_phrases->>'ai_relevant')::boolean) stored`

@@ -21,7 +21,7 @@ import { ChartHoverPanel } from "./chart-hover-panel";
 import { useChartInteraction } from "./use-chart-interaction";
 
 // Bucket carries both numbers — area plots the count, tooltip shows the
-// share. Same shape feeds /jobbmarked + /oppstart.
+// share. Same shape feeds /arbeidsmarked + /oppstart.
 export type AIShareBucket = {
   date: string;
   aiCount: number;

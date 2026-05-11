@@ -120,7 +120,7 @@ export default async function NavPostingsPage({ searchParams }: Props) {
     <>
       <Flash searchParams={sp} />
       <PageHeader
-        eyebrow="Jobbmarked"
+        eyebrow="Arbeidsmarked"
         title="Stillinger"
         description={`NAV-stillinger ingested fra stillingsfeed. ${total.toLocaleString("nb-NO")} totalt med dagens filter.`}
       />

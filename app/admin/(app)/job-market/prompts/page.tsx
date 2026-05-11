@@ -41,7 +41,7 @@ export default async function NavPromptsListPage({ searchParams }: Props) {
     <>
       <Flash searchParams={sp} />
       <PageHeader
-        eyebrow="Jobbmarked"
+        eyebrow="Arbeidsmarked"
         title="Systemprompt"
         description={
           <>

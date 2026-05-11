@@ -31,8 +31,8 @@ type Kibarometer = {
 
 const KIBAROMETRE: Kibarometer[] = [
   {
-    href: "/jobbmarked",
-    title: "Jobbmarked",
+    href: "/arbeidsmarked",
+    title: "Arbeidsmarked",
     description: "AI-stillinger fra NAVs feed",
   },
   {

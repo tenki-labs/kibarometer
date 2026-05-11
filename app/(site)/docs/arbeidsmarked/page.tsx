@@ -1,4 +1,4 @@
-// app/(site)/docs/jobbmarked/page.tsx — operational docs for the NAV pipeline.
+// app/(site)/docs/arbeidsmarked/page.tsx — operational docs for the NAV pipeline.
 // Editable summary prose lives in public.site_content (slug = docs-jobbmarked);
 // the SVG flow diagram + "Tekniske detaljer" block are hardcoded JSX since
 // they must track code (cron times, endpoints, table names).
@@ -26,8 +26,8 @@ type SiteContent = {
 };
 
 const FALLBACK = {
-  title: "Slik måler vi jobbmarkedet",
-  body_md: `/jobbmarked teller AI-relaterte stillingsutlysninger i Norge. Tallene oppdateres én gang i døgnet, basert på [NAVs offentlige stillingsfeed](https://navikt.github.io/pam-stilling-feed/).
+  title: "Slik måler vi arbeidsmarkedet",
+  body_md: `/arbeidsmarked teller AI-relaterte stillingsutlysninger i Norge. Tallene oppdateres én gang i døgnet, basert på [NAVs offentlige stillingsfeed](https://navikt.github.io/pam-stilling-feed/).
 
 ## Slik fungerer det
 
@@ -39,15 +39,15 @@ const FALLBACK = {
 };
 
 export const metadata: Metadata = {
-  title: "Jobbmarked-pipelinen — Dokumentasjon",
+  title: "Arbeidsmarked-pipelinen — Dokumentasjon",
   description:
-    "Slik fungerer kibarometerets jobbmarked-pipeline: fra NAV-feed til dashboard.",
-  alternates: { canonical: "/docs/jobbmarked" },
+    "Slik fungerer kibarometerets arbeidsmarked-pipeline: fra NAV-feed til dashboard.",
+  alternates: { canonical: "/docs/arbeidsmarked" },
 };
 
 export const revalidate = 60;
 
-export default async function DocsJobbmarkedPage() {
+export default async function DocsArbeidsmarkedPage() {
   const rows = await sb<SiteContent[]>(
     "/site_content?slug=eq.docs-jobbmarked&select=slug,title,body_md",
   ).catch(() => [] as SiteContent[]);
@@ -73,7 +73,7 @@ export default async function DocsJobbmarkedPage() {
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbPage>Jobbmarked</BreadcrumbPage>
+            <BreadcrumbPage>Arbeidsmarked</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
@@ -83,15 +83,15 @@ export default async function DocsJobbmarkedPage() {
       {renderMarkdown(body)}
 
       <PipelineFlow
-        ariaTitle="Dataflyt for jobbmarked-pipelinen"
-        idPrefix="diag-jobbmarked"
+        ariaTitle="Dataflyt for arbeidsmarked-pipelinen"
+        idPrefix="diag-arbeidsmarked"
         steps={[
           "NAV API",
           "Henting",
           "Berikelse",
           "Tier 1 LLM",
           "Tier 2 LLM",
-          "/jobbmarked",
+          "/arbeidsmarked",
         ]}
         cadences={[
           "06:00 daglig",
