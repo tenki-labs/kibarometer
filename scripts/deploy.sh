@@ -266,38 +266,21 @@ cd "$WEBSITE"
 # unreliable here — Phase 10 verification caught that the very first deploy
 # never created the redis container despite kiba-web depending on it.
 #
-# Phase F PR 4: kiba-admin dropped from the recreate list (admin lives in
-# kiba-web now). The container itself is left running on the VPS for one
-# cycle so an operator can `docker rm -f kiba-admin` once the cutover smoke
-# passes; PR 5 will remove the kiba-admin block from compose.boot.yml.
 # --build rebuilds services with an active `build:` directive (kiba-scraper
 # is the only one in this list — kiba-web is image-tagged above, the rest
 # are pure `image:`). Without --build, edits under docker/scraper/ never
 # reach the running container; layer caching in docker/scraper/Dockerfile
 # keeps the rebuild cheap when only server.py / schemas.py changed.
+#
+# We do NOT force-recreate kong on every deploy. The Apollo migration
+# removed the `kong` network-alias workaround (no tenki on this network →
+# no alias collision). compose up reuses the running kong unless its config
+# changed; on the rare config change, a manual `docker compose ... up -d
+# --force-recreate --no-deps kong` does the job.
 docker compose --env-file /opt/kibarometer/env/supabase.env \
   -f compose.yml -f docker/supabase/docker-compose.yml \
   -f compose.prod.yml -f compose.boot.yml \
   up -d --build --force-recreate --remove-orphans kiba-web kiba-fetcher kiba-backup kiba-redis kiba-umami kiba-scraper kiba-edge-caddy kiba-cloudflared
-
-# Recreate kong too — the alias override lives in compose.boot.yml. Without
-# this, an old kong container with the default `kong` alias keeps running
-# and tenki's `kong` lookups still bleed to us.
-docker compose --env-file /opt/kibarometer/env/supabase.env \
-  -f compose.yml -f docker/supabase/docker-compose.yml \
-  -f compose.prod.yml -f compose.boot.yml \
-  up -d --force-recreate --no-deps kong
-
-# Strip the default `kong` network alias. Compose's `aliases:` override is
-# ADDITIVE — even with `aliases: [kiba-supabase-kong]` in compose.boot.yml,
-# the container still gets `kong` as an alias from its service name, and
-# edge-caddy-1 (multi-network) resolves bare `kong` to whichever network
-# answers first, breaking tenki's /supabase/* routing. Disconnect/reconnect
-# with explicit --alias is the only way to drop the default. Verified
-# empirically post-PR#11: without this step the alias was
-# `kong api-gw kiba-supabase-kong`; with it, just `kiba-supabase-kong`.
-docker network disconnect kiba kiba-supabase-kong 2>/dev/null || true
-docker network connect --alias kiba-supabase-kong kiba kiba-supabase-kong
 
 echo "== healthcheck =="
 for i in $(seq 1 24); do

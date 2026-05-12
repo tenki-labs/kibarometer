@@ -16,21 +16,13 @@ services:
       HOSTNAME: "0.0.0.0"
     command: !override ["node", "server.js"]
 
-  # Three overrides on the supabase kong service:
+  # Two overrides on the supabase kong service:
   #
-  # 1. Drop host port bindings. The shared Tenki VPS already runs an unforked
-  #    `supabase-kong` (tenki forgot to fork their supabase compose) that owns
-  #    host ports 8000/8443. We don't need kong on a host port — the shared
-  #    edge Caddy reaches it via `kiba-supabase-kong:8000` over docker DNS.
+  # 1. Drop host port bindings. kiba-edge-caddy reaches kong via docker DNS
+  #    (`kiba-supabase-kong:8000`) — kong is internal-only on the kiba
+  #    network, never published to the host.
   #
-  # 2. Override network aliases to ONLY include `kiba-supabase-kong`.
-  #    Default Compose behaviour adds the service name (`kong`) as a network
-  #    alias; that collides with tenki's `kong` service when edge-caddy joins
-  #    the kiba network, breaking tenki's `/supabase/*` routing. Specifying
-  #    `aliases:` replaces the default. This is the same trick PR #11 applies
-  #    to kiba-web and kiba-admin via service-rename.
-  #
-  # 3. Cap nginx_worker_processes to 4. Default `auto` matches host CPU count.
+  # 2. Cap nginx_worker_processes to 4. Default `auto` matches host CPU count.
   #    On Apollo (24 cores) that spawns 24 nginx workers, and kong's internal
   #    lua-resty-events IPC fanout (N*(N-1)/2 = 276 unix-socket channels)
   #    overwhelms the kernel's SCM_RIGHTS fd-passing, causing endless
@@ -41,7 +33,3 @@ services:
     ports: !reset null
     environment:
       KONG_NGINX_WORKER_PROCESSES: "4"
-    networks:
-      default:
-        aliases:
-          - kiba-supabase-kong
