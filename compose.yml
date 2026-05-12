@@ -198,8 +198,8 @@ services:
   #
   # Public traffic flow: browser → CF edge (TLS) → tunnel → cloudflared
   #   → kiba-edge-caddy:80 → kiba-web / kong / kiba-umami.
-  cloudflared:
-    container_name: cloudflared
+  kiba-cloudflared:
+    container_name: kiba-cloudflared
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
     command: tunnel --config /etc/cloudflared/config.yml --no-autoupdate run

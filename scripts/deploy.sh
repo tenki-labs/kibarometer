@@ -260,7 +260,7 @@ if grep -q REPLACE_WITH_TUNNEL_UUID /opt/kibarometer/cloudflared/config.yml; the
   echo "      replace it with the UUID printed by 'cloudflared tunnel create'."
 fi
 
-echo "== compose up (kiba-web + kiba-fetcher + kiba-backup + kiba-redis + kiba-edge-caddy + cloudflared — supabase fleet stays running) =="
+echo "== compose up (kiba-web + kiba-fetcher + kiba-backup + kiba-redis + kiba-edge-caddy + kiba-cloudflared — supabase fleet stays running) =="
 cd "$WEBSITE"
 # kiba-redis must be in the explicit list. compose's depends_on cascade is
 # unreliable here — Phase 10 verification caught that the very first deploy
@@ -278,7 +278,7 @@ cd "$WEBSITE"
 docker compose --env-file /opt/kibarometer/env/supabase.env \
   -f compose.yml -f docker/supabase/docker-compose.yml \
   -f compose.prod.yml -f compose.boot.yml \
-  up -d --build --force-recreate --remove-orphans kiba-web kiba-fetcher kiba-backup kiba-redis kiba-umami kiba-scraper kiba-edge-caddy cloudflared
+  up -d --build --force-recreate --remove-orphans kiba-web kiba-fetcher kiba-backup kiba-redis kiba-umami kiba-scraper kiba-edge-caddy kiba-cloudflared
 
 # Recreate kong too — the alias override lives in compose.boot.yml. Without
 # this, an old kong container with the default `kong` alias keeps running
