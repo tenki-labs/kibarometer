@@ -124,9 +124,22 @@ them.**
 
 ## 4. Current state
 
-**Lives on:** Gigahost VPS `193.200.238.120` (shared with tenki.no).
-**Domain:** `kibarometer.no` and `www.kibarometer.no` resolve to the VPS.
-**Cert:** Let's Encrypt, issued by the shared edge Caddy.
+**Lives on:** Apollo (24-core Linux box, Tailscale-reachable as
+`tenki@apollo`). Kibarometer owns the full stack on the host — no shared
+edge, no co-tenant. Apollo also runs Einar's tenkibench/laerkode stack
+and the Apollo/Sunshine streaming server, but on separate docker
+networks; the only resource we contend for is host RAM/CPU (Apollo has
+24 cores + 92GB RAM, plenty for both).
+**Domain:** `kibarometer.no` and `www.kibarometer.no` are Cloudflare DNS
+CNAMEs pointing at `<tunnel-uuid>.cfargotunnel.com`.
+**Public reachability:** Cloudflare Tunnel. No public ports on Apollo —
+`kiba-cloudflared` connects outbound to Cloudflare's edge, and traffic
+flows: browser → Cloudflare edge (TLS terminates here) → tunnel →
+`kiba-cloudflared` → `kiba-edge-caddy:80` → path-routes to kiba-web /
+kong / kiba-umami.
+**Cert:** Cloudflare manages the edge cert. Our Caddy is HTTP-only on
+the docker network (`auto_https off`); no Let's Encrypt anywhere in the
+stack.
 
 **Containers we own (all on the `kiba` Docker network):**
 - `kiba-web` — Next.js 16 standalone, serves marketing + `/admin/*` (built
@@ -166,29 +179,50 @@ them.**
   publicly — first-time setup over `ssh -L 3001:kiba-umami:3000`. The
   /admin/analytics page reads its REST API server-side via
   [lib/admin/umami.ts](lib/admin/umami.ts).
+- `kiba-edge-caddy` — internal-only reverse proxy. No host ports — only
+  reachable from `kiba-cloudflared`. Reads
+  [docker/edge/Caddyfile](docker/edge/Caddyfile) (umbrella, imports
+  `sites/*.caddy`) and [docker/edge/sites/kibarometer.caddy](docker/edge/sites/kibarometer.caddy)
+  (path routes for kiba-web, kiba-supabase-kong, kiba-umami via
+  `handle_path` prefix stripping). `auto_https off` because Cloudflare
+  terminates TLS at its edge.
+- `kiba-cloudflared` — Cloudflare Tunnel daemon, outbound-only connection
+  to Cloudflare's edge. Locally-managed tunnel (CLI-created, no Zero
+  Trust dashboard). Reads
+  [docker/cloudflared/config.yml](docker/cloudflared/config.yml) (committed)
+  and `/opt/kibarometer/cloudflared/credentials.json` (per-host secret,
+  minted once by `cloudflared tunnel create`). All ingress rules forward
+  to `kiba-edge-caddy:80`; Caddy handles path routing internally.
 
-**Shared on the VPS (NOT ours):**
-- `edge-caddy-1` at `/opt/edge/` — read-only from our side, except we write
-  `/opt/edge/sites/kibarometer.caddy` on every deploy. Edge joins the `kiba`
-  network via `docker network connect` (idempotent, run by deploy.sh).
+**External dependencies (NOT ours, but we consume them):**
 - **MLX endpoint** at `mlx.tenki.no` — OpenAI-compatible local LLM (Gemma 3
-  4B-IT 4-bit on a Mac mini), shared with tenki. Consumed by `kiba-scraper`
-  and `kiba-web` via `MLX_BASE_URL` / `MLX_API_KEY` / `MLX_MODEL`. Health
-  tracked in `public.mlx_health`
+  4B-IT 4-bit on a Mac mini), owned by tenki, shared with us. Consumed by
+  `kiba-scraper` and `kiba-web` via `MLX_BASE_URL` / `MLX_API_KEY` /
+  `MLX_MODEL`. Health tracked in `public.mlx_health`
   ([0020_mlx_health.sql](supabase/migrations/0020_mlx_health.sql)) and
   surfaced on `/admin/llm`. When `MLX_API_KEY` is unset, all Tier jobs
   no-op silently with a `no_api_key` label.
-- tenki.no's containers (`tenki-web-1`, `tenki-admin-1`, `tenki-redis-1`,
-  unforked `supabase-*` fleet on tenki's network). They do not share a
-  network with us — see §5.
+- **Cloudflare** — DNS + tunnel edge. The zone is on Cloudflare's free
+  plan; no Zero Trust subscription needed (we use CLI-created locally-
+  managed tunnels, not dashboard-created tokens).
 
 ## 5. Architecture
 
-- **Edge:** Caddy at `/opt/edge/`. Routing for kibarometer.no lives in
-  `/opt/edge/sites/kibarometer.caddy`, synced from
+- **Edge:** `kiba-edge-caddy` runs *inside* our compose stack — HTTP-only,
+  no host ports, never sees public traffic directly.
+  [docker/edge/Caddyfile](docker/edge/Caddyfile) is the umbrella that
+  imports site fragments from [docker/edge/sites/](docker/edge/sites/);
   [docker/edge/sites/kibarometer.caddy](docker/edge/sites/kibarometer.caddy)
-  on every deploy. We never touch `/opt/edge/Caddyfile`,
-  `/opt/edge/compose.yml`, or `/opt/edge/data/`.
+  does path routing (`/supabase/*` → kong, `/_umami/*` → kiba-umami, root
+  → kiba-web) and the `www → root` redirect. deploy.sh stages both into
+  `/opt/kibarometer/edge/` on every push.
+- **Public reachability:** `kiba-cloudflared` connects outbound to
+  Cloudflare's edge and forwards inbound HTTP to `kiba-edge-caddy:80`.
+  No firewall holes on Apollo, no Let's Encrypt — Cloudflare terminates
+  TLS at its global edge. Ingress rules in
+  [docker/cloudflared/config.yml](docker/cloudflared/config.yml).
+  Credentials (`credentials.json`) are per-host, never committed; minted
+  once by `cloudflared tunnel create` on the host.
 - **Admin (Next.js):** [app/admin/](app/admin/) — server components, server
   actions for forms, shadcn/ui Sidebar/Card/Table/etc. Auth gate is
   [middleware.ts](middleware.ts) (HS256 cookie verify, `runtime: "nodejs"`).
@@ -209,15 +243,14 @@ them.**
 - **Marketing Next.js:** [app/(site)/](app/(site)/) (server components by
   default), [lib/env.ts](lib/env.ts) (zod-validated env). Pillar pages
   live at `/arbeidsmarked`, `/media`, `/oppstart`; methodology at `/docs/*`.
-- **Networks:** our containers are on the `kiba` network only. Edge-caddy
-  joins `kiba` post-up so it can reach `kiba-supabase-kong` (the only ingress
-  point). NOT on `edge_net` — joining edge_net would put `kiba-*` on the same
-  network as tenki's `*-1` containers and risk alias collisions. See PR #11.
-- **Service naming:** every service we own is `kiba-<name>`. The default
-  service-name network alias must be the only alias — Compose's `aliases:`
-  field is *additive*, so for `kiba-supabase-kong` we explicitly disconnect
-  and reconnect with `--alias kiba-supabase-kong` in deploy.sh to drop the
-  default `kong` alias that would otherwise shadow tenki's `kong`. See PR #12.
+- **Networks:** our containers are all on the `kiba` Docker network. Apollo
+  also hosts unrelated stacks (tenkibench/laerkode, Apollo/Sunshine
+  streaming server) on separate networks; we never share a docker
+  network with them, so container-name and alias collisions are not a
+  concern. The `kiba-` prefix on every container is just a name
+  convention now — it originated as a workaround for alias collisions
+  on the old shared-edge VPS (see PR #11 / #12 for the historical
+  context).
 - **Supabase compose:** committed at
   [docker/supabase/docker-compose.yml](docker/supabase/docker-compose.yml).
   ALREADY rewritten by `scripts/fork-supabase-compose.sh` (container names,
@@ -294,7 +327,10 @@ For destructive migrations, apply manually via psql once, then merge
 dependent code.
 
 ```bash
-ssh deploy@193.200.238.120
+# SSH into Apollo via Tailscale or public address (port 2040 if not on
+# Tailscale). Then sudo to root or deploy as needed.
+ssh -p 2040 tenki@apollo
+sudo -iu deploy
 PGPW=$(grep '^POSTGRES_PASSWORD=' /opt/kibarometer/env/supabase.env | cut -d= -f2)
 docker exec -i -e PGPASSWORD="$PGPW" kiba-supabase-db \
   psql -U postgres -d postgres < /opt/kibarometer/website/supabase/migrations/00NN_foo.sql
@@ -303,20 +339,25 @@ docker exec -i -e PGPASSWORD="$PGPW" kiba-supabase-db \
 ## 9. Deploy
 
 `git push origin main` → GitHub Actions
-([.github/workflows/deploy.yml](.github/workflows/deploy.yml)) → scp source
-to `/opt/kibarometer/incoming/` → ssh runs
-[scripts/deploy.sh](scripts/deploy.sh) on the VPS as `deploy`.
+([.github/workflows/deploy.yml](.github/workflows/deploy.yml)) →
+self-hosted runner on Apollo (`apollo-kibarometer`, systemd service
+`actions.runner.tenki-labs-kibarometer.apollo-kibarometer.service`) →
+rsync source to `/opt/kibarometer/incoming/` → run
+[scripts/deploy.sh](scripts/deploy.sh) locally as the `deploy` user.
+No SSH/scp in the workflow — the runner pulls the job from GitHub and
+everything else happens on-host.
 
 deploy.sh: builds the kiba-web image, syncs admin sources, applies
-migrations, recreates `kiba-{web,fetcher,backup,redis,umami,scraper}` (NOT
-the supabase fleet — that came up via `bootstrap.sh --bring-up`),
-force-recreates `kong` (so the alias-strip step takes effect), syncs the
-edge fragment, reloads Caddy, runs an external smoke test, archives the
-build directory.
+migrations, stages `/opt/kibarometer/{edge,cloudflared}/` config files
+(must precede `compose up` — the bind mounts have to resolve on first
+start), force-recreates `kiba-{web,fetcher,backup,redis,umami,scraper,
+edge-caddy,cloudflared}` (NOT the supabase fleet — that came up via
+`bootstrap.sh --bring-up`), reloads Caddy gracefully, runs an external
+smoke test, archives the build directory.
 
 If the supabase fleet ever needs to come back up after `down`, re-run
 `sudo bash /opt/kibarometer/incoming/scripts/bootstrap.sh --bring-up` on
-the VPS (after a fresh push so `incoming/` has source).
+Apollo (after a fresh push so `incoming/` has source).
 
 ## 10. Backups (Phase 9)
 
@@ -352,20 +393,25 @@ after the first `setup.sh` run.
 
 ## 12. Secrets
 
-VPS only, mode 600 deploy:deploy:
+On Apollo only, mode 600 deploy:deploy:
 ```
-/opt/kibarometer/env/supabase.env       # Postgres + GoTrue + JWT + dashboard
-/opt/kibarometer/env/admin.env          # source of truth for JWT secret, anon/service keys, fetcher token, UMAMI_*, MLX_*, ANTHROPIC_*
-/opt/kibarometer/env/fetcher.env        # fetcher cron — admin URL + fetcher token (must match admin.env)
-/opt/kibarometer/env/backup.env         # B2 creds, bucket, optional Kuma URL
-/opt/kibarometer/env/umami.env          # Umami Postgres URL + HASH_SALT + APP_SECRET
-/opt/kibarometer/env/.env.production    # kiba-web runtime env — propagated from admin.env by deploy.sh (FETCHER_TOKEN, SUPABASE_JWT_SECRET, UMAMI_*, MLX_*, ANTHROPIC_*) plus marketing-only NEXT_PUBLIC_*
+/opt/kibarometer/env/supabase.env             # Postgres + GoTrue + JWT + dashboard
+/opt/kibarometer/env/admin.env                # source of truth for JWT secret, anon/service keys, fetcher token, UMAMI_*, MLX_*, ANTHROPIC_*
+/opt/kibarometer/env/fetcher.env              # fetcher cron — admin URL + fetcher token (must match admin.env)
+/opt/kibarometer/env/backup.env               # B2 creds, bucket, optional Kuma URL
+/opt/kibarometer/env/umami.env                # Umami Postgres URL + HASH_SALT + APP_SECRET
+/opt/kibarometer/env/.env.production          # kiba-web runtime env — propagated from admin.env by deploy.sh (FETCHER_TOKEN, SUPABASE_JWT_SECRET, UMAMI_*, MLX_*, ANTHROPIC_*) plus marketing-only NEXT_PUBLIC_*
+/opt/kibarometer/cloudflared/credentials.json # Cloudflare Tunnel credentials — mode 644 (cloudflared runs as UID 65532 nonroot); minted by `cloudflared tunnel create` on Apollo, never committed
 ```
 
-[scripts/generate-secrets.sh](scripts/generate-secrets.sh) mints all six on
-a fresh VPS, refusing to clobber any existing file. Real B2 creds are NOT
-generated — they come from the Backblaze console. Real Umami API key +
-website ID are NOT generated either — they come from a one-time setup via
+[scripts/generate-secrets.sh](scripts/generate-secrets.sh) mints the six
+env files on a fresh host, refusing to clobber any existing file. The
+cloudflared credentials are NOT generated by this script — they come
+from running `cloudflared tunnel login` + `cloudflared tunnel create` on
+Apollo (see [docker/cloudflared/config.yml](docker/cloudflared/config.yml)
+for the file's expected path). Real B2 creds are NOT generated either —
+they come from the Backblaze console. Real Umami API key + website ID
+are NOT generated either — they come from a one-time setup via
 SSH-tunnel to the Umami container; see the `/admin/analytics` empty-state
 card for the runbook. `MLX_*` values point at the shared `mlx.tenki.no`
 endpoint and are issued by tenki — see §4. `ANTHROPIC_API_KEY` (optional)
@@ -379,11 +425,16 @@ the `p-limit` cap inside the drain orchestrator.
 - Don't push to `main` without PR.
 - Don't `--no-verify` or force-push.
 - Don't add npm deps to the admin.
-- Don't modify `/opt/edge/Caddyfile`, `/opt/edge/compose.yml`, or
-  `/opt/edge/data/` — those belong to the edge owner (tenki).
-- Don't reuse tenki's secrets, paths, container names, or networks.
+- Don't reuse tenki's secrets, paths, or container names. Apollo hosts
+  unrelated stacks (tenkibench/laerkode, Sunshine streaming) — staying
+  on our own `kiba-` prefix and `kiba` network keeps blast radius zero
+  even though we no longer share a docker network with them.
 - Don't lift `docker/supabase/docker-compose.yml` from upstream without
   re-running [scripts/fork-supabase-compose.sh](scripts/fork-supabase-compose.sh)
   — CI catches it.
 - Don't add storage or imgproxy back to the supabase compose without a
   product reason — they're stripped on purpose.
+- Don't commit `/opt/kibarometer/cloudflared/credentials.json` — it's a
+  per-host secret minted by `cloudflared tunnel create` and lives only
+  on Apollo. `docker/cloudflared/config.yml` (with the tunnel UUID)
+  *is* committed.
