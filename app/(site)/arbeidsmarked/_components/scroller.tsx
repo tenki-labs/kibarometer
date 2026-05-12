@@ -36,12 +36,22 @@ import {
   dateKey,
   parseRange,
   rangeCutoffMs,
+  unavailableRanges,
 } from "@/app/(site)/_lib/range";
 import {
   fmtMomentumPct,
   fmtNumber,
 } from "@/app/(site)/_lib/format-headline";
-import type { JobsMomentum } from "@/app/(site)/_lib/data-cutoff";
+import {
+  JOBBMARKED_DATA_CUTOFF,
+  type JobsMomentum,
+} from "@/app/(site)/_lib/data-cutoff";
+
+// JOBBMARKED_DATA_CUTOFF in ms — used to disable ranges whose trailing
+// window extends past the earliest reliable NAV data (see data-cutoff.ts).
+const JOBBMARKED_DATA_CUTOFF_MS = new Date(
+  JOBBMARKED_DATA_CUTOFF + "T00:00:00Z",
+).getTime();
 
 import { KeywordList } from "./keyword-list";
 import { NorwayMap, type NorwayMapUnit } from "./norway-map";
@@ -176,6 +186,14 @@ export function Scroller({
     return latest || 0;
   }, [snapshotDaily, skillCategoryDaily]);
 
+  // Ranges whose trailing window predates the hard NAV cutoff render
+  // identically to "max" — disable them with the explanatory tooltip
+  // so the toggle is honest about how little usable data we have.
+  const disabledRanges = useMemo(
+    () => unavailableRanges(JOBBMARKED_DATA_CUTOFF_MS, nowMs),
+    [nowMs],
+  );
+
   const skillSeries = useMemo(
     () => buildSeries(skillCategoryDaily, range, (r) => r.slug, "ai", nowMs),
     [skillCategoryDaily, range, nowMs],
@@ -268,7 +286,11 @@ export function Scroller({
             <h2 className="text-lg font-medium tracking-tight sm:text-xl">
               Norsk arbeidsmarked
             </h2>
-            <TimeRangeToggle value={range} onChange={onRangeChange} />
+            <TimeRangeToggle
+              value={range}
+              onChange={onRangeChange}
+              disabledValues={disabledRanges}
+            />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
             Antall AI-relaterte stillinger publisert via NAVs feed, gruppert
@@ -299,7 +321,11 @@ export function Scroller({
             <h2 className="text-lg font-medium tracking-tight sm:text-xl">
               KI-jobber i kategorier
             </h2>
-            <TimeRangeToggle value={range} onChange={onRangeChange} />
+            <TimeRangeToggle
+              value={range}
+              onChange={onRangeChange}
+              disabledValues={disabledRanges}
+            />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
             Av AI-stillinger som er klassifisert av en språkmodell etter
