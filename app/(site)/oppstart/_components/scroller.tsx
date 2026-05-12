@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import {
   AIVolumeAreaChart,
@@ -260,6 +260,7 @@ export function Scroller({
   norwayPaths,
   norwayViewBox,
 }: Props) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const initialRange = parseRange(searchParams.get("range"));
   const [range, setRange] = useState<Range>(initialRange);
@@ -274,10 +275,12 @@ export function Scroller({
     return Date.now() - ms > STALE_AFTER_MS;
   });
 
-  // Sync the URL via history.replaceState rather than Next.js router.replace
-  // so the snap-scroll container's scroll position is never perturbed — the
-  // router path can interact subtly with the segment layout and bounce the
-  // user back to the hero on each click. Mirrors /arbeidsmarked.
+  // Sync the URL via router.replace with { scroll: false } so the snap-scroll
+  // container's scroll position is never perturbed. We previously called
+  // window.history.replaceState directly here, but that desynced Next.js's
+  // App Router state from the actual URL — subsequent <Link> clicks could
+  // serve stale prefetched RSC payloads, manifesting as empty charts on the
+  // next pillar page until a hard refresh. Mirrors /arbeidsmarked.
   function onRangeChange(next: Range) {
     setRange(next);
     const params = new URLSearchParams(searchParams.toString());
@@ -285,9 +288,7 @@ export function Scroller({
     else params.set("range", next);
     const qs = params.toString();
     const url = qs ? `/oppstart?${qs}` : "/oppstart";
-    if (typeof window !== "undefined") {
-      window.history.replaceState(null, "", url);
-    }
+    router.replace(url, { scroll: false });
   }
 
   // Reference "now" derived from the data — the latest registrert_dato across

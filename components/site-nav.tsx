@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { ChevronDownIcon } from "lucide-react";
 
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -12,15 +13,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  NavigationMenu,
-  NavigationMenuContent,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-  NavigationMenuTrigger,
-  navigationMenuTriggerStyle,
-} from "@/components/ui/navigation-menu";
 import { cn } from "@/lib/utils";
 
 type Kibarometer = {
@@ -47,19 +39,30 @@ const KIBAROMETRE: Kibarometer[] = [
   },
 ];
 
+// Shared styling for the top-level nav items (matches the previous
+// navigationMenuTriggerStyle so the visual stays unchanged after the
+// switch to DropdownMenu — see notes on the SiteNav export below).
+const NAV_ITEM_CLASS =
+  "inline-flex h-9 items-center justify-center rounded-md bg-background px-4 py-2 font-mono text-xs font-medium uppercase tracking-[0.14em] transition-[color,box-shadow] outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 data-[state=open]:bg-accent/50 data-[state=open]:text-accent-foreground";
+
+// The desktop "Kibarometre" trigger previously lived inside a Radix
+// NavigationMenu with delayDuration + controlled state + a manual onClick
+// preventDefault workaround. That stack mixed hover-to-open and
+// click-to-toggle and produced a first-click-unresponsive bug on
+// mouse/trackpad. Switching to DropdownMenu (click-only, same pattern as
+// the mobile burger) removes the hover/click race entirely.
 export function SiteNav() {
   const [mobileOpen, setMobileOpen] = React.useState(false);
-  const [desktopValue, setDesktopValue] = React.useState("");
 
-  // Close menus when crossing the sm breakpoint. Without this, an open Portal
-  // anchored to a now-`display: none` trigger snaps to (0, 0) — Radix reads
-  // a zeroed getBoundingClientRect from the hidden trigger.
+  // Close the mobile dropdown when crossing the sm breakpoint. Without
+  // this, an open Portal anchored to a now-`display: none` trigger snaps
+  // to (0, 0) — Radix reads a zeroed getBoundingClientRect from the
+  // hidden trigger.
   React.useEffect(() => {
     if (typeof window === "undefined") return;
     const mql = window.matchMedia("(min-width: 640px)");
     const handler = (e: MediaQueryListEvent) => {
       if (e.matches) setMobileOpen(false);
-      else setDesktopValue("");
     };
     mql.addEventListener("change", handler);
     return () => mql.removeEventListener("change", handler);
@@ -70,20 +73,12 @@ export function SiteNav() {
       <div className="flex h-14 w-full items-center justify-between px-4 sm:px-6">
         {/* Left: brand mark + Tenki Labs attribution */}
         <div className="flex items-center gap-3">
-          <NavigationMenu className="flex-none" viewport={false}>
-            <NavigationMenuList>
-              <NavigationMenuItem>
-                <NavigationMenuLink
-                  asChild
-                  className={cn(
-                    "font-mono text-sm font-medium uppercase tracking-[0.18em] hover:bg-transparent focus:bg-transparent data-[active=true]:bg-transparent",
-                  )}
-                >
-                  <Link href="/">KI BAROMETERET</Link>
-                </NavigationMenuLink>
-              </NavigationMenuItem>
-            </NavigationMenuList>
-          </NavigationMenu>
+          <Link
+            href="/"
+            className="inline-flex h-9 items-center rounded-md px-4 py-2 font-mono text-sm font-medium uppercase tracking-[0.18em] transition-[color] outline-none hover:text-accent-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1"
+          >
+            KI BAROMETERET
+          </Link>
           <span className="hidden text-xs text-muted-foreground sm:inline">
             drevet av{" "}
             <a
@@ -99,138 +94,121 @@ export function SiteNav() {
 
         {/* Right cluster: desktop nav + theme toggle + mobile burger */}
         <div className="flex items-center gap-1">
-        <NavigationMenu
-          className="hidden sm:flex"
-          viewport={false}
-          delayDuration={150}
-          skipDelayDuration={0}
-          value={desktopValue}
-          onValueChange={setDesktopValue}
-        >
-          <NavigationMenuList>
-            <NavigationMenuItem value="kibarometre">
-              <NavigationMenuTrigger
-                className="font-mono text-xs uppercase tracking-[0.14em]"
-                onClick={(e) => {
-                  if (desktopValue === "kibarometre") e.preventDefault();
-                }}
+          <nav className="hidden items-center sm:flex">
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                className={cn(NAV_ITEM_CLASS, "group")}
+                aria-label="Kibarometre"
               >
                 Kibarometre
-              </NavigationMenuTrigger>
-              <NavigationMenuContent className="left-auto right-0 w-auto">
-                <ul className="grid w-[20rem] gap-1 p-2">
-                  {KIBAROMETRE.map((item) => (
-                    <li key={item.href}>
-                      <NavigationMenuLink asChild>
-                        <Link href={item.href} className="block">
-                          <span className="text-sm font-medium leading-none">
-                            {item.title}
-                          </span>
-                          <span className="mt-1 text-xs text-muted-foreground">
-                            {item.description}
-                          </span>
-                        </Link>
-                      </NavigationMenuLink>
-                    </li>
-                  ))}
-                </ul>
-              </NavigationMenuContent>
-            </NavigationMenuItem>
-
-            <NavigationMenuItem>
-              <NavigationMenuLink
-                asChild
-                className={cn(
-                  navigationMenuTriggerStyle(),
-                  "font-mono text-xs uppercase tracking-[0.14em]",
-                )}
+                <ChevronDownIcon
+                  className="relative top-[1px] ml-1 size-3 transition duration-300 group-data-[state=open]:rotate-180"
+                  aria-hidden="true"
+                />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                sideOffset={8}
+                className="w-[20rem] p-2"
               >
-                <Link href="/docs">Docs</Link>
-              </NavigationMenuLink>
-            </NavigationMenuItem>
+                {KIBAROMETRE.map((item) => (
+                  <DropdownMenuItem
+                    key={item.href}
+                    asChild
+                    className="cursor-pointer rounded-md focus:bg-accent data-[highlighted]:bg-accent"
+                  >
+                    <Link
+                      href={item.href}
+                      className="flex flex-col items-start gap-1 px-3 py-2"
+                    >
+                      <span className="text-sm font-medium leading-none">
+                        {item.title}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {item.description}
+                      </span>
+                    </Link>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-            <NavigationMenuItem>
-              <NavigationMenuLink
-                asChild
-                className={cn(
-                  navigationMenuTriggerStyle(),
-                  "font-mono text-xs uppercase tracking-[0.14em]",
-                )}
+            <Link href="/docs" className={NAV_ITEM_CLASS}>
+              Docs
+            </Link>
+            <Link href="/om" className={NAV_ITEM_CLASS}>
+              Om
+            </Link>
+          </nav>
+
+          <ThemeToggle />
+
+          {/* Mobile burger (DropdownMenu) */}
+          <DropdownMenu open={mobileOpen} onOpenChange={setMobileOpen}>
+            <DropdownMenuTrigger asChild className="sm:hidden">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="font-mono text-xs uppercase tracking-[0.18em]"
               >
-                <Link href="/om">Om</Link>
-              </NavigationMenuLink>
-            </NavigationMenuItem>
-          </NavigationMenuList>
-        </NavigationMenu>
-
-        <ThemeToggle />
-
-        {/* Right: mobile burger (DropdownMenu) */}
-        <DropdownMenu open={mobileOpen} onOpenChange={setMobileOpen}>
-          <DropdownMenuTrigger asChild className="sm:hidden">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="font-mono text-xs uppercase tracking-[0.18em]"
+                Menu
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              sideOffset={12}
+              className="w-[min(22rem,calc(100vw-2rem))] p-2"
             >
-              Menu
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            sideOffset={12}
-            className="w-[min(22rem,calc(100vw-2rem))] p-2"
-          >
-            {KIBAROMETRE.map((item) => (
+              {KIBAROMETRE.map((item) => (
+                <DropdownMenuItem
+                  key={item.href}
+                  asChild
+                  className="cursor-pointer rounded-md focus:bg-accent data-[highlighted]:bg-accent"
+                >
+                  <Link
+                    href={item.href}
+                    className="flex flex-col items-start gap-1 px-3 py-3"
+                  >
+                    <span className="text-sm font-medium leading-none">
+                      {item.title}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {item.description}
+                    </span>
+                  </Link>
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator className="my-2" />
               <DropdownMenuItem
-                key={item.href}
                 asChild
                 className="cursor-pointer rounded-md focus:bg-accent data-[highlighted]:bg-accent"
               >
                 <Link
-                  href={item.href}
+                  href="/docs"
                   className="flex flex-col items-start gap-1 px-3 py-3"
                 >
-                  <span className="text-sm font-medium leading-none">
-                    {item.title}
-                  </span>
+                  <span className="text-sm font-medium leading-none">Docs</span>
                   <span className="text-xs text-muted-foreground">
-                    {item.description}
+                    Slik fungerer hver pipeline
                   </span>
                 </Link>
               </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator className="my-2" />
-            <DropdownMenuItem
-              asChild
-              className="cursor-pointer rounded-md focus:bg-accent data-[highlighted]:bg-accent"
-            >
-              <Link
-                href="/docs"
-                className="flex flex-col items-start gap-1 px-3 py-3"
+              <DropdownMenuItem
+                asChild
+                className="cursor-pointer rounded-md focus:bg-accent data-[highlighted]:bg-accent"
               >
-                <span className="text-sm font-medium leading-none">Docs</span>
-                <span className="text-xs text-muted-foreground">
-                  Slik fungerer hver pipeline
-                </span>
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              asChild
-              className="cursor-pointer rounded-md focus:bg-accent data-[highlighted]:bg-accent"
-            >
-              <Link
-                href="/om"
-                className="flex flex-col items-start gap-1 px-3 py-3"
-              >
-                <span className="text-sm font-medium leading-none">Om</span>
-                <span className="text-xs text-muted-foreground">
-                  Bak prosjektet
-                </span>
-              </Link>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+                <Link
+                  href="/om"
+                  className="flex flex-col items-start gap-1 px-3 py-3"
+                >
+                  <span className="text-sm font-medium leading-none">Om</span>
+                  <span className="text-xs text-muted-foreground">
+                    Bak prosjektet
+                  </span>
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </header>
