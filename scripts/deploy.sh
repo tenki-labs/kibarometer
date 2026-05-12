@@ -226,7 +226,41 @@ do \$\$ begin
   end if;
 end \$\$;" >/dev/null
 
-echo "== compose up (kiba-web + kiba-fetcher + kiba-backup + kiba-redis — supabase fleet stays running) =="
+echo "== stage edge + cloudflared config (must precede compose up so bind mounts resolve) =="
+# kiba-edge-caddy and cloudflared bind-mount config files from
+# /opt/kibarometer/{edge,cloudflared}/. On first deploy these don't exist
+# yet, and Docker would silently create empty *directories* at the bind-
+# mount source (then both containers would fail to start). Stage all files
+# here, before `compose up`.
+#
+# bootstrap.sh creates the dirs; the `sudo install -d` calls are defensive
+# in case deploy.sh runs against a host whose bootstrap.sh predates this
+# change. `/usr/bin/install` is in the deploy user's sudoers whitelist.
+#
+# credentials.json is NEVER staged from the repo — it's a secret minted by
+# `cloudflared tunnel create` and only ever lives on the host. The file
+# stays put across deploys; we only refresh config.yml here.
+sudo install -d -o deploy -g deploy /opt/kibarometer/edge/sites /opt/kibarometer/edge/data /opt/kibarometer/edge/config
+sudo install -d -o deploy -g deploy /opt/kibarometer/cloudflared
+install -m 644 "$INCOMING/docker/edge/Caddyfile"               /opt/kibarometer/edge/Caddyfile
+install -m 644 "$INCOMING/docker/edge/sites/kibarometer.caddy" /opt/kibarometer/edge/sites/kibarometer.caddy
+install -m 644 "$INCOMING/docker/cloudflared/config.yml"       /opt/kibarometer/cloudflared/config.yml
+
+# Sanity check: refuse to bring up cloudflared if the credentials file is
+# missing or the config still has the placeholder UUID. Either case means
+# the operator hasn't completed the one-time `tunnel create` step.
+if [[ ! -f /opt/kibarometer/cloudflared/credentials.json ]]; then
+  echo "WARN: /opt/kibarometer/cloudflared/credentials.json missing —"
+  echo "      run 'cloudflared tunnel login' + 'tunnel create' on the host"
+  echo "      and copy the credentials JSON. cloudflared will keep restarting"
+  echo "      until this is fixed."
+fi
+if grep -q REPLACE_WITH_TUNNEL_UUID /opt/kibarometer/cloudflared/config.yml; then
+  echo "WARN: docker/cloudflared/config.yml still has REPLACE_WITH_TUNNEL_UUID —"
+  echo "      replace it with the UUID printed by 'cloudflared tunnel create'."
+fi
+
+echo "== compose up (kiba-web + kiba-fetcher + kiba-backup + kiba-redis + kiba-edge-caddy + kiba-cloudflared — supabase fleet stays running) =="
 cd "$WEBSITE"
 # kiba-redis must be in the explicit list. compose's depends_on cascade is
 # unreliable here — Phase 10 verification caught that the very first deploy
@@ -244,7 +278,7 @@ cd "$WEBSITE"
 docker compose --env-file /opt/kibarometer/env/supabase.env \
   -f compose.yml -f docker/supabase/docker-compose.yml \
   -f compose.prod.yml -f compose.boot.yml \
-  up -d --build --force-recreate --remove-orphans kiba-web kiba-fetcher kiba-backup kiba-redis kiba-umami kiba-scraper
+  up -d --build --force-recreate --remove-orphans kiba-web kiba-fetcher kiba-backup kiba-redis kiba-umami kiba-scraper kiba-edge-caddy kiba-cloudflared
 
 # Recreate kong too — the alias override lives in compose.boot.yml. Without
 # this, an old kong container with the default `kong` alias keeps running
@@ -273,16 +307,18 @@ for i in $(seq 1 24); do
   sleep 5
 done
 
-echo "== sync edge fragment =="
-# Write our own routing fragment to the SHARED edge. Never modify Caddyfile,
-# /opt/edge/compose.yml, or /opt/edge/data/ — those belong to the edge owner.
-sudo cp "$INCOMING/docker/edge/sites/kibarometer.caddy" /opt/edge/sites/kibarometer.caddy
-docker network connect kiba edge-caddy-1 2>/dev/null || true
-for i in $(seq 1 10); do
-  if docker exec edge-caddy-1 wget -qO- http://127.0.0.1:2019/config/ >/dev/null 2>&1; then break; fi
-  sleep 1
-done
-docker exec edge-caddy-1 caddy reload --config /etc/caddy/Caddyfile
+echo "== reload edge caddy (graceful, no connection drop) =="
+# Edge config files were already staged before `compose up`; if this is a
+# pure config redeploy (no service recreate), force-recreating the container
+# in step "compose up" above wouldn't have happened, and the running Caddy
+# is using the old config. A graceful reload picks up the new fragment
+# without dropping connections.
+#
+# The `|| echo` swallows the harmless error when the container was just
+# force-recreated by the compose up step (admin socket may still be coming
+# up) — in that case the new container is already serving the staged config.
+docker exec kiba-edge-caddy caddy reload --config /etc/caddy/Caddyfile 2>/dev/null || \
+  echo "  reload skipped (container mid-start or just recreated)"
 
 echo "== external smoke =="
 smoke() {

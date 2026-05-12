@@ -1,26 +1,22 @@
-# /opt/edge/sites/kibarometer.caddy — synced from this file by scripts/deploy.sh
-# on every push. The shared edge at /opt/edge/ is owned by tenki; we only ever
-# write to /opt/edge/sites/kibarometer.caddy and never touch the umbrella
-# Caddyfile, /opt/edge/compose.yml, or /opt/edge/data/.
+# docker/edge/sites/kibarometer.caddy — loaded by kiba-edge-caddy via the
+# umbrella docker/edge/Caddyfile. Mounted into the container at
+# /etc/caddy/sites/ and synced from this file by scripts/deploy.sh.
 #
-# The umbrella's global ACME email is einar@tenki.no. To pin a kibarometer-
-# specific contact, uncomment the per-site `tls` directive below.
+# HTTP-only listener: Cloudflare Tunnel terminates TLS at Cloudflare's
+# edge, so traffic arriving inside the docker network is plain HTTP. The
+# browser still sees HTTPS end-to-end — the redirect to https:// below is
+# what the *browser* sees, not what Caddy speaks to cloudflared.
 
-www.kibarometer.no {
-    redir https://kibarometer.no{uri} 308
-}
+:80 {
+    # Strip the www subdomain. Cloudflare's tunnel routes both
+    # kibarometer.no and www.kibarometer.no into this container; the
+    # @www matcher kicks www requests back out as a redirect before any
+    # handle_path / handle blocks run.
+    @www host www.kibarometer.no
+    redir @www https://kibarometer.no{uri} 308
 
-kibarometer.no {
     encode zstd gzip
     import security_headers
-
-    # Optional: kibarometer-specific ACME contact
-    # tls ops@kibarometer.no
-
-    # /admin/* lives inside kiba-web post Phase F PR 4 (server actions for
-    # the UI, /admin/api/jobs/* route handlers for the cron sidecar — both
-    # bearer-authed and cookie-authed paths now share one container). The
-    # default `handle` block below already forwards to kiba-web:3000.
 
     # Supabase REST + Auth via Kong. NO aggressive cache header here — these
     # are dynamic API responses (PostgREST queries, GoTrue tokens). Any

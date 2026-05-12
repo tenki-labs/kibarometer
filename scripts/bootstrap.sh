@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# scripts/bootstrap.sh — one-time provisioning on the existing Tenki VPS.
-# Skips global steps (Docker, UFW, deploy user) since tenki already set them.
-# Run as root via sudo.
+# scripts/bootstrap.sh — one-time provisioning on the host.
+# Assumes Docker, UFW, and the `deploy` user already exist on the host
+# (per the migration runbook). Run as root via sudo.
 #
 # Two phases (both idempotent):
 #   1. (default)   create dirs + create the kiba Docker network.
@@ -21,13 +21,23 @@ PHASE="${1:-init}"
 
 echo "== create dirs =="
 install -d -o deploy -g deploy \
+  "$ROOT" \
   "$ROOT/website" "$ROOT/website/docker/supabase" \
   "$ROOT/admin" "$ROOT/admin/sections" "$ROOT/admin/nav" \
   "$ROOT/env" \
-  "$ROOT/data/postgres" \
+  "$ROOT/data" "$ROOT/data/postgres" \
+  "$ROOT/edge" "$ROOT/edge/sites" "$ROOT/edge/data" "$ROOT/edge/config" \
+  "$ROOT/cloudflared" \
   "$ROOT/backups" "$ROOT/build" "$ROOT/incoming"
+# Belt-and-suspenders: `install -d` applies -o/-g only to the directories
+# explicitly listed, not to intermediate parents it had to create. List
+# every parent above, then chown -R the lot to guarantee no root-owned
+# stragglers exist anywhere in the tree.
+chown -R deploy:deploy "$ROOT"
 # Storage bind-mount intentionally absent — Supabase Storage was stripped
 # in Phase 0.5.
+# $ROOT/edge/ holds the standalone Caddy's config + ACME certs. deploy.sh
+# stages Caddyfile + sites/kibarometer.caddy from the repo on every push.
 
 echo "== create kiba network =="
 docker network inspect kiba >/dev/null 2>&1 || docker network create kiba
@@ -88,8 +98,8 @@ Next steps (on this VPS, as the deploy user where noted):
 
 2. (One-time, on first deploy only) Stage the compose files:
      scp -r kibarometer/{compose.yml,compose.boot.yml,compose.prod.yml,docker/supabase/docker-compose.yml} \
-       deploy@193.200.238.120:/opt/kibarometer/website/
-   (deploy.sh — Phase 8 — handles this on every subsequent push.)
+       deploy@<your-server-ip>:/opt/kibarometer/website/
+   (deploy.sh handles this on every subsequent push.)
 
 3. Re-run this script with --bring-up to start the supabase fleet:
      sudo bash /opt/kibarometer/incoming/scripts/bootstrap.sh --bring-up
@@ -97,10 +107,12 @@ Next steps (on this VPS, as the deploy user where noted):
 4. (One-time) Mint the first super_admin via SQL — see
    docs/vps-bootstrap.md §6.
 
-5. Add GitHub secrets in the kibarometer repo (for Phase 8 deploy):
-     SSH_PRIVATE_KEY, SSH_KNOWN_HOSTS, VPS_HOST=193.200.238.120, VPS_USER=deploy
+5. Register the self-hosted GitHub Actions runner as the `deploy` user.
+   See the migration runbook; tokens come from
+   https://github.com/tenki-labs/kibarometer/settings/actions/runners/new
 
-6. Push to main → Phase 8 CI builds web + admin and rolls them in.
+6. Push to main → CI runs on the self-hosted runner; deploy.sh builds web
+   and rolls everything in.
 NOTE
   exit 0
 fi

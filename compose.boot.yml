@@ -16,7 +16,7 @@ services:
       HOSTNAME: "0.0.0.0"
     command: !override ["node", "server.js"]
 
-  # Two overrides on the supabase kong service:
+  # Three overrides on the supabase kong service:
   #
   # 1. Drop host port bindings. The shared Tenki VPS already runs an unforked
   #    `supabase-kong` (tenki forgot to fork their supabase compose) that owns
@@ -29,8 +29,18 @@ services:
   #    the kiba network, breaking tenki's `/supabase/*` routing. Specifying
   #    `aliases:` replaces the default. This is the same trick PR #11 applies
   #    to kiba-web and kiba-admin via service-rename.
+  #
+  # 3. Cap nginx_worker_processes to 4. Default `auto` matches host CPU count.
+  #    On Apollo (24 cores) that spawns 24 nginx workers, and kong's internal
+  #    lua-resty-events IPC fanout (N*(N-1)/2 = 276 unix-socket channels)
+  #    overwhelms the kernel's SCM_RIGHTS fd-passing, causing endless
+  #    `sendmsg() failed (109: Too many references: cannot splice)` and
+  #    pegging kong at 3000+% CPU. 4 workers handles our traffic comfortably
+  #    and keeps the IPC fanout at a sane 6 channels.
   kong:
     ports: !reset null
+    environment:
+      KONG_NGINX_WORKER_PROCESSES: "4"
     networks:
       default:
         aliases:

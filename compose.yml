@@ -1,25 +1,22 @@
-# compose.yml — base composition for the production stack on the VPS.
+# compose.yml — base composition for the production stack on Apollo.
 # Layered with docker/supabase/docker-compose.yml + compose.boot.yml
 # (+ compose.prod.yml for memory caps) at deploy time. See scripts/deploy.sh
 # for the canonical bring-up command.
 #
-# Backup service intentionally absent — added in Phase 10.
-#
-# Service-name conventions: every service we own is `kiba-<name>` to avoid
-# Docker network alias collisions with tenki on the shared edge network.
-# Tenki's caddy fragment looks up bare names like `web`, `admin`, `kong`,
-# and edge-caddy-1 is on multiple networks (edge_net + tenki + kiba), so an
-# unprefixed service name on our side would shadow tenki's. See PR #11 for
-# the post-mortem.
+# Service-name conventions: every service we own is `kiba-<name>`. This was
+# originally a workaround for alias collisions with tenki on a shared edge
+# network (see PR #11); now that we own the whole stack on Apollo, the
+# prefix is just a name convention. The kong-alias-strip block in deploy.sh
+# is also a vestige of that era and will be removed in a follow-up.
 
 name: kibarometer
 
 networks:
   default:
-    # External so the network survives `compose down` — Caddy stays connected
-    # via `docker network connect kiba edge-caddy-1` (run by deploy.sh on
-    # every push) without needing a reconnect each redeploy. bootstrap.sh
-    # creates the network; compose just attaches.
+    # External so the network survives `compose down`. bootstrap.sh creates
+    # the network; compose just attaches. `kiba-edge-caddy` is on this
+    # network and binds host 80/443, so external traffic reaches the rest
+    # of the stack through it.
     name: kiba
     external: true
 
@@ -38,10 +35,9 @@ services:
     depends_on:
       kong: { condition: service_healthy }
       kiba-redis: { condition: service_started }
-    # ONLY on the kiba network. Edge-caddy reaches us via `docker network
-    # connect kiba edge-caddy-1` (deploy.sh). NOT on edge_net — joining
-    # edge_net would register `kiba-web` on the same network as tenki-web
-    # and risk alias bleed.
+    # Reached by kiba-edge-caddy over the `kiba` Docker network — no
+    # port published to the host (edge Caddy is the only public-facing
+    # service in this stack).
     networks: [default]
     healthcheck:
       # 127.0.0.1, not localhost — busybox wget in the next-standalone image
@@ -159,3 +155,57 @@ services:
       retries: 3
       start_period: 30s
     mem_limit: 1g
+
+  # Internal-only reverse proxy. NO public ports — Cloudflare Tunnel
+  # terminates TLS at Cloudflare's edge and tunnels HTTP into the docker
+  # network via the cloudflared sidecar. Caddy then path-routes between
+  # kiba-web, kiba-supabase-kong, and kiba-umami (using handle_path to
+  # strip /supabase and /_umami prefixes — see docker/edge/sites/).
+  #
+  # Reads docker/edge/Caddyfile (umbrella) which imports sites/*.caddy.
+  # deploy.sh stages both into /opt/kibarometer/edge/ BEFORE `compose up`
+  # so the bind mounts resolve on first start.
+  #
+  # No ACME, no Let's Encrypt — Cloudflare provides edge TLS.
+  # /opt/kibarometer/edge/data and /config are bind-mounted but empty in
+  # practice (Caddy uses them for its own state; harmless if unused).
+  #
+  # No depends_on — Caddy starts independently so cloudflared can connect
+  # to it as soon as it's healthy.
+  kiba-edge-caddy:
+    container_name: kiba-edge-caddy
+    image: caddy:2-alpine
+    restart: unless-stopped
+    expose:
+      - "80"
+    volumes:
+      - /opt/kibarometer/edge/Caddyfile:/etc/caddy/Caddyfile:ro
+      - /opt/kibarometer/edge/sites:/etc/caddy/sites:ro
+      - /opt/kibarometer/edge/data:/data
+      - /opt/kibarometer/edge/config:/config
+    networks: [default]
+    mem_limit: 128m
+
+  # Cloudflare Tunnel daemon. Connects outbound to Cloudflare's edge.
+  # Locally-managed mode (CLI-created, no Zero Trust dashboard signup):
+  #   1. Operator runs `cloudflared tunnel login` + `tunnel create` on the
+  #      host to mint /opt/kibarometer/cloudflared/credentials.json.
+  #   2. config.yml (committed at docker/cloudflared/config.yml) declares
+  #      ingress rules — every public hostname points at kiba-edge-caddy:80,
+  #      Caddy then path-routes internally.
+  #   3. deploy.sh stages config.yml to /opt/kibarometer/cloudflared/ on
+  #      every push; credentials.json is created once and never overwritten.
+  #
+  # Public traffic flow: browser → CF edge (TLS) → tunnel → cloudflared
+  #   → kiba-edge-caddy:80 → kiba-web / kong / kiba-umami.
+  kiba-cloudflared:
+    container_name: kiba-cloudflared
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --config /etc/cloudflared/config.yml --no-autoupdate run
+    volumes:
+      - /opt/kibarometer/cloudflared:/etc/cloudflared:ro
+    networks: [default]
+    depends_on:
+      kiba-edge-caddy: { condition: service_started }
+    mem_limit: 64m
