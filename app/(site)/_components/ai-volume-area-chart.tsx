@@ -129,7 +129,7 @@ export function AIVolumeAreaChart({ buckets, unitLabel = "stillinger" }: Props) 
         />
         <Area
           dataKey={COUNT_KEY}
-          type="monotone"
+          type="linear"
           stroke={`var(--color-${COUNT_KEY})`}
           fill={`var(--color-${COUNT_KEY})`}
           fillOpacity={0.7}
