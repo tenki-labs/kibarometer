@@ -209,12 +209,16 @@ begin
     from src
   ),
   agg as (
+    -- Gini math runs in numeric throughout. The baseline group can hit
+    -- ~500k rows × ~1e12 NOK revenues — the inner sum(rank_asc * revenue)
+    -- and the (n+1)*total term both overflow bigint without explicit casts.
     select
       fiscal_year, is_ai_relevant,
       max(n) as n,
       max(group_total) as group_total,
-      (2 * sum(rank_asc * revenue) - (max(n) + 1) * max(group_total))::numeric
-        / nullif(max(n)::numeric * max(group_total), 0) as gini,
+      (2::numeric * sum(rank_asc::numeric * revenue::numeric)
+         - (max(n)::numeric + 1) * max(group_total)::numeric)
+        / nullif(max(n)::numeric * max(group_total)::numeric, 0) as gini,
       sum(revenue) filter (where rank_desc <= 10) as top10_sum,
       sum(revenue) filter (where rank_desc <= greatest(1, max(n) / 100)) as top1pct_sum
     from ranked

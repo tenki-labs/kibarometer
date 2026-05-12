@@ -170,7 +170,7 @@ export default async function FinancialsPage({ searchParams }: Props) {
       <Flash searchParams={params} />
       <PageHeader
         eyebrow="Oppstart"
-        title="Finansial data"
+        title="Regnskap"
         description={
           <span>
             Årsregnskap fra{" "}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   CartesianGrid,
   Line,
@@ -54,6 +54,10 @@ function fmtNok(n: number | null | undefined): string {
 }
 
 export function FinancialsGrowth({ rows }: Props) {
+  // Calendar year captured once at mount via lazy useState so render
+  // stays pure (matches the pattern in scroller.tsx's heroStale).
+  const [currentYear] = useState(() => new Date().getFullYear());
+
   const points = useMemo<Point[]>(() => {
     const byYear = new Map<number, { ai: number | null; baseline: number | null }>();
     for (const r of rows) {
@@ -133,7 +137,7 @@ export function FinancialsGrowth({ rows }: Props) {
           label={`AI-sektor omsetning ${latest.fiscal_year}`}
           value={fmtNok(latest.aiNok)}
           hint={
-            latestYear === new Date().getFullYear() - 1
+            latestYear === currentYear - 1
               ? "Foreløpig — innleveringer kommer Jul–Sep"
               : "Sum sum_driftsinntekter"
           }

@@ -97,7 +97,7 @@ export const ADMIN_NAV: AdminNavSection[] = [
       },
       {
         href: "/admin/startups/financials",
-        label: "Finansial data",
+        label: "Regnskap",
         icon: Wallet,
       },
       { href: "/admin/startups/queue", label: "Kø", icon: ListChecks },
@@ -156,7 +156,7 @@ export const ADMIN_SEGMENT_LABELS: Record<string, string> = (() => {
   out.processes = "Prosesser";
   out.candidates = "Kandidater";
   out.companies = "Selskaper";
-  out.financials = "Finansial data";
+  out.financials = "Regnskap";
   out.queue = "Kø";
   return out;
 })();

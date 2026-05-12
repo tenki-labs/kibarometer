@@ -175,7 +175,7 @@ export default async function OppstartOverviewPage({ searchParams }: Props) {
               <Link href="/admin/startups/companies">Foretak</Link>
             </Button>
             <Button asChild variant="outline">
-              <Link href="/admin/startups/financials">Finansial data</Link>
+              <Link href="/admin/startups/financials">Regnskap</Link>
             </Button>
             <Button asChild variant="outline">
               <Link href="/admin/startups/categories">Kategorier</Link>
