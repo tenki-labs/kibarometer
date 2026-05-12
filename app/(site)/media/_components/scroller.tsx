@@ -17,6 +17,7 @@ import {
   dateKey,
   parseRange,
   rangeCutoffMs,
+  unavailableRanges,
   type BucketGrain,
 } from "@/app/(site)/_lib/range";
 import type {
@@ -156,6 +157,14 @@ export function Scroller({
     const b = coverageHorizonMs(categoryDaily);
     return Math.min(a, b);
   }, [indexHistory, categoryDaily]);
+
+  // Page-level horizon drives toggle disabling — ranges whose trailing
+  // window predates coverageMs render identically to "max", so disable
+  // them with the "Ikke nok data ennå" tooltip.
+  const disabledRanges = useMemo(
+    () => unavailableRanges(coverageMs, nowMs),
+    [coverageMs, nowMs],
+  );
 
   const coverageStart = useMemo(() => {
     if (!Number.isFinite(coverageMs)) return null;
@@ -309,7 +318,11 @@ export function Scroller({
             <h2 className="text-lg font-medium tracking-tight sm:text-xl">
               Kibarometer-indeks over tid
             </h2>
-            <TimeRangeToggle value={range} onChange={onRangeChange} />
+            <TimeRangeToggle
+              value={range}
+              onChange={onRangeChange}
+              disabledValues={disabledRanges}
+            />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
             7-dagers rullerende stemning fra 0 (bekymret) til 100
@@ -332,7 +345,11 @@ export function Scroller({
             <h2 className="text-lg font-medium tracking-tight sm:text-xl">
               Andel per mediekategori
             </h2>
-            <TimeRangeToggle value={range} onChange={onRangeChange} />
+            <TimeRangeToggle
+              value={range}
+              onChange={onRangeChange}
+              disabledValues={disabledRanges}
+            />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
             Andel av AI-artikler per dag, fordelt på kategori. Hver
@@ -361,7 +378,11 @@ export function Scroller({
             <h2 className="text-lg font-medium tracking-tight sm:text-xl">
               Temperatur per kategori
             </h2>
-            <TimeRangeToggle value={range} onChange={onRangeChange} />
+            <TimeRangeToggle
+              value={range}
+              onChange={onRangeChange}
+              disabledValues={disabledRanges}
+            />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
             Hver kategori med snitt-temperatur og utvikling over perioden.
@@ -385,7 +406,11 @@ export function Scroller({
             <h2 className="text-lg font-medium tracking-tight sm:text-xl">
               Antall AI-artikler per dag
             </h2>
-            <TimeRangeToggle value={range} onChange={onRangeChange} />
+            <TimeRangeToggle
+              value={range}
+              onChange={onRangeChange}
+              disabledValues={disabledRanges}
+            />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
             Daglig totalvolum av AI-relaterte artikler på tvers av alle
@@ -408,7 +433,11 @@ export function Scroller({
               <h2 className="text-lg font-medium tracking-tight sm:text-xl">
                 Anomalier — kategori-spiker
               </h2>
-              <TimeRangeToggle value={range} onChange={onRangeChange} />
+              <TimeRangeToggle
+                value={range}
+                onChange={onRangeChange}
+                disabledValues={disabledRanges}
+              />
             </div>
             <p className="max-w-[60ch] text-sm text-muted-foreground">
               Dager hvor en kategori hadde uvanlig høyt volum mot 28-dagers
