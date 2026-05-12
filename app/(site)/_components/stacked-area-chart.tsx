@@ -218,7 +218,7 @@ export function StackedAreaChart({
           <Area
             key={key}
             dataKey={key}
-            type="monotone"
+            type="linear"
             stackId="a"
             stroke={`var(--color-${key})`}
             fill={`var(--color-${key})`}

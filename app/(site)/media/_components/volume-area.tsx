@@ -121,7 +121,7 @@ export function VolumeArea({ rows, cutoffMs, grain }: Props) {
         />
         <Area
           dataKey="count"
-          type={data.length < 3 ? "step" : "monotone"}
+          type={data.length < 3 ? "step" : "linear"}
           stroke="var(--color-count)"
           fill="var(--color-count)"
           fillOpacity={0.55}

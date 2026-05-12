@@ -181,7 +181,7 @@ export function IndexLine({ rows, cutoffMs, grain }: Props) {
           />
           <Line
             dataKey="index"
-            type="monotone"
+            type="linear"
             stroke="url(#kiba-thermo)"
             strokeWidth={2.5}
             dot={false}

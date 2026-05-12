@@ -204,7 +204,7 @@ export function FounderAgeLines({ rows, range, nowMs }: Props) {
         <ChartLegend content={<ChartLegendContent />} />
         <Line
           dataKey="aiMean"
-          type="monotone"
+          type="linear"
           stroke="var(--color-aiMean)"
           strokeWidth={2}
           dot={showDots}
@@ -213,7 +213,7 @@ export function FounderAgeLines({ rows, range, nowMs }: Props) {
         />
         <Line
           dataKey="nonAiMean"
-          type="monotone"
+          type="linear"
           stroke="var(--color-nonAiMean)"
           strokeWidth={2}
           dot={showDots}

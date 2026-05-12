@@ -66,7 +66,7 @@ export function Sparkline({
         {yDomain ? <YAxis hide domain={yDomain} /> : <YAxis hide />}
         <Line
           dataKey="value"
-          type="monotone"
+          type="linear"
           stroke="currentColor"
           strokeWidth={1.5}
           dot={false}
