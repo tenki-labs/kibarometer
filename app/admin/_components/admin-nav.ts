@@ -16,6 +16,7 @@ import {
   Rss,
   Sparkles,
   Tag,
+  Wallet,
 } from "lucide-react";
 
 export type AdminNavItem = {
@@ -94,6 +95,11 @@ export const ADMIN_NAV: AdminNavSection[] = [
         label: "Selskaper",
         icon: Building2,
       },
+      {
+        href: "/admin/startups/financials",
+        label: "Finansial data",
+        icon: Wallet,
+      },
       { href: "/admin/startups/queue", label: "Kø", icon: ListChecks },
       {
         href: "/admin/startups/categories",
@@ -150,6 +156,7 @@ export const ADMIN_SEGMENT_LABELS: Record<string, string> = (() => {
   out.processes = "Prosesser";
   out.candidates = "Kandidater";
   out.companies = "Selskaper";
+  out.financials = "Finansial data";
   out.queue = "Kø";
   return out;
 })();

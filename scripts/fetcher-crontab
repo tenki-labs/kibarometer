@@ -106,3 +106,10 @@
 # 45 min after NAV's 04:00 snapshot refresh so the two RPCs don't compete
 # for Postgres locks.
 45 4 * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 120 ${ADMIN_URL}/admin/api/jobs/brreg-refresh-snapshots > /var/log/last-brreg-snapshots.log 2>&1 || logger -s "kiba-fetcher: brreg-refresh-snapshots failed at $(date -Iseconds)"
+# brreg financials drain (/oppstart). Drains up to K=20 AI-flagged orgnrs
+# per tick from Regnskapsregisteret. No LLM, just structured JSON. Annual
+# data, so retry cadence is 180 days per orgnr — most ticks no-op once
+# the backfill catches up. Offset :18 stays clear of brreg-roles (:12,:42)
+# and the LLM tiers (:16/:22 etc). -m 90 covers the 60s wall budget with
+# slack.
+18 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 90 ${ADMIN_URL}/admin/api/jobs/brreg-financials > /var/log/last-brreg-financials.log 2>&1 || logger -s "kiba-fetcher: brreg-financials failed at $(date -Iseconds)"
