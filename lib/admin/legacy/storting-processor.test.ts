@@ -14,6 +14,8 @@ import { compileMatchers } from "./nav-processor.js";
 import {
   buildSakRow,
   buildVedtakRow,
+  parseStortingDate,
+  parseStortingTimestamp,
   stripHtml,
 } from "./storting-processor.js";
 import {
@@ -256,5 +258,81 @@ describe("enumerateSessions", () => {
 
   it("throws on malformed input", () => {
     expect(() => enumerateSessions("bad", "2024-2025")).toThrow();
+  });
+});
+
+// data.stortinget.no actually returns Microsoft JSON dates of the shape
+// "/Date(ms+offset)/" — discovered when the first backfill hit
+// `invalid input syntax for type date: "/Date(1715"`. These tests pin
+// that the helpers normalize both that format and ISO 8601 so we don't
+// silently regress to a slice(0,10) implementation.
+describe("parseStortingDate", () => {
+  it("parses Microsoft /Date(ms+offset)/ format", () => {
+    // 2024-12-15 00:00:00 UTC = 1734220800000 ms
+    expect(parseStortingDate("/Date(1734220800000+0200)/")).toBe("2024-12-15");
+  });
+
+  it("parses Microsoft /Date(ms)/ without offset", () => {
+    expect(parseStortingDate("/Date(1734220800000)/")).toBe("2024-12-15");
+  });
+
+  it("parses ISO 8601 with time portion", () => {
+    expect(parseStortingDate("2024-12-15T13:45:00")).toBe("2024-12-15");
+  });
+
+  it("parses bare ISO date", () => {
+    expect(parseStortingDate("2024-12-15")).toBe("2024-12-15");
+  });
+
+  it("returns null on null/undefined/empty", () => {
+    expect(parseStortingDate(null)).toBeNull();
+    expect(parseStortingDate(undefined)).toBeNull();
+    expect(parseStortingDate("")).toBeNull();
+  });
+
+  it("returns null on unparseable garbage", () => {
+    expect(parseStortingDate("not-a-date")).toBeNull();
+    expect(parseStortingDate("/Date(notanumber)/")).toBeNull();
+  });
+});
+
+describe("parseStortingTimestamp", () => {
+  it("parses /Date(ms+offset)/ into full ISO timestamp", () => {
+    expect(parseStortingTimestamp("/Date(1734220800000+0200)/")).toBe(
+      "2024-12-15T00:00:00.000Z",
+    );
+  });
+
+  it("passes ISO through verbatim", () => {
+    expect(parseStortingTimestamp("2024-12-15T13:45:00")).toBe(
+      "2024-12-15T13:45:00",
+    );
+  });
+
+  it("returns null on garbage", () => {
+    expect(parseStortingTimestamp("not-a-timestamp")).toBeNull();
+  });
+});
+
+// Regression: a sak whose sist_oppdatert_dato uses the MS format must
+// normalize to YYYY-MM-DD so Postgres accepts it. Before the fix this
+// landed as "/Date(173" — Postgres rejected the whole batch.
+describe("buildSakRow with MS date format", () => {
+  it("normalizes MS /Date(ms)/ in sist_oppdatert_dato", () => {
+    const row = buildSakRow(
+      { ...SAK_AI_TITLE, sist_oppdatert_dato: "/Date(1734220800000+0200)/" },
+      CTX,
+    );
+    expect(row!.sist_oppdatert_dato).toBe("2024-12-15");
+  });
+});
+
+describe("buildVedtakRow with MS date format", () => {
+  it("normalizes MS /Date(ms)/ in stortingsvedtak_dato_tid", () => {
+    const row = buildVedtakRow(
+      { ...VEDTAK_AI_TEKST, stortingsvedtak_dato_tid: "/Date(1734702300000+0100)/" },
+      CTX,
+    );
+    expect(row!.dato_tid).toBe("2024-12-20T13:45:00.000Z");
   });
 });
