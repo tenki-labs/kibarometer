@@ -21,7 +21,13 @@ const MAX_BODY_BYTES = 50_000;
 // active taxonomy at runtime. NAV's `tier2`, media's `media_tier2`, and
 // brreg's `brreg_tier2` all share this contract.
 function requiresCategoriesBlock(role: string): boolean {
-  return role === "tier2" || role === "media_tier2" || role === "brreg_tier2";
+  return (
+    role === "tier2" ||
+    role === "media_tier2" ||
+    role === "brreg_tier2" ||
+    role === "offentlig_storting_tier2" ||
+    role === "offentlig_doffin_tier2"
+  );
 }
 
 export type PromptActionsConfig = {
