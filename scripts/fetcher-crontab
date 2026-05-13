@@ -137,3 +137,24 @@
 # daily NAV snapshot refresh, before the 04:30 media snapshot refresh.
 # Total corpus is small (~tens of thousands of rows); -m 600 is plenty.
 15 4 * * 0 curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 600 ${ADMIN_URL}/admin/api/jobs/offentlig-storting-retag > /var/log/last-offentlig-storting-retag.log 2>&1 || logger -s "kiba-fetcher: offentlig-storting-retag failed at $(date -Iseconds)"
+# /offentlig — Tier 1 (verbatim AI-phrase extraction) for Stortinget saker.
+# K=15 / tick, ~3 s/call ≈ 45 s budget. Forward-only on ingest_mode='live'
+# per CLAUDE.md §2. Offset :03/:18/:33/:48 keeps the Mac clear of NAV Tier 1
+# (:08/:23/:38/:53), media Tier 1 (:06/:21/:36/:51), brreg Tier 1
+# (:01/:16/:31/:46), and all four Tier 2 offset blocks. Skips silently
+# when MLX_API_KEY is unset or the offentlig_storting_tier1 prompt is
+# missing. Doffin tier1 joins this same handler once that pillar ships.
+3,18,33,48 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 90 ${ADMIN_URL}/admin/api/jobs/offentlig-llm-tier1 > /var/log/last-offentlig-tier1.log 2>&1 || logger -s "kiba-fetcher: offentlig-llm-tier1 failed at $(date -Iseconds)"
+# /offentlig — Tier 2 (taxonomy slug assignment) for Stortinget saker.
+# K=4 / tick, ~12 s/call ≈ 48 s budget. Gates on is_ai_relevant directly,
+# not tier1_completed_at, so backfill rows get categorized too. Offset
+# :10/:25/:40/:55 sits clear of NAV Tier 2 (:11/:26/:41/:56), media Tier 2
+# (:13/:28/:43/:58), brreg Tier 2 (:07/:22/:37/:52). Skips silently when
+# storting_categories or the offentlig_storting_tier2 prompt is missing.
+10,25,40,55 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 90 ${ADMIN_URL}/admin/api/jobs/offentlig-llm-tier2 > /var/log/last-offentlig-tier2.log 2>&1 || logger -s "kiba-fetcher: offentlig-llm-tier2 failed at $(date -Iseconds)"
+# /offentlig snapshot refresh. Truncate+insert across the seven
+# offentlig_snapshot_* tables — runs in seconds. Offset 05:00 UTC so the
+# four snapshot RPCs don't queue: NAV at 04:00, media at 04:30, brreg at
+# 04:45, offentlig here. Storting-only sub-functions populate today;
+# doffin sub-functions land in a later migration via CREATE OR REPLACE.
+0 5 * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 120 ${ADMIN_URL}/admin/api/jobs/offentlig-refresh-snapshots > /var/log/last-offentlig-snapshots.log 2>&1 || logger -s "kiba-fetcher: offentlig-refresh-snapshots failed at $(date -Iseconds)"

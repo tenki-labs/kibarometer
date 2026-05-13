@@ -13,7 +13,9 @@ export type LlmPromptRole =
   | "media_tier1"
   | "media_tier2"
   | "brreg_tier1"
-  | "brreg_tier2";
+  | "brreg_tier2"
+  | "offentlig_storting_tier1"
+  | "offentlig_storting_tier2";
 
 export type LlmPrompt = {
   id: string;
