@@ -55,6 +55,12 @@ const DOC_SECTIONS = [
     description: "AI-dekning i norske medier, hentet fra RSS-feeder.",
   },
   {
+    href: "/docs/offentlig-sektor",
+    title: "Offentlig sektor",
+    description:
+      "Parlamentariske saker fra Stortinget + kommende AI-anskaffelser fra Doffin.",
+  },
+  {
     href: "/docs/nokkelord",
     title: "Nøkkelord",
     description: "Nøkkelordliste, AI-ferdighetskategorier og medie-kilder.",
