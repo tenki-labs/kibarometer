@@ -18,6 +18,18 @@ import * as React from "react";
 
 const SAFE_URL = /^(https?:\/\/|mailto:|\/|#)/i;
 
+// Norwegian-aware slug — used as the `id` on heading nodes so in-page
+// links like /om#kontakt scroll to the right section.
+function slugify(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/æ/g, "ae")
+    .replace(/ø/g, "o")
+    .replace(/å/g, "a")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 function renderInline(text: string, keyPrefix: string): ReactNode[] {
   // Tokenise inline syntax left-to-right. We do this in passes via a single
   // regex with alternation: code first (so its content isn't touched by
@@ -102,11 +114,13 @@ export function renderMarkdown(source: string): ReactNode {
         | "h1"
         | "h2"
         | "h3";
+      const text = h[2].trim();
+      const id = slugify(text);
       nodes.push(
         React.createElement(
           Tag,
-          { key },
-          ...renderInline(h[2].trim(), `${key}-h`),
+          { key, id: id || undefined },
+          ...renderInline(text, `${key}-h`),
         ),
       );
       return;

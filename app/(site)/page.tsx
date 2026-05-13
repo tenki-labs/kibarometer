@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AlertTriangle } from "lucide-react";
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { sb } from "@/lib/supabase";
 import type {
   BrregSnapshotDaily,
@@ -284,6 +286,22 @@ export default async function LandingPage() {
 
   return (
     <main className="mx-auto flex min-h-[calc(100svh-3.5rem)] w-full max-w-4xl flex-col justify-center gap-14 px-6 py-12 sm:py-20">
+      <Alert variant="warning">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertTitle>Under utvikling.</AlertTitle>
+        <AlertDescription>
+          Datapipelinene fyller fortsatt på historikk, og det kan være
+          misvisende og manglende data mens vi finjusterer. Vi setter stor
+          pris på tilbakemeldinger og bug-rapporter.{" "}
+          <Link
+            href="/om#kontakt"
+            className="font-medium underline underline-offset-2"
+          >
+            Gi tilbakemelding →
+          </Link>
+        </AlertDescription>
+      </Alert>
+
       <section className="text-center">
         <h1 className="mx-auto max-w-3xl text-4xl font-medium leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
           Open source kartlegging av kunstig intelligens i Norge.
