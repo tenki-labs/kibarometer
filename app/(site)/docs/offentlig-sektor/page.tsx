@@ -171,8 +171,10 @@ export default async function DocsOffentligPage() {
             <tr>
               <th>Datafloor</th>
               <td>
-                2019-01-01 — Norges nasjonale AI-strategi ble lansert
-                januar 2020; et år før gir baseline for YoY-sammenligning
+                2020-01-01 — sammenfaller med lanseringen av Norges
+                nasjonale AI-strategi (januar 2020). Stortingets sesjon
+                går oktober → september, så backfill starter ved
+                sesjon 2019-2020 (som dekker hele kalenderåret 2020).
               </td>
             </tr>
             <tr>

@@ -75,9 +75,10 @@ export async function runStortingFetchAction(formData: FormData) {
   }
 }
 
-// Run the historical backfill (all 8 sessions 2018-2019 → present, reverse-
-// chronological). Long-running — spawned via after() so the request returns
-// fast; the operator follows progress at /admin/processes.
+// Run the historical backfill (sessions 2019-2020 → present, reverse-
+// chronological — ~7 sessions covering all of calendar 2020 forward).
+// Long-running — spawned via after() so the request returns fast; the
+// operator follows progress at /admin/processes.
 export async function runStortingBackfillAction() {
   const running = await sbFetch<{ id: string }[]>(
     `/jobs?name=eq.backfill_storting&status=eq.running&select=id&limit=1`,

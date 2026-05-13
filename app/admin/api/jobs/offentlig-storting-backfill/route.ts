@@ -1,7 +1,8 @@
 // POST /admin/api/jobs/offentlig-storting-backfill — bearer-authed entry.
 // Manual one-shot; NOT scheduled in the fetcher crontab. The /admin/offentlig
-// admin UI (B2) will wire a button to this endpoint to backfill historical
-// sessions back to 2018-2019 (the data floor that covers 2019-01-01).
+// admin UI (B2) wires a button to this endpoint to backfill historical
+// sessions back to 2019-2020 (the first session that contains calendar 2020
+// data — Stortinget years span October → September).
 //
 // Walks sessions in reverse-chronological order so the keyword catalog grown
 // by Tier 1 on more recent sessions benefits older runs (Tier 1 is forward-
@@ -10,9 +11,9 @@
 //
 // Query params:
 //   ?fromSession=YYYY-YYYY  (defaults to the current session)
-//   ?toSession=YYYY-YYYY    (defaults to 2018-2019)
+//   ?toSession=YYYY-YYYY    (defaults to 2019-2020)
 //
-// The 8-session walk takes roughly 8 × (saker fetch + vedtak fetch + upserts)
+// The 7-session walk takes roughly 7 × (saker fetch + vedtak fetch + upserts)
 // — back-of-envelope ~3–5 min total on the live Stortinget API. -m 1800 in
 // future crontab/job wrappers gives generous slack.
 
