@@ -8,6 +8,7 @@ import {
   FileText,
   FolderTree,
   Gauge,
+  Landmark,
   LayoutDashboard,
   ListChecks,
   ListTodo,
@@ -114,6 +115,28 @@ export const ADMIN_NAV: AdminNavSection[] = [
     ],
   },
   {
+    label: "Offentlig sektor",
+    items: [
+      { href: "/admin/offentlig", label: "Oversikt", icon: Landmark },
+      {
+        href: "/admin/offentlig/notices",
+        label: "Notiser & saker",
+        icon: FileText,
+      },
+      { href: "/admin/offentlig/queue", label: "Kø", icon: ListChecks },
+      {
+        href: "/admin/offentlig/categories",
+        label: "Kategorier",
+        icon: FolderTree,
+      },
+      {
+        href: "/admin/offentlig/prompts",
+        label: "Systemprompt",
+        icon: MessageSquareCode,
+      },
+    ],
+  },
+  {
     label: "Data",
     items: [
       { href: "/admin/keywords", label: "Nøkkelord", icon: Tag },
@@ -152,6 +175,10 @@ export const ADMIN_SEGMENT_LABELS: Record<string, string> = (() => {
   out["job-market"] = "Arbeidsmarked";
   out.startups = "Oppstart";
   out.media = "Medie-dekning";
+  out.offentlig = "Offentlig sektor";
+  out.notices = "Notiser & saker";
+  out.storting = "Stortinget";
+  out.doffin = "Doffin";
   out.prompts = "Systemprompt";
   out.processes = "Prosesser";
   out.candidates = "Kandidater";
