@@ -335,6 +335,60 @@ if [[ "$status" != "401" ]]; then
 fi
 echo "  OK"
 
+# Umami analytics smoke tests. Three independent failure modes to guard:
+#
+#   (a) /_umami/script.js — public tracker delivery. If kiba-edge-caddy's
+#       /_umami/* handle_path breaks or kiba-umami stops serving, the public
+#       site silently collects zero visits. Hard-fail the deploy.
+#   (b) kiba-web → kiba-umami:3000 — internal hop the /admin/analytics page
+#       uses. Catches docker DNS issues or kiba-umami in a "started but
+#       broken" state. Hard-fail.
+#   (c) Umami admin credentials — soft-warn only. /admin/analytics gracefully
+#       degrades to the "not configured" card via umamiConfigured(), so bad
+#       creds don't break user experience or cron pipelines. Skip entirely
+#       when creds are empty (first-time setup pattern).
+echo "  verifying /_umami/script.js delivers valid tracker"
+tracker_body=$(curl -fsS https://kibarometer.no/_umami/script.js || echo "")
+tracker_size=${#tracker_body}
+if [[ "$tracker_size" -lt 1000 ]]; then
+  echo "  FAIL: /_umami/script.js too small ($tracker_size bytes) — edge or kiba-umami broken"
+  exit 1
+fi
+if ! echo "$tracker_body" | head -c 500 | grep -qE 'function|var |let |const |window'; then
+  echo "  FAIL: /_umami/script.js body doesn't look like JavaScript"
+  exit 1
+fi
+echo "  OK ($tracker_size bytes)"
+
+echo "  verifying kiba-web → kiba-umami:3000/api/heartbeat"
+if ! docker exec kiba-web wget -qO- http://kiba-umami:3000/api/heartbeat >/dev/null 2>&1; then
+  echo "  FAIL: kiba-web cannot reach kiba-umami:3000 — /admin/analytics will throw"
+  exit 1
+fi
+echo "  OK"
+
+# Soft-warn credential check. We only test login if both username+password are
+# set. The login flow matches lib/admin/umami.ts: POST {username,password}
+# to /api/auth/login, expect 200 + a {"token":"…"} body.
+UMAMI_USER=$(sudo grep '^UMAMI_USERNAME=' /opt/kibarometer/env/admin.env 2>/dev/null | cut -d= -f2- || echo "")
+UMAMI_PASS=$(sudo grep '^UMAMI_PASSWORD=' /opt/kibarometer/env/admin.env 2>/dev/null | cut -d= -f2- || echo "")
+if [[ -z "$UMAMI_USER" || -z "$UMAMI_PASS" ]]; then
+  echo "  info: Umami credentials unset in admin.env — skipping login check"
+else
+  echo "  verifying Umami admin credentials authenticate"
+  # busybox wget in the next-standalone image: --post-data + --header for JSON
+  login_body=$(docker exec kiba-web sh -c "wget -qO- \
+      --header='Content-Type: application/json' \
+      --post-data='{\"username\":\"$UMAMI_USER\",\"password\":\"$UMAMI_PASS\"}' \
+      http://kiba-umami:3000/api/auth/login" 2>/dev/null || echo "")
+  if echo "$login_body" | grep -q '"token"'; then
+    echo "  OK"
+  else
+    echo "  WARN: Umami login failed — /admin/analytics will render 'not configured' card."
+    echo "        Check UMAMI_USERNAME / UMAMI_PASSWORD in /opt/kibarometer/env/admin.env."
+  fi
+fi
+
 echo "== cleanup old images (keep 3 most-recent kiba-web tags) =="
 docker images "kiba-web" --format "{{.Tag}}" | grep '^gh-' | sort -r | tail -n +4 | while read -r t; do
   docker rmi "kiba-web:$t" 2>/dev/null || true
