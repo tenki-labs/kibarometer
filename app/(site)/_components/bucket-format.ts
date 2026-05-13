@@ -2,10 +2,10 @@
 // in three shapes:
 //   YYYY-MM-DD  (length 10) — daily, from dateKey(iso, "day")
 //   YYYY-Www    (length 8)  — ISO 8601 weekly, from dateKey(iso, "week")
-//   YYYY-MM     (length 7)  — monthly, only from charts that read
-//                              intrinsically-monthly snapshot tables
-//                              (e.g. brreg_snapshot_founder_age_monthly).
-//                              No range value produces YYYY-MM via dateKey.
+//   YYYY-MM     (length 7)  — monthly, from dateKey(iso, "month") at long
+//                              ranges (1y / since-2024 / max), or from
+//                              charts reading intrinsically-monthly snapshot
+//                              tables (e.g. brreg_snapshot_founder_age_monthly).
 // See bucketGrainForRange in app/(site)/_lib/range.ts for the canonical
 // Range → grain mapping.
 

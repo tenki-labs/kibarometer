@@ -255,6 +255,17 @@ export type BrregSnapshotKeyword = {
   rank: number;
 };
 
+// Quarterly YoY growth of AI-relevant BRREG registrations
+// (0065_brreg_snapshot_quarterly_ai_growth.sql). One row per completed
+// quarter since 2018-01-01; powers the /oppstart PillarHero KPI, the
+// landing page's BRREG hero stat, and the new quarterly-yoy bar chart.
+export type BrregSnapshotQuarterlyAiGrowth = {
+  reg_quarter: string;             // YYYY-MM-DD, first day of quarter
+  ai_count: number;
+  ai_count_yoy_prior: number | null;
+  yoy_growth_pct: number | null;
+};
+
 // Regnskapsregisteret-derived yearly aggregates (0064_brreg_financials.sql).
 // One row per (fiscal_year × is_ai_relevant); powers Segments 1 + 2 on
 // /oppstart (Pareto variance + revenue growth).

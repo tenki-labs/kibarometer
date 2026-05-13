@@ -23,6 +23,10 @@ import {
   unavailableRanges,
 } from "@/app/(site)/_lib/range";
 import {
+  formatQuarterLong,
+  priorYearQuarter,
+} from "@/app/(site)/_lib/format-quarter";
+import {
   NorwayMap,
   type NorwayMapUnit,
 } from "@/app/(site)/arbeidsmarked/_components/norway-map";
@@ -35,6 +39,7 @@ import type {
   BrregSnapshotGeography,
   BrregSnapshotHeadline,
   BrregSnapshotKeyword,
+  BrregSnapshotQuarterlyAiGrowth,
   SnapshotGeography,
   TaxonomyCategory,
 } from "@/lib/supabase";
@@ -54,6 +59,7 @@ import { FinancialsGrowth } from "./financials-growth";
 import { FinancialsPareto } from "./financials-pareto";
 import { FounderAgeLines } from "./founder-age-lines";
 import { KeywordList } from "./keyword-list";
+import { QuarterlyYoyChart } from "./quarterly-yoy-chart";
 
 const NB = new Intl.NumberFormat("nb-NO");
 const NO_DATETIME = new Intl.DateTimeFormat("nb-NO", {
@@ -123,6 +129,7 @@ type Props = {
   categories: NaceCategoryLabel[];
   financialsYearly: BrregSnapshotFinancialsYearly[];
   financialsCohort: BrregSnapshotFinancialsCohort[];
+  quarterlyAiGrowth: BrregSnapshotQuarterlyAiGrowth[];
   norwayPaths: readonly NorwayFylkePath[];
   norwayViewBox: string;
 };
@@ -267,6 +274,7 @@ export function Scroller({
   categories,
   financialsYearly,
   financialsCohort,
+  quarterlyAiGrowth,
   norwayPaths,
   norwayViewBox,
 }: Props) {
@@ -404,11 +412,19 @@ export function Scroller({
       <section className="snap-segment sm:snap-start sm:snap-always">
         {headline ? (
           (() => {
-            const momentumPct =
-              headline.ai_relevant_mom_growth !== null
-                ? headline.ai_relevant_mom_growth * 100
-                : null;
-            const m = fmtMomentumPct(momentumPct);
+            // Replaces the previous MoM (30d vs prior 30d) hero number.
+            // YoY against the same quarter one year prior is less noisy
+            // and easier to cite in coverage.
+            const latestYoy =
+              [...quarterlyAiGrowth]
+                .reverse()
+                .find((r) => r.yoy_growth_pct !== null) ?? null;
+            const m = fmtMomentumPct(latestYoy?.yoy_growth_pct ?? null);
+            const heroCaption = latestYoy
+              ? `${formatQuarterLong(latestYoy.reg_quarter)} vs. ${priorYearQuarter(
+                  latestYoy.reg_quarter,
+                )}`
+              : "år/år-sammenligning ikke tilgjengelig ennå";
             const stats: PillarHeroStat[] = [
               {
                 label: "AI-relevante foretak 30d",
@@ -433,7 +449,7 @@ export function Scroller({
                 description="Daglig oppdaterte tall fra Brønnøysundregistrene over nyregistrerte foretak knyttet til kunstig intelligens."
                 big={{
                   value: m.display,
-                  caption: "siste 30 dager vs. foregående 30",
+                  caption: heroCaption,
                 }}
                 stats={stats}
                 footer={
@@ -473,11 +489,31 @@ export function Scroller({
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
             Antall nyregistrerte AI-relevante foretak fra Brønnøysund­
-            registrene, gruppert per dag eller uke. Hold over en stolpe
-            for å se andelen av alle nyregistreringer.
+            registrene, gruppert per dag, uke eller måned. Hold over en
+            stolpe for å se andelen av alle nyregistreringer.
           </p>
           <div className="min-h-0 flex-1">
             <AIVolumeAreaChart buckets={aiShareBuckets} unitLabel="foretak" />
+          </div>
+          <FootnoteRow oppdatert={oppdatert} showMethodology />
+        </div>
+      </section>
+
+      <section className="snap-segment sm:snap-start sm:snap-always">
+        <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
+          <div className="flex items-baseline justify-between gap-4">
+            <h2 className="text-lg font-medium tracking-tight sm:text-xl">
+              Kvartalsvis vekst — KI-relevante foretak (år/år)
+            </h2>
+          </div>
+          <p className="max-w-[60ch] text-sm text-muted-foreground">
+            Prosentvis endring i antall nyregistrerte AI-relevante foretak
+            sammenlignet med samme kvartal året før. Bare ferdige kvartaler
+            telles — inneværende kvartal vises først når det er over. Tomme
+            kvartaler uten år-tidligere-data skjules.
+          </p>
+          <div className="min-h-0 flex-1">
+            <QuarterlyYoyChart rows={quarterlyAiGrowth} />
           </div>
           <FootnoteRow oppdatert={oppdatert} showMethodology />
         </div>

@@ -19,6 +19,7 @@ import {
   type BrregSnapshotGeography,
   type BrregSnapshotHeadline,
   type BrregSnapshotKeyword,
+  type BrregSnapshotQuarterlyAiGrowth,
 } from "@/lib/supabase";
 
 import { type NaceCategoryLabel, Scroller } from "./_components/scroller";
@@ -54,6 +55,7 @@ export default async function OppstartPage() {
     categories,
     financialsYearly,
     financialsCohort,
+    quarterlyAiGrowth,
   ] = await Promise.all([
     sb<BrregSnapshotHeadline[]>(
       "/brreg_snapshot_headline?order=computed_for.desc&limit=1",
@@ -82,6 +84,9 @@ export default async function OppstartPage() {
     sb<BrregSnapshotFinancialsCohort[]>(
       "/brreg_snapshot_financials_cohort?order=cohort_year.asc",
     ),
+    sb<BrregSnapshotQuarterlyAiGrowth[]>(
+      "/brreg_snapshot_quarterly_ai_growth?order=reg_quarter.asc",
+    ),
   ]);
 
   const headline = headlineRows[0] ?? null;
@@ -98,6 +103,7 @@ export default async function OppstartPage() {
           categories={categories}
           financialsYearly={financialsYearly}
           financialsCohort={financialsCohort}
+          quarterlyAiGrowth={quarterlyAiGrowth}
           norwayPaths={NORWAY_FYLKE_PATHS}
           norwayViewBox={NORWAY_VIEWBOX}
         />

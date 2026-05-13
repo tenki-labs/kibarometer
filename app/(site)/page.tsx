@@ -5,6 +5,7 @@ import { sb } from "@/lib/supabase";
 import type {
   BrregSnapshotDaily,
   BrregSnapshotHeadline,
+  BrregSnapshotQuarterlyAiGrowth,
   MediaSnapshotIndex,
   SnapshotDaily,
   SnapshotHeadline,
@@ -15,6 +16,10 @@ import {
   JOBBMARKED_DATA_CUTOFF,
   buildJobsMomentum,
 } from "./_lib/data-cutoff";
+import {
+  formatQuarterLong,
+  priorYearQuarter,
+} from "./_lib/format-quarter";
 import {
   TemperaturCard,
   TemperaturCardEmpty,
@@ -128,8 +133,14 @@ export default async function LandingPage() {
     "registrert_dato" | "ai_relevant_count"
   >;
 
-  const [jobsHeadline, jobsDaily, brregHeadline, brregDaily, mediaSeries] =
-    await Promise.all([
+  const [
+    jobsHeadline,
+    jobsDaily,
+    brregHeadline,
+    brregDaily,
+    brregYoy,
+    mediaSeries,
+  ] = await Promise.all([
       sb<SnapshotHeadline[]>(
         "/snapshot_headline?order=computed_for.desc&limit=1",
       ).catch(() => null),
@@ -146,6 +157,12 @@ export default async function LandingPage() {
       ).catch(() => null),
       sb<BrregDailyRow[]>(
         "/brreg_snapshot_daily?order=registrert_dato.desc&limit=5000&select=registrert_dato,ai_relevant_count",
+      ).catch(() => null),
+      // Latest completed-quarter YoY row. The `not.is.null` filter
+      // skips quarters without a prior-year comparison so we always
+      // get a renderable number.
+      sb<BrregSnapshotQuarterlyAiGrowth[]>(
+        "/brreg_snapshot_quarterly_ai_growth?yoy_growth_pct=not.is.null&order=reg_quarter.desc&limit=1",
       ).catch(() => null),
       sb<MediaSnapshotIndex[]>(
         "/media_snapshot_index?order=date.desc&limit=90",
@@ -182,6 +199,7 @@ export default async function LandingPage() {
   }
 
   const brreg = brregHeadline?.[0] ?? null;
+  const yoyRow = brregYoy?.[0] ?? null;
   let oppstartCard;
   if (brreg && brregDaily && brregDaily.length > 0) {
     const byDate = new Map<string, number>();
@@ -197,17 +215,19 @@ export default async function LandingPage() {
     }));
     const series = compute30dRollingSeries(dailyAgg);
     const gauge = gaugeFromSeries(brreg.ai_relevant_count_30d, series);
-    const momentumPct =
-      brreg.ai_relevant_mom_growth !== null
-        ? brreg.ai_relevant_mom_growth * 100
-        : null;
-    const m = fmtMomentumPct(momentumPct);
+    // Year-on-year quarterly growth replaces the previous month-over-
+    // month (siste 30 dager vs. foregående 30) headline. YoY is less
+    // noisy and easier to cite — see brreg_snapshot_quarterly_ai_growth.
+    const m = fmtMomentumPct(yoyRow?.yoy_growth_pct ?? null);
+    const headlineCaption = yoyRow
+      ? `${formatQuarterLong(yoyRow.reg_quarter)} vs. ${priorYearQuarter(yoyRow.reg_quarter)}`
+      : "år/år-sammenligning ikke tilgjengelig ennå";
     oppstartCard = (
       <TemperaturCard
         href="/oppstart"
         pillarLabel="Oppstart"
         headlineValue={m.display}
-        headlineCaption="siste 30 dager vs. foregående 30"
+        headlineCaption={headlineCaption}
         levelLabel={levelDescriptor(brreg.ai_relevant_count_30d, gauge)}
         levelCaption={`${fmtNumber(brreg.ai_relevant_count_30d)} ai-relevante selskaper siste 30 dager`}
         gauge={gauge}
