@@ -23,19 +23,19 @@ export function parseRange(raw: string | null): Range {
 // Canonical Range → bucket-grain mapping. Adding a new `Range` value
 // forces an exhaustive update here at compile time. Don't fork — extend.
 //
-// Note: `month` is a valid grain but is never produced by `bucketGrainForRange`
-// — no public range maps to monthly. It exists for charts that read from
-// an intrinsically-monthly snapshot table (e.g. brreg_snapshot_founder_age_monthly),
-// which pass `"month"` directly to `dateKey`.
+// Long ranges (1y / since-2024 / max) map to month, not week, because
+// weekly buckets carry too much jitter at those horizons (~52+ points
+// for 1y, 150+ for max) and the curve gets unreadable. 6m stays weekly
+// — only 6 monthly buckets is too sparse to look like a chart.
 export type BucketGrain = "day" | "week" | "month";
 
 export function bucketGrainForRange(r: Range): BucketGrain {
   switch (r) {
     case "1m":          return "day";
     case "6m":          return "week";
-    case "1y":          return "week";
-    case "since-2024":  return "week";
-    case "max":         return "week";
+    case "1y":          return "month";
+    case "since-2024":  return "month";
+    case "max":         return "month";
   }
 }
 

@@ -202,7 +202,7 @@ export function Scroller({
   // Per-bucket (ai_count, total_count) for segment 2's AI-share area chart.
   // Reads snapshot_daily directly so numerator and denominator share the same
   // predicate as snapshot_headline.ai_count_30d (no `category is not null`
-  // filter). Bucket grain follows bucketGrainForRange (1m=day, rest=week).
+  // filter). Bucket grain follows bucketGrainForRange.
   const aiShareBuckets = useMemo<AIShareBucket[]>(() => {
     const grain = bucketGrainForRange(range);
     const cutoffMs = rangeCutoffMs(range, nowMs);
