@@ -18,6 +18,8 @@ import {
   type SnapshotTier2CoverageDaily,
 } from "@/lib/supabase";
 
+import { MEDIA_DATA_CUTOFF } from "@/app/(site)/_lib/media-cutoff";
+
 import { Scroller } from "./_components/scroller";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
@@ -42,6 +44,12 @@ const jsonLd = {
 };
 
 export default async function MediaPage() {
+  // Snapshot queries filter to MEDIA_DATA_CUTOFF — pre-2024 rows exist
+  // in the snapshot tables (old RSS/sitemap ingest, some outlets back
+  // to 2015) but are hidden on the public page: pre-ChatGPT coverage
+  // is sparse and the keyword catalog used at the time was narrower
+  // than today's. See app/(site)/_lib/media-cutoff.ts for the
+  // methodology.
   const [
     latestRows,
     priorRows,
@@ -52,25 +60,25 @@ export default async function MediaPage() {
     tier2Coverage,
   ] = await Promise.all([
     sb<MediaSnapshotIndex[]>(
-      "/media_snapshot_index?order=date.desc&limit=1",
+      `/media_snapshot_index?order=date.desc&date=gte.${MEDIA_DATA_CUTOFF}&limit=1`,
     ),
     sb<MediaSnapshotIndex[]>(
-      "/media_snapshot_index?order=date.desc&offset=7&limit=1",
+      `/media_snapshot_index?order=date.desc&date=gte.${MEDIA_DATA_CUTOFF}&offset=7&limit=1`,
     ),
     sb<MediaSnapshotIndex[]>(
-      "/media_snapshot_index?order=date.asc",
+      `/media_snapshot_index?order=date.asc&date=gte.${MEDIA_DATA_CUTOFF}`,
     ),
     sb<MediaSnapshotCategoryDaily[]>(
-      "/media_snapshot_category_daily?order=published_on.asc",
+      `/media_snapshot_category_daily?order=published_on.asc&published_on=gte.${MEDIA_DATA_CUTOFF}`,
     ),
     sb<MediaCategory[]>(
       "/media_categories?is_active=is.true&select=slug,label_no,label_en,description&order=slug.asc",
     ),
     sb<MediaAnomalyDaily[]>(
-      "/media_anomaly_daily?is_spike=is.true&order=date.desc,z_score.desc&limit=500",
+      `/media_anomaly_daily?is_spike=is.true&date=gte.${MEDIA_DATA_CUTOFF}&order=date.desc,z_score.desc&limit=500`,
     ),
     sb<SnapshotTier2CoverageDaily[]>(
-      "/media_snapshot_tier2_coverage_daily?order=date.asc&limit=20000",
+      `/media_snapshot_tier2_coverage_daily?order=date.asc&date=gte.${MEDIA_DATA_CUTOFF}&limit=20000`,
     ),
   ]);
 
