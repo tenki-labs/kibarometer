@@ -12,6 +12,7 @@ const SLUG_REVALIDATE_PATHS: Record<string, string> = {
   "docs-jobbmarked": "/docs/arbeidsmarked",
   "docs-media": "/docs/media",
   "docs-oppstart": "/docs/oppstart",
+  "landing-version": "/",
 };
 
 export async function updateAction(slug: string, formData: FormData) {

@@ -142,6 +142,7 @@ export default async function LandingPage() {
     brregDaily,
     brregYoy,
     mediaSeries,
+    versionRow,
   ] = await Promise.all([
       sb<SnapshotHeadline[]>(
         "/snapshot_headline?order=computed_for.desc&limit=1",
@@ -169,7 +170,11 @@ export default async function LandingPage() {
       sb<MediaSnapshotIndex[]>(
         "/media_snapshot_index?order=date.desc&limit=90",
       ).catch(() => null),
+      sb<Array<{ title: string }>>(
+        "/site_content?slug=eq.landing-version&select=title&limit=1",
+      ).catch(() => null),
     ]);
+  const versionLabel = versionRow?.[0]?.title ?? "Versjon 1.0";
 
   const jobs = jobsHeadline?.[0] ?? null;
   let jobsCard;
@@ -340,7 +345,7 @@ export default async function LandingPage() {
       </section>
 
       <footer className="flex items-center justify-between gap-4 font-mono text-[0.65rem] uppercase tracking-[0.18em] text-muted-foreground">
-        <span>Versjon 1.0</span>
+        <span>{versionLabel}</span>
         {lastUpdated ? <span>Sist oppdatert {lastUpdated}</span> : null}
       </footer>
 
