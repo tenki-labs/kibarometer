@@ -37,6 +37,11 @@ const KIBAROMETRE: Kibarometer[] = [
     title: "Media",
     description: "Kibarometer-indeks for medieklimaet",
   },
+  {
+    href: "/offentlig",
+    title: "Offentlig sektor",
+    description: "AI-debatt på Stortinget (+ Doffin kommer)",
+  },
 ];
 
 // Shared styling for the top-level nav items (matches the previous
