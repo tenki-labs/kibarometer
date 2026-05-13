@@ -106,10 +106,18 @@
 # 45 min after NAV's 04:00 snapshot refresh so the two RPCs don't compete
 # for Postgres locks.
 45 4 * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 120 ${ADMIN_URL}/admin/api/jobs/brreg-refresh-snapshots > /var/log/last-brreg-snapshots.log 2>&1 || logger -s "kiba-fetcher: brreg-refresh-snapshots failed at $(date -Iseconds)"
-# brreg financials drain (/oppstart). Drains up to K=20 AI-flagged orgnrs
-# per tick from Regnskapsregisteret. No LLM, just structured JSON. Annual
-# data, so retry cadence is 180 days per orgnr — most ticks no-op once
-# the backfill catches up. Offset :18 stays clear of brreg-roles (:12,:42)
-# and the LLM tiers (:16/:22 etc). -m 90 covers the 60s wall budget with
-# slack.
-18 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 90 ${ADMIN_URL}/admin/api/jobs/brreg-financials > /var/log/last-brreg-financials.log 2>&1 || logger -s "kiba-fetcher: brreg-financials failed at $(date -Iseconds)"
+# /offentlig — Stortinget daily fetch. Pulls the active parliamentary
+# session's saker + vedtak from data.stortinget.no and upserts. Idempotent
+# per session — re-fetching all saker each day is fine since per-session
+# volume is small (hundreds of saker, similar vedtak) and the API has no
+# delta endpoint. Runs at 07:00 UTC — 30 min after BRREG ingest at 06:30
+# so the box doesn't queue overlapping outbound HTTP. -m 300 covers the
+# saker + vedtak fetches plus upserts comfortably.
+0 7 * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 300 ${ADMIN_URL}/admin/api/jobs/offentlig-storting-fetch > /var/log/last-offentlig-storting-fetch.log 2>&1 || logger -s "kiba-fetcher: offentlig-storting-fetch failed at $(date -Iseconds)"
+# /offentlig — Stortinget Sunday retag. Re-applies the current canonical
+# keyword matcher to every storting_saker + storting_vedtak row so
+# historical rows pick up keyword-catalog growth (same drift pattern as
+# NAV's reprocess at 03:30). Runs Sundays 04:15 UTC — after the 04:00
+# daily NAV snapshot refresh, before the 04:30 media snapshot refresh.
+# Total corpus is small (~tens of thousands of rows); -m 600 is plenty.
+15 4 * * 0 curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 600 ${ADMIN_URL}/admin/api/jobs/offentlig-storting-retag > /var/log/last-offentlig-storting-retag.log 2>&1 || logger -s "kiba-fetcher: offentlig-storting-retag failed at $(date -Iseconds)"

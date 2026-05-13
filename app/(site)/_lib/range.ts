@@ -90,3 +90,13 @@ export function coverageHorizonMs(
   }
   return earliest;
 }
+
+// Range values whose trailing window extends past the earliest available
+// data — i.e. picking them would render a chart identical to "max", which
+// is misleading. Pass to TimeRangeToggle's `disabledValues` so the toggle
+// can grey them out with a tooltip. Returns [] for empty/unknown horizons
+// (don't disable anything when we have no data to compare against).
+export function unavailableRanges(earliestMs: number, nowMs: number): Range[] {
+  if (!Number.isFinite(earliestMs)) return [];
+  return VALID_RANGES.filter((r) => rangeCutoffMs(r, nowMs) < earliestMs);
+}

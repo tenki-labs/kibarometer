@@ -20,6 +20,7 @@ import {
   dateKey,
   parseRange,
   rangeCutoffMs,
+  unavailableRanges,
 } from "@/app/(site)/_lib/range";
 import {
   NorwayMap,
@@ -312,6 +313,41 @@ export function Scroller({
     return latest || 0;
   }, [daily]);
 
+  // Earliest data point in `daily` (registrert_dato). BRREG uses a
+  // different date column than coverageHorizonMs knows about, so we
+  // compute it inline. Drives the disabled state for the two daily-
+  // backed toggles (volume + categories).
+  const dailyCoverageMs = useMemo(() => {
+    let earliest = Infinity;
+    for (const row of daily) {
+      const t = new Date(row.registrert_dato + "T00:00:00Z").getTime();
+      if (Number.isFinite(t) && t < earliest) earliest = t;
+    }
+    return earliest;
+  }, [daily]);
+
+  // Founder-age data is monthly (reg_month YYYY-MM-01) and extends
+  // further back than `daily` — using daily's horizon here would
+  // over-disable. Pin "first of the month" with -01.
+  const founderAgeCoverageMs = useMemo(() => {
+    let earliest = Infinity;
+    for (const row of founderAgeMonthly) {
+      const t = new Date(row.reg_month + "T00:00:00Z").getTime();
+      if (Number.isFinite(t) && t < earliest) earliest = t;
+    }
+    return earliest;
+  }, [founderAgeMonthly]);
+
+  const disabledRangesDaily = useMemo(
+    () => unavailableRanges(dailyCoverageMs, nowMs),
+    [dailyCoverageMs, nowMs],
+  );
+
+  const disabledRangesFounder = useMemo(
+    () => unavailableRanges(founderAgeCoverageMs, nowMs),
+    [founderAgeCoverageMs, nowMs],
+  );
+
   const aiShareBuckets = useMemo(
     () => buildAiShareBuckets(daily, range, nowMs),
     [daily, range, nowMs],
@@ -429,7 +465,11 @@ export function Scroller({
             <h2 className="text-lg font-medium tracking-tight sm:text-xl">
               Nye AI-relevante foretak
             </h2>
-            <TimeRangeToggle value={range} onChange={onRangeChange} />
+            <TimeRangeToggle
+              value={range}
+              onChange={onRangeChange}
+              disabledValues={disabledRangesDaily}
+            />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
             Antall nyregistrerte AI-relevante foretak fra Brønnøysund­
@@ -449,7 +489,11 @@ export function Scroller({
             <h2 className="text-lg font-medium tracking-tight sm:text-xl">
               Topp kategorier — etter AI-andel
             </h2>
-            <TimeRangeToggle value={range} onChange={onRangeChange} />
+            <TimeRangeToggle
+              value={range}
+              onChange={onRangeChange}
+              disabledValues={disabledRangesDaily}
+            />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
             Næringskategorier blant AI-relevante nyregistreringer, normalisert
@@ -492,7 +536,11 @@ export function Scroller({
             <h2 className="text-lg font-medium tracking-tight sm:text-xl">
               Gjennomsnittlig alder ved registrering — AI vs ikke-AI
             </h2>
-            <TimeRangeToggle value={range} onChange={onRangeChange} />
+            <TimeRangeToggle
+              value={range}
+              onChange={onRangeChange}
+              disabledValues={disabledRangesFounder}
+            />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
             Gjennomsnittlig alder på yngste registrerte rolleinnehaver ved
