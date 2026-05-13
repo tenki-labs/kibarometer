@@ -4,6 +4,7 @@
 // they must track code (cron times, endpoints, table names).
 
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
 import {
@@ -25,19 +26,6 @@ type SiteContent = {
   body_md: string;
 };
 
-const FALLBACK = {
-  title: "Slik måler vi arbeidsmarkedet",
-  body_md: `/arbeidsmarked teller AI-relaterte stillingsutlysninger i Norge. Tallene oppdateres én gang i døgnet, basert på [NAVs offentlige stillingsfeed](https://navikt.github.io/pam-stilling-feed/).
-
-## Slik fungerer det
-
-- **Henting.** Hver morgen kl. 06:00 henter vi gårsdagens nye stillinger fra NAV.
-- **Berikelse.** Fire ganger i timen henter vi den fulle stillingsteksten.
-- **Deteksjon.** En lokal språkmodell avgjør om stillingen er AI-relatert.
-- **Klassifisering.** AI-stillinger plasseres i ferdighetskategorier.
-- **Snapshot.** Kl. 04:00 hver natt regner vi ut alle dashboardtallene på nytt.`,
-};
-
 export const metadata: Metadata = {
   title: "Arbeidsmarked-pipelinen — Dokumentasjon",
   description:
@@ -45,16 +33,16 @@ export const metadata: Metadata = {
   alternates: { canonical: "/docs/arbeidsmarked" },
 };
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export default async function DocsArbeidsmarkedPage() {
   const rows = await sb<SiteContent[]>(
     "/site_content?slug=eq.docs-jobbmarked&select=slug,title,body_md",
-  ).catch(() => [] as SiteContent[]);
+  );
 
   const row = rows[0];
-  const title = row?.title ?? FALLBACK.title;
-  const body = row?.body_md ?? FALLBACK.body_md;
+  if (!row) notFound();
+  const { title, body_md: body } = row;
 
   return (
     <main className="metode">

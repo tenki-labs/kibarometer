@@ -4,6 +4,7 @@
 // they must track code (cron times, endpoints, table names).
 
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
 import {
@@ -25,19 +26,6 @@ type SiteContent = {
   body_md: string;
 };
 
-const FALLBACK = {
-  title: "Slik måler vi nye AI-selskaper",
-  body_md: `/oppstart teller nyregistrerte norske foretak som driver med AI eller AI-tilstøtende virksomhet. Data hentes fra [Brønnøysundregistrene](https://www.brreg.no/) sin Enhetsregister-API.
-
-## Slik fungerer det
-
-- **Daglig innhenting.** Hver morgen kl. 06:30 henter vi alle foretak registrert dagen før.
-- **Rolle-berikelse.** To ganger i timen henter vi rolleinnehavere.
-- **Tier 1 LLM (deteksjon).** En lokal språkmodell avgjør om foretaket faktisk driver med AI.
-- **Tier 2 LLM (kategorisering).** AI-foretak klassifiseres i kategorier.
-- **Snapshot.** Kl. 04:45 hver natt regner vi ut alle dashboardtallene på nytt.`,
-};
-
 export const metadata: Metadata = {
   title: "Oppstart-pipelinen — Dokumentasjon",
   description:
@@ -45,16 +33,16 @@ export const metadata: Metadata = {
   alternates: { canonical: "/docs/oppstart" },
 };
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export default async function DocsOppstartPage() {
   const rows = await sb<SiteContent[]>(
     "/site_content?slug=eq.docs-oppstart&select=slug,title,body_md",
-  ).catch(() => [] as SiteContent[]);
+  );
 
   const row = rows[0];
-  const title = row?.title ?? FALLBACK.title;
-  const body = row?.body_md ?? FALLBACK.body_md;
+  if (!row) notFound();
+  const { title, body_md: body } = row;
 
   return (
     <main className="metode">
