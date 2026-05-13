@@ -6,6 +6,22 @@
 // Different module from lib/supabase.ts on purpose: that one is anon-key +
 // ISR for marketing reads; this one is service-role + no-store for admin
 // writes / privileged reads. Don't merge them.
+//
+// Transient-5xx retry policy
+// --------------------------
+// PostgREST sometimes returns a 502 from Kong mid-backfill (Kong got a bad
+// response from postgrest, usually because the upstream was momentarily
+// overloaded). One blip shouldn't fail a 5-minute orchestrator run, so:
+//   * retryTransient: "auto" (default) — retry 502/503/504 on idempotent
+//     methods (GET/PATCH/DELETE/PUT/HEAD). Heartbeats and finishJob PATCHes
+//     get this for free.
+//   * retryTransient: true — opt-in for non-idempotent calls the caller has
+//     reasoned about as safe (e.g. POST upserts with on_conflict +
+//     Prefer: "resolution=merge-duplicates").
+//   * retryTransient: false — disable entirely.
+// Network-level fetch() rejections are retried under the same policy.
+// Backoff is short (200ms, 800ms) — postgrest typically recovers within a
+// few hundred ms.
 
 import "server-only";
 
@@ -16,7 +32,40 @@ type SbInit = {
   body?: unknown;
   headers?: Record<string, string>;
   prefer?: string;
+  retryTransient?: boolean | "auto";
 };
+
+const IDEMPOTENT_METHODS = new Set(["GET", "PATCH", "DELETE", "PUT", "HEAD"]);
+const RETRIABLE_STATUS = new Set([502, 503, 504]);
+const MAX_ATTEMPTS = 3;
+const BACKOFF_BASE_MS = 200;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function shouldRetryRequest(
+  method: string,
+  retryOpt: boolean | "auto" | undefined,
+): boolean {
+  if (retryOpt === false) return false;
+  if (retryOpt === true) return true;
+  // "auto" or undefined — retry only idempotent methods.
+  return IDEMPOTENT_METHODS.has(method.toUpperCase());
+}
+
+function buildErrorMessage(text: string, statusText: string): string {
+  if (!text) return statusText;
+  try {
+    const data = JSON.parse(text);
+    if (data && typeof data === "object" && "message" in data) {
+      return String((data as { message: unknown }).message);
+    }
+  } catch {
+    // Fall through to raw text.
+  }
+  return text;
+}
 
 export async function sbFetch<T = unknown>(
   path: string,
@@ -27,6 +76,7 @@ export async function sbFetch<T = unknown>(
     body,
     headers = {},
     prefer,
+    retryTransient = "auto",
   }: SbInit = {},
 ): Promise<T> {
   const SUPABASE_URL = process.env.SUPABASE_INTERNAL_URL!;
@@ -43,27 +93,65 @@ export async function sbFetch<T = unknown>(
   };
   if (prefer) h.Prefer = prefer;
 
-  const res = await fetch(`${SUPABASE_URL}/rest/v1${path}`, {
-    method,
-    headers: h,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-    cache: "no-store",
-  });
-  const text = await res.text();
-  let data: unknown = null;
-  if (text) {
+  const url = `${SUPABASE_URL}/rest/v1${path}`;
+  const bodyJson = body !== undefined ? JSON.stringify(body) : undefined;
+  const allowRetry = shouldRetryRequest(method, retryTransient);
+
+  let lastNetworkError: unknown = null;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    let res: Response;
     try {
-      data = JSON.parse(text);
-    } catch {
-      data = text;
+      res = await fetch(url, {
+        method,
+        headers: h,
+        body: bodyJson,
+        cache: "no-store",
+      });
+    } catch (err) {
+      // DNS / TCP reset / connection refused. Same transient class as 5xx.
+      lastNetworkError = err;
+      if (allowRetry && attempt < MAX_ATTEMPTS - 1) {
+        await sleep(BACKOFF_BASE_MS * Math.pow(4, attempt));
+        continue;
+      }
+      throw err;
     }
-  }
-  if (!res.ok) {
-    const msg =
-      (typeof data === "object" && data && "message" in data
-        ? (data as { message: string }).message
-        : null) || text || res.statusText;
+
+    if (res.ok) {
+      const text = await res.text();
+      let data: unknown = null;
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = text;
+        }
+      }
+      return data as T;
+    }
+
+    // Non-2xx. Decide whether to retry this status.
+    if (
+      allowRetry &&
+      RETRIABLE_STATUS.has(res.status) &&
+      attempt < MAX_ATTEMPTS - 1
+    ) {
+      // Drain body so the underlying connection can be reused on retry.
+      await res.text().catch(() => {});
+      await sleep(BACKOFF_BASE_MS * Math.pow(4, attempt));
+      continue;
+    }
+
+    // Final failure — same error format as the pre-retry version so log
+    // grep patterns / dashboards keep working.
+    const text = await res.text();
+    const msg = buildErrorMessage(text, res.statusText);
     throw new Error(`PostgREST ${method} ${path} → ${res.status}: ${msg}`);
   }
-  return data as T;
+
+  // Defensive: the loop body always either returns, continues, or throws.
+  // This statement keeps TS happy when MAX_ATTEMPTS is somehow exhausted
+  // without reaching a terminal branch.
+  if (lastNetworkError instanceof Error) throw lastNetworkError;
+  throw new Error(`PostgREST ${method} ${path}: exhausted retries`);
 }
