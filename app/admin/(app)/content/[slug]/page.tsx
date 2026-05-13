@@ -32,6 +32,7 @@ const PUBLIC_PATH: Record<string, string> = {
   "docs-jobbmarked": "/docs/arbeidsmarked",
   "docs-media": "/docs/media",
   "docs-oppstart": "/docs/oppstart",
+  "landing-version": "/",
 };
 
 type Props = {
