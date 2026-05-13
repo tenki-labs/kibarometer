@@ -20,6 +20,7 @@ import {
   unavailableRanges,
   type BucketGrain,
 } from "@/app/(site)/_lib/range";
+import { MEDIA_DATA_CUTOFF_MS } from "@/app/(site)/_lib/media-cutoff";
 import type {
   MediaAnomalyDaily,
   MediaCategory,
@@ -149,13 +150,16 @@ export function Scroller({
     return latestMs || 0;
   }, [indexHistory, categoryDaily]);
 
-  // Earliest data point across both snapshot tables. Drives the
+  // Earliest data point across both snapshot tables, clamped to
+  // MEDIA_DATA_CUTOFF_MS as a defense-in-depth floor in case any
+  // pre-cutoff row leaks past the page-level gte. filter. Drives the
   // "data goes back to X" coverage banner only — grain selection is
   // independent (see bucketGrainForRange).
   const coverageMs = useMemo(() => {
     const a = coverageHorizonMs(indexHistory);
     const b = coverageHorizonMs(categoryDaily);
-    return Math.min(a, b);
+    const earliest = Math.min(a, b);
+    return Math.max(earliest, MEDIA_DATA_CUTOFF_MS);
   }, [indexHistory, categoryDaily]);
 
   // Page-level horizon drives toggle disabling — ranges whose trailing
@@ -182,6 +186,22 @@ export function Scroller({
   const cutoffMs = useMemo(() => rangeCutoffMs(range, nowMs), [range, nowMs]);
   const grain = useMemo(() => bucketGrainForRange(range), [range]);
   const indexCutoffMs = cutoffMs === -Infinity ? null : cutoffMs;
+
+  // Volume chart heading + blurb track the active bucket grain. At
+  // long ranges (1y / siden 2024 / max) the chart buckets monthly per
+  // bucketGrainForRange, and labelling it "per dag" would be a lie.
+  const volumeHeading =
+    grain === "day"
+      ? "Antall AI-artikler per dag"
+      : grain === "week"
+        ? "Antall AI-artikler per uke"
+        : "Antall AI-artikler per måned";
+  const volumeBlurb =
+    grain === "day"
+      ? "Daglig totalvolum av AI-relaterte artikler på tvers av alle kilder."
+      : grain === "week"
+        ? "Ukentlig totalvolum av AI-relaterte artikler på tvers av alle kilder."
+        : "Månedlig totalvolum av AI-relaterte artikler på tvers av alle kilder.";
 
   const categorySeries = useMemo(
     () => buildCategorySeries(categoryDaily, cutoffMs, grain),
@@ -404,7 +424,7 @@ export function Scroller({
         <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
           <div className="flex items-baseline justify-between gap-4">
             <h2 className="text-lg font-medium tracking-tight sm:text-xl">
-              Antall AI-artikler per dag
+              {volumeHeading}
             </h2>
             <TimeRangeToggle
               value={range}
@@ -413,8 +433,7 @@ export function Scroller({
             />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
-            Daglig totalvolum av AI-relaterte artikler på tvers av alle
-            kilder.
+            {volumeBlurb}
           </p>
           <div className="min-h-0 flex-1">
             <VolumeArea
