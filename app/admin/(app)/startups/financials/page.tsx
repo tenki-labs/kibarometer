@@ -20,10 +20,13 @@ import { PageHeader } from "@/app/admin/_components/page-header";
 import { StatCard } from "@/app/admin/_components/stat-card";
 import { StatusBadge } from "@/app/admin/_components/status-badge";
 import { SubmitButton } from "@/app/admin/_components/submit-button";
+import { countBrregFinancialsBacklog } from "@/lib/admin/brreg-financials-drain";
 import { sbFetch } from "@/lib/admin/sb";
 
 import {
+  financialsBurstAction,
   refreshFinancialSnapshotsAction,
+  stopFinancialsDrainAction,
   triggerFinancialDrainAction,
 } from "./actions";
 
@@ -72,6 +75,13 @@ type RecentJobRow = {
   rows_processed: number | null;
   current_step: string | null;
   error: string | null;
+};
+
+type BurstDrainRow = {
+  id: string;
+  status: string;
+  current_step: string | null;
+  progress_pct: number | null;
 };
 
 const NB = new Intl.NumberFormat("nb-NO");
@@ -136,6 +146,8 @@ export default async function FinancialsPage({ searchParams }: Props) {
     recentFinancials,
     recentErrors,
     recentJobs,
+    burstDrainRows,
+    burstBacklog,
   ] = await Promise.all([
     countRows("brreg_companies", `is_ai_relevant=is.true`),
     countRows("brreg_financials_fetch_state"),
@@ -159,7 +171,16 @@ export default async function FinancialsPage({ searchParams }: Props) {
       `/jobs?name=eq.brreg_financials_drain&select=id,name,trigger,status,started_at,finished_at,rows_processed,current_step,error&order=started_at.desc&limit=10`,
       { service: true },
     ).catch(() => [] as RecentJobRow[]),
+    sbFetch<BurstDrainRow[]>(
+      `/jobs?name=eq.brreg_financials_full_drain&order=started_at.desc&limit=1&select=id,status,current_step,progress_pct`,
+      { service: true },
+    ).catch(() => [] as BurstDrainRow[]),
+    countBrregFinancialsBacklog(sbFetch).catch(() => 0),
   ]);
+
+  const burstRunning = burstDrainRows[0]?.status === "running";
+  const burstStep = burstDrainRows[0]?.current_step ?? null;
+  const burstPct = burstDrainRows[0]?.progress_pct ?? null;
 
   const remaining = Math.max(0, aiFlagged - fetched);
   const coveragePct =
@@ -266,6 +287,58 @@ export default async function FinancialsPage({ searchParams }: Props) {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="mt-6 gap-3">
+        <CardHeader>
+          <CardTitle>Backfill alle</CardTitle>
+          <CardDescription>
+            Hent hele den AI-flagga kandidatpoolen i én operasjon. Eier én
+            jobs-rad (brreg_financials_full_drain), looper i chunks à 100 til
+            poolen er tom eller du trykker «Stopp backfill». 250 ms polite
+            pacing + DB-skrivinger ≈ 500 ms per orgnr. Backfillen er
+            idempotent — kiba-web-restart blir gjenopptatt av watchdog-cronen
+            (hver 5. minutt). Cron :18 (K=50) dekker daglig drift etter at
+            backfill er ajour.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <div className="flex flex-wrap gap-2">
+            <form action={financialsBurstAction}>
+              <SubmitButton
+                variant="outline"
+                pendingLabel="Starter…"
+                disabled={burstBacklog === 0 || burstRunning}
+              >
+                {burstRunning
+                  ? "Backfill kjører…"
+                  : `Start backfill alle (${burstBacklog.toLocaleString("nb-NO")})`}
+              </SubmitButton>
+            </form>
+            {burstRunning ? (
+              <form action={stopFinancialsDrainAction}>
+                <SubmitButton variant="outline" pendingLabel="Stopper…">
+                  Stopp backfill
+                </SubmitButton>
+              </form>
+            ) : null}
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            {burstBacklog.toLocaleString("nb-NO")} av{" "}
+            {aiFlagged.toLocaleString("nb-NO")} AI-flagga foretak gjenstår
+            (anti-join mot fetch_state, 180 d retry-vindu).
+          </p>
+
+          {burstRunning && burstStep ? (
+            <p className="text-xs text-muted-foreground">
+              Backfill: {burstStep}
+              {typeof burstPct === "number"
+                ? ` (${burstPct.toFixed(1)} %)`
+                : ""}
+            </p>
+          ) : null}
+        </CardContent>
+      </Card>
 
       <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
         <Card>

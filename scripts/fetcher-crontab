@@ -106,6 +106,22 @@
 # 45 min after NAV's 04:00 snapshot refresh so the two RPCs don't compete
 # for Postgres locks.
 45 4 * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 120 ${ADMIN_URL}/admin/api/jobs/brreg-refresh-snapshots > /var/log/last-brreg-snapshots.log 2>&1 || logger -s "kiba-fetcher: brreg-refresh-snapshots failed at $(date -Iseconds)"
+# brreg financials drain (/oppstart). Hourly tick at :18 — drains K=50
+# AI-flagged orgnrs/tick from Regnskapsregisteret. 180-day per-orgnr retry
+# cadence means most ticks no-op once the backfill is ajour. Offset :18
+# stays clear of NAV :05/:20/:35/:50 enrich, brreg :12/:42 roles, NAV
+# Tier 1 :08/:23/:38/:53, and media-fetch-classify */5 (:04…:59 step 5).
+# -m 90 covers the 60 s wall budget inside drainFinancials() plus slack.
+# Each fetch is a single HTTP to data.brreg.no/regnskapsregisteret/regnskap
+# — no LLM, no MLX contention.
+18 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 90 "${ADMIN_URL}/admin/api/jobs/brreg-financials?k=50" > /var/log/last-brreg-financials.log 2>&1 || logger -s "kiba-fetcher: brreg-financials failed at $(date -Iseconds)"
+# brreg financials full-drain watchdog. Detects dead manual backfill
+# bursts (kiba-web restart killed the JS process; heartbeat stale 3+ min)
+# and auto-resumes from wherever fetch_state is at. No-op when no drain
+# is dead — just 4 small DB reads. Offset 2-57/5 keeps separation from
+# the brreg-roles-watchdog at */5 so the two cheap watchdogs don't share
+# every tick. -m 30 since worst case is one DB scan + spawn.
+2-57/5 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 30 ${ADMIN_URL}/admin/api/jobs/brreg-financials-watchdog > /var/log/last-brreg-financials-watchdog.log 2>&1 || logger -s "kiba-fetcher: brreg-financials-watchdog failed at $(date -Iseconds)"
 # /offentlig — Stortinget daily fetch. Pulls the active parliamentary
 # session's saker + vedtak from data.stortinget.no and upserts. Idempotent
 # per session — re-fetching all saker each day is fine since per-session
