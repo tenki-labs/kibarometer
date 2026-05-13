@@ -29,6 +29,8 @@ import {
 import type { NorwayFylkePath } from "@/lib/norway-paths";
 import type {
   BrregSnapshotDaily,
+  BrregSnapshotFinancialsCohort,
+  BrregSnapshotFinancialsYearly,
   BrregSnapshotFounderAgeMonthly,
   BrregSnapshotGeography,
   BrregSnapshotHeadline,
@@ -47,6 +49,9 @@ import {
   fmtNumber,
 } from "@/app/(site)/_lib/format-headline";
 
+import { FinancialsCohortCards } from "./financials-cohort-cards";
+import { FinancialsGrowth } from "./financials-growth";
+import { FinancialsPareto } from "./financials-pareto";
 import { FounderAgeLines } from "./founder-age-lines";
 import { KeywordList } from "./keyword-list";
 
@@ -116,6 +121,8 @@ type Props = {
   keywords: BrregSnapshotKeyword[];
   geography: BrregSnapshotGeography[];
   categories: NaceCategoryLabel[];
+  financialsYearly: BrregSnapshotFinancialsYearly[];
+  financialsCohort: BrregSnapshotFinancialsCohort[];
   norwayPaths: readonly NorwayFylkePath[];
   norwayViewBox: string;
 };
@@ -258,6 +265,8 @@ export function Scroller({
   keywords,
   geography,
   categories,
+  financialsYearly,
+  financialsCohort,
   norwayPaths,
   norwayViewBox,
 }: Props) {
@@ -569,6 +578,61 @@ export function Scroller({
           <FootnoteRow oppdatert={oppdatert} />
         </div>
       </section>
+
+      <section className="snap-segment sm:snap-start sm:snap-always">
+        <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
+          <h2 className="text-lg font-medium tracking-tight sm:text-xl">
+            Variansen i AI-økonomien
+          </h2>
+          <p className="max-w-[60ch] text-sm text-muted-foreground">
+            Hvor konsentrert er omsetningen blant AI-relevante foretak?
+            Lorenz-kurven viser kumulativ andel selskaper (sortert lavest
+            til høyest omsetning) mot kumulativ andel av sektorens
+            omsetning. 45°-linjen tilsvarer perfekt likhet — jo lengre
+            kurven faller fra den, jo mer ulik fordeling.
+          </p>
+          <div className="min-h-0 flex-1">
+            <FinancialsPareto rows={financialsYearly} />
+          </div>
+          <FootnoteRow oppdatert={oppdatert} financialsSource />
+        </div>
+      </section>
+
+      <section className="snap-segment sm:snap-start sm:snap-always">
+        <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
+          <h2 className="text-lg font-medium tracking-tight sm:text-xl">
+            Omsetning over tid — AI vs basislinje
+          </h2>
+          <p className="max-w-[60ch] text-sm text-muted-foreground">
+            Sum sum_driftsinntekter per regnskapsår, indeksert til 100 i
+            basisåret. Skraffert område markerer det siste året — det er
+            foreløpig fordi årsregnskap leveres Jul–Sep året etter
+            rapporteringsåret.
+          </p>
+          <div className="min-h-0 flex-1">
+            <FinancialsGrowth rows={financialsYearly} />
+          </div>
+          <FootnoteRow oppdatert={oppdatert} financialsSource />
+        </div>
+      </section>
+
+      <section className="snap-segment sm:snap-start sm:snap-always">
+        <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
+          <h2 className="text-lg font-medium tracking-tight sm:text-xl">
+            Hvor mange overlever?
+          </h2>
+          <p className="max-w-[60ch] text-sm text-muted-foreground">
+            Hver årgang AI-selskap (fra Brønnøysundregistrene)
+            sammenlignet med basislinjen ved siste hele rapporteringsår.
+            Kortets ramme er grønn når årgangen overlever bedre enn
+            basislinjen, rød når den overlever dårligere.
+          </p>
+          <div className="min-h-0 flex-1">
+            <FinancialsCohortCards rows={financialsCohort} />
+          </div>
+          <FootnoteRow oppdatert={oppdatert} financialsSource />
+        </div>
+      </section>
     </div>
   );
 }
@@ -580,9 +644,11 @@ export function Scroller({
 function FootnoteRow({
   oppdatert,
   showMethodology,
+  financialsSource,
 }: {
   oppdatert: string | null;
   showMethodology?: boolean;
+  financialsSource?: boolean;
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[0.7rem] text-muted-foreground">
@@ -591,6 +657,16 @@ function FootnoteRow({
         <span>
           AI-relevant = treff på kuraterte nøkkelord i firmanavn eller
           aktivitet ved registrering.{" "}
+          <a className="underline underline-offset-2" href="/docs/oppstart">
+            Mer om metode
+          </a>
+          .
+        </span>
+      ) : null}
+      {financialsSource ? (
+        <span>
+          Kilde: Regnskapsregisteret (NLOD 2.0). Små AS under
+          regnskapsplikt og ENK leverer ikke — kjent dekningssvakhet.{" "}
           <a className="underline underline-offset-2" href="/docs/oppstart">
             Mer om metode
           </a>

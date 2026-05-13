@@ -254,3 +254,44 @@ export type BrregSnapshotKeyword = {
   yoy_growth_pct: number | null;
   rank: number;
 };
+
+// Regnskapsregisteret-derived yearly aggregates (0064_brreg_financials.sql).
+// One row per (fiscal_year × is_ai_relevant); powers Segments 1 + 2 on
+// /oppstart (Pareto variance + revenue growth).
+export type BrregSnapshotFinancialsYearly = {
+  fiscal_year: number;
+  is_ai_relevant: boolean;
+  company_count: number;
+  sum_omsetning: number;
+  p25_omsetning: number | null;
+  median_omsetning: number | null;
+  p75_omsetning: number | null;
+  p90_omsetning: number | null;
+  p99_omsetning: number | null;
+  mean_omsetning: number | null;
+  gini_omsetning: number | null;       // 0..1
+  top10_share: number | null;          // 0..1
+  top1pct_share: number | null;        // 0..1
+  mean_revenue_per_employee: number | null;
+  // Array of [x, y] pairs in [0..1]² for the Lorenz curve.
+  // x = cumulative share of companies, y = cumulative share of revenue,
+  // sorted ascending. ~21 points including the [0, 0] origin.
+  lorenz_points: [number, number][] | null;
+};
+
+// Cohort-card snapshot (0064_brreg_financials.sql). One row per
+// (cohort_year × is_ai_relevant) carrying the latest observation year's
+// numbers. Powers Segment 3 on /oppstart.
+export type BrregSnapshotFinancialsCohort = {
+  cohort_year: number;
+  is_ai_relevant: boolean;
+  observation_year: number;
+  cohort_size: number;
+  alive_count: number;
+  filing_positive_count: number;
+  median_revenue_filing: number | null;
+  mean_revenue_per_employee_filing: number | null;
+  top_performer_orgnr: string | null;
+  top_performer_name: string | null;
+  top_performer_revenue: number | null;
+};

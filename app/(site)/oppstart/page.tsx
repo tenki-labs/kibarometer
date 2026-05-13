@@ -13,6 +13,8 @@ import { NORWAY_FYLKE_PATHS, NORWAY_VIEWBOX } from "@/lib/norway-paths";
 import {
   sb,
   type BrregSnapshotDaily,
+  type BrregSnapshotFinancialsCohort,
+  type BrregSnapshotFinancialsYearly,
   type BrregSnapshotFounderAgeMonthly,
   type BrregSnapshotGeography,
   type BrregSnapshotHeadline,
@@ -43,30 +45,44 @@ const jsonLd = {
 };
 
 export default async function OppstartPage() {
-  const [headlineRows, daily, founderAgeMonthly, keywords, geography, categories] =
-    await Promise.all([
-      sb<BrregSnapshotHeadline[]>(
-        "/brreg_snapshot_headline?order=computed_for.desc&limit=1",
-      ),
-      sb<BrregSnapshotDaily[]>(
-        "/brreg_snapshot_daily" +
-          "?registrert_dato=gte.2018-01-01" +
-          "&order=registrert_dato.asc" +
-          "&limit=200000",
-      ),
-      sb<BrregSnapshotFounderAgeMonthly[]>(
-        "/brreg_snapshot_founder_age_monthly?order=reg_month.asc",
-      ),
-      sb<BrregSnapshotKeyword[]>(
-        "/brreg_snapshot_keywords?order=rank.asc&limit=20",
-      ),
-      sb<BrregSnapshotGeography[]>(
-        "/brreg_snapshot_geography?order=count_30d.desc",
-      ),
-      sb<NaceCategoryLabel[]>(
-        "/nace_categories?taxonomy_version=eq.sn2025-09&is_active=is.true&select=slug,label_no&order=sort_order.asc",
-      ),
-    ]);
+  const [
+    headlineRows,
+    daily,
+    founderAgeMonthly,
+    keywords,
+    geography,
+    categories,
+    financialsYearly,
+    financialsCohort,
+  ] = await Promise.all([
+    sb<BrregSnapshotHeadline[]>(
+      "/brreg_snapshot_headline?order=computed_for.desc&limit=1",
+    ),
+    sb<BrregSnapshotDaily[]>(
+      "/brreg_snapshot_daily" +
+        "?registrert_dato=gte.2018-01-01" +
+        "&order=registrert_dato.asc" +
+        "&limit=200000",
+    ),
+    sb<BrregSnapshotFounderAgeMonthly[]>(
+      "/brreg_snapshot_founder_age_monthly?order=reg_month.asc",
+    ),
+    sb<BrregSnapshotKeyword[]>(
+      "/brreg_snapshot_keywords?order=rank.asc&limit=20",
+    ),
+    sb<BrregSnapshotGeography[]>(
+      "/brreg_snapshot_geography?order=count_30d.desc",
+    ),
+    sb<NaceCategoryLabel[]>(
+      "/nace_categories?taxonomy_version=eq.sn2025-09&is_active=is.true&select=slug,label_no&order=sort_order.asc",
+    ),
+    sb<BrregSnapshotFinancialsYearly[]>(
+      "/brreg_snapshot_financials_yearly?order=fiscal_year.asc",
+    ),
+    sb<BrregSnapshotFinancialsCohort[]>(
+      "/brreg_snapshot_financials_cohort?order=cohort_year.asc",
+    ),
+  ]);
 
   const headline = headlineRows[0] ?? null;
 
@@ -80,6 +96,8 @@ export default async function OppstartPage() {
           keywords={keywords}
           geography={geography}
           categories={categories}
+          financialsYearly={financialsYearly}
+          financialsCohort={financialsCohort}
           norwayPaths={NORWAY_FYLKE_PATHS}
           norwayViewBox={NORWAY_VIEWBOX}
         />
