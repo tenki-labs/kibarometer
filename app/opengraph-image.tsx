@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 
 export const alt =
-  "Kibarometeret — uavhengig analyse av norsk arbeidsmarked, mediedekning og oppstart";
+  "Kibarometeret — åpen kartlegging av kunstig intelligens i Norge, daglig oppdatert.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -23,24 +23,13 @@ export default function OpengraphImage() {
       >
         <div
           style={{
-            fontSize: 28,
-            letterSpacing: "0.22em",
-            textTransform: "uppercase",
-            color: "#6e6e76",
-          }}
-        >
-          · kibarometer
-        </div>
-        <div
-          style={{
-            fontSize: 96,
+            fontSize: 84,
             fontWeight: 500,
             lineHeight: 1.1,
             letterSpacing: "-0.02em",
-            maxWidth: "950px",
           }}
         >
-          Norsk arbeidsmarked, mediedekning og oppstart — daglig oppdatert.
+          Åpen kartlegging av kunstig intelligens i Norge, daglig oppdatert.
         </div>
         <div
           style={{
