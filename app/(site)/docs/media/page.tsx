@@ -4,6 +4,7 @@
 // they must track code (cron times, endpoints, table names).
 
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
 import {
@@ -25,19 +26,6 @@ type SiteContent = {
   body_md: string;
 };
 
-const FALLBACK = {
-  title: "Slik måler vi mediedekningen",
-  body_md: `/media måler hvor ofte og hvor varmt norske medier omtaler kunstig intelligens. Vi sporer aktive nyhetskilder og publiserer en daglig dekkings-temperatur.
-
-## Slik fungerer det
-
-- **Oppdagelse.** Fire ganger i timen leser vi RSS-feedene til kildene våre.
-- **Henting og parsing.** Tolv ganger i timen henter vi artikkel-HTMLen.
-- **Tier 1 LLM (deteksjon).** En lokal språkmodell bekrefter relevans.
-- **Tier 2 LLM (kategorisering).** AI-relevante artikler scores for *holdning* og *intensitet*.
-- **Snapshot.** Kl. 04:30 hver natt regner vi ut alle dashboardtallene på nytt.`,
-};
-
 export const metadata: Metadata = {
   title: "Media-pipelinen — Dokumentasjon",
   description:
@@ -45,16 +33,16 @@ export const metadata: Metadata = {
   alternates: { canonical: "/docs/media" },
 };
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export default async function DocsMediaPage() {
   const rows = await sb<SiteContent[]>(
     "/site_content?slug=eq.docs-media&select=slug,title,body_md",
-  ).catch(() => [] as SiteContent[]);
+  );
 
   const row = rows[0];
-  const title = row?.title ?? FALLBACK.title;
-  const body = row?.body_md ?? FALLBACK.body_md;
+  if (!row) notFound();
+  const { title, body_md: body } = row;
 
   return (
     <main className="metode">

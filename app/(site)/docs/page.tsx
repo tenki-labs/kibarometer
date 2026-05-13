@@ -3,6 +3,7 @@
 // markdown section sourced from public.site_content (slug = docs).
 
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
 import {
@@ -22,13 +23,6 @@ type SiteContent = {
   body_md: string;
 };
 
-const FALLBACK = {
-  title: "Sammendrag",
-  body_md: `Kibarometeret er et uavhengig dashbord som sporer hvordan kunstig intelligens påvirker norsk arbeidsliv, mediebilde og næringsetablering. Tre datapipeliner mater dashboardene: [NAVs stillingsfeed](/docs/arbeidsmarked), [RSS-feeder fra norske medier](/docs/media), og [Brønnøysundregistrene](/docs/oppstart).
-
-Hver pipeline har sin egen klassifiseringslogikk og kjente begrensninger — klikk på et av kortene over for å lese hvordan den enkelte fungerer.`,
-};
-
 export const metadata: Metadata = {
   title: "Dokumentasjon — Kibarometeret",
   description:
@@ -36,7 +30,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/docs" },
 };
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 const DOC_SECTIONS = [
   {
@@ -75,11 +69,11 @@ const DOC_SECTIONS = [
 export default async function DocsIndexPage() {
   const rows = await sb<SiteContent[]>(
     "/site_content?slug=eq.docs&select=slug,title,body_md",
-  ).catch(() => [] as SiteContent[]);
+  );
 
   const row = rows[0];
-  const summaryTitle = row?.title ?? FALLBACK.title;
-  const summaryBody = row?.body_md ?? FALLBACK.body_md;
+  if (!row) notFound();
+  const { title: summaryTitle, body_md: summaryBody } = row;
 
   return (
     <main className="metode">

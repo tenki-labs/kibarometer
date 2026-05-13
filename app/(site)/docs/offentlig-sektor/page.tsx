@@ -5,6 +5,7 @@
 // names, endpoints).
 
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
 import {
@@ -26,28 +27,6 @@ type SiteContent = {
   body_md: string;
 };
 
-const FALLBACK = {
-  title: "Slik sporer vi offentlig sektors AI-aktivitet",
-  body_md: `/offentlig kobler to uavhengige datakilder for å vise hva norsk offentlig sektor faktisk gjør med kunstig intelligens — ikke bare hva som debatteres.
-
-## Slik fungerer det
-
-- **Stortinget (live nå).** Hver dag kl. 07:00 UTC henter vi alle saker fra den aktive parlamentariske sesjonen via [data.stortinget.no](https://data.stortinget.no). En nøkkelord-matcher flagger saker som handler om AI på tittelen og emnelisten.
-- **Doffin (kommer).** Tilsvarende daglig poll mot Doffins offentlige API for kunngjøringer, tildelinger og endringer av offentlige anbud. Når DFØ aktiverer API-tilgangen vår, landrer denne halvdelen.
-- **Tier 1 LLM.** Henter ut verbatim AI-uttrykk fra nye saker — *kun framoverbevegelse, ingen historiske saker*. Brukes for å vokse nøkkelord-katalogen.
-- **Tier 2 LLM.** Tildeler kategorier fra en politikk-orientert taksonomi (AI-regulering, AI i helse, AI i forsvar osv.). Kjører på alle AI-flaggede saker, også de som ble backfilt før Tier 1 fantes.
-- **Snapshot-refresh.** Kl. 05:00 UTC hver natt regner vi ut alle dashboardtallene på nytt.
-
-## Hva er unikt med /offentlig?
-
-De andre pilarene beskriver hva som *allerede har skjedd*: jobber utlyst, nyheter publisert, selskaper registrert. /offentlig fanger to ting ingen av de andre har:
-
-1. **Politisk intensjon** — fra Stortinget. Hva ønsker man å gjøre med AI, og når?
-2. **Konkret pengebruk** — fra Doffin (kommer). Hvilke byråer kjøper hva, og fra hvem?
-
-Synergien mellom de to driver målinger som ingen enkeltkilde kan gi — som *median tid mellom et Stortinget-vedtak og første matchende Doffin-anbud* (politikk-til-innkjøp lag).`,
-};
-
 export const metadata: Metadata = {
   title: "Offentlig sektor-pipelinen — Dokumentasjon",
   description:
@@ -55,16 +34,16 @@ export const metadata: Metadata = {
   alternates: { canonical: "/docs/offentlig-sektor" },
 };
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export default async function DocsOffentligPage() {
   const rows = await sb<SiteContent[]>(
     "/site_content?slug=eq.docs-offentlig&select=slug,title,body_md",
-  ).catch(() => [] as SiteContent[]);
+  );
 
   const row = rows[0];
-  const title = row?.title ?? FALLBACK.title;
-  const body = row?.body_md ?? FALLBACK.body_md;
+  if (!row) notFound();
+  const { title, body_md: body } = row;
 
   return (
     <main className="metode">
