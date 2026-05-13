@@ -226,7 +226,7 @@ export default async function OffentligOverviewPage({ searchParams }: Props) {
           </form>
           <form action={runStortingBackfillAction}>
             <Button variant="outline" type="submit">
-              Kjør backfill (2018-2019 → nå)
+              Kjør backfill (2019-2020 → nå)
             </Button>
           </form>
           <form action={burstStortingTier1Action}>
