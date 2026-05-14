@@ -601,7 +601,9 @@ export function Scroller({
             Geografi — nye foretak per fylke
           </h2>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
-            Siste 30 dager. Kartet farges etter AI-andel per fylke.
+            Geografisk fordeling av AI-relevante nyregistreringer siste 30
+            dager. Prosentene er fylkets andel av landets AI-foretak og
+            summerer til 100 %.
           </p>
           <div className="min-h-0 flex-1">
             <NorwayMap
