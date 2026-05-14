@@ -143,6 +143,30 @@ describe("sbFetch retry policy", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(3);
   });
 
+  it("summarizes huge in.() filter paths so status + body survive truncation", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      freshResponseMock(504, "gateway timeout"),
+    );
+
+    const orgnrs = Array.from({ length: 100 }, (_, i) => 924796000 + i).join(",");
+    const path = `/brreg_companies?orgnr=in.(${orgnrs})&select=orgnr,registrert_dato`;
+
+    let captured: Error | null = null;
+    try {
+      await sbFetch(path, { service: true });
+    } catch (err) {
+      captured = err as Error;
+    }
+
+    expect(captured).toBeInstanceOf(Error);
+    const msg = captured!.message;
+    // Survives the jobs.error slice(0, 1000) AND the current_step slice(0, 200).
+    expect(msg.length).toBeLessThan(400);
+    expect(msg).toMatch(/→ 504: gateway timeout$/);
+    expect(msg).toContain("PostgREST GET ");
+    expect(msg).toContain("…");
+  });
+
   it("retries network-level fetch rejection on idempotent method", async () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")

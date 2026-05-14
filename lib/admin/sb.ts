@@ -67,6 +67,17 @@ function buildErrorMessage(text: string, statusText: string): string {
   return text;
 }
 
+// Long in.(...) filter lists can push the path past 1 KB. Downstream
+// storage (jobs.error → 1000 chars, current_step → 200 chars) then chops
+// off the status code and PostgREST body, leaving operators staring at a
+// truncated URL with no idea what actually failed. Summarize huge paths
+// so the diagnostic tail always survives.
+function summarizePathForError(path: string): string {
+  const MAX = 240;
+  if (path.length <= MAX) return path;
+  return `${path.slice(0, 160)}…[+${path.length - 200} chars]…${path.slice(-40)}`;
+}
+
 export async function sbFetch<T = unknown>(
   path: string,
   {
@@ -146,7 +157,9 @@ export async function sbFetch<T = unknown>(
     // grep patterns / dashboards keep working.
     const text = await res.text();
     const msg = buildErrorMessage(text, res.statusText);
-    throw new Error(`PostgREST ${method} ${path} → ${res.status}: ${msg}`);
+    throw new Error(
+      `PostgREST ${method} ${summarizePathForError(path)} → ${res.status}: ${msg}`,
+    );
   }
 
   // Defensive: the loop body always either returns, continues, or throws.
