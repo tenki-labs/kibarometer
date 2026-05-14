@@ -27,8 +27,7 @@ type Props = {
 const NB = new Intl.NumberFormat("nb-NO");
 
 const chartConfig = {
-  ai: { label: "AI-relevante", color: "var(--chart-1)" },
-  baseline: { label: "Basislinje", color: "var(--chart-3)" },
+  ai: { label: "KI-relevante", color: "var(--chart-1)" },
   equality: { label: "Perfekt likhet", color: "var(--muted-foreground)" },
 } satisfies ChartConfig;
 
@@ -64,32 +63,17 @@ export function FinancialsPareto({ rows }: Props) {
     () => rows.find((r) => r.fiscal_year === selectedYear && r.is_ai_relevant),
     [rows, selectedYear],
   );
-  const baselineRow = useMemo(
-    () => rows.find((r) => r.fiscal_year === selectedYear && !r.is_ai_relevant),
-    [rows, selectedYear],
-  );
 
-  // Lorenz points → chart-friendly data. We zip the two series (AI + baseline)
-  // into a single shape keyed by x for Recharts. Lorenz x values from the two
-  // series won't be exactly equal (different n), so we render two
-  // independent LineCharts overlaid would normally be cleaner — Recharts
-  // accepts both keys per row when nulls fill gaps.
-  const chartData = useMemo(() => {
-    const aiPts: { x: number; ai: number | null; baseline: number | null }[] =
+  const chartData = useMemo(
+    () =>
       (aiRow?.lorenz_points ?? []).map(([x, y]) => ({
         x: Number(x),
         ai: Number(y),
-        baseline: null,
-      }));
-    const baselinePts = (baselineRow?.lorenz_points ?? []).map(([x, y]) => ({
-      x: Number(x),
-      ai: null,
-      baseline: Number(y),
-    }));
-    return [...aiPts, ...baselinePts].sort((a, b) => a.x - b.x);
-  }, [aiRow, baselineRow]);
+      })),
+    [aiRow],
+  );
 
-  if (!aiRow && !baselineRow) {
+  if (!aiRow) {
     return (
       <div className="flex h-full min-h-[200px] items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">
         Ingen finansial data ennå.
@@ -97,11 +81,10 @@ export function FinancialsPareto({ rows }: Props) {
     );
   }
 
-  const top10 = aiRow?.top10_share ?? null;
-  const gini = aiRow?.gini_omsetning ?? null;
-  const giniBaseline = baselineRow?.gini_omsetning ?? null;
-  const median = aiRow?.median_omsetning ?? null;
-  const mean = aiRow?.mean_omsetning ?? null;
+  const top10 = aiRow.top10_share ?? null;
+  const gini = aiRow.gini_omsetning ?? null;
+  const median = aiRow.median_omsetning ?? null;
+  const mean = aiRow.mean_omsetning ?? null;
 
   return (
     <div className="flex h-full w-full flex-col gap-4">
@@ -109,16 +92,12 @@ export function FinancialsPareto({ rows }: Props) {
         <KpiTile
           label="Topp 10 selskap"
           value={fmtPct(top10)}
-          hint="av AI-omsetningen"
+          hint="av KI-omsetningen"
         />
         <KpiTile
           label="Gini-koeffisient"
           value={gini !== null ? gini.toFixed(2).replace(".", ",") : "—"}
-          hint={
-            giniBaseline !== null
-              ? `Basislinje: ${giniBaseline.toFixed(2).replace(".", ",")}`
-              : "1 = full ulikhet"
-          }
+          hint="1 = full ulikhet"
         />
         <KpiTile
           label="Median · Snitt"
@@ -192,11 +171,9 @@ export function FinancialsPareto({ rows }: Props) {
                   labelFormatter={(label) =>
                     `Topp ${Math.round((1 - Number(label)) * 100)} % største`
                   }
-                  formatter={(value, name) => {
+                  formatter={(value) => {
                     if (typeof value !== "number") return "—";
-                    const label =
-                      name === "ai" ? "AI-relevante" : "Basislinje";
-                    return `${label}: ${(value * 100).toFixed(1).replace(".", ",")} %`;
+                    return `KI-relevante: ${(value * 100).toFixed(1).replace(".", ",")} %`;
                   }}
                 />
               }
@@ -216,15 +193,6 @@ export function FinancialsPareto({ rows }: Props) {
               dataKey="ai"
               type="linear"
               stroke="var(--color-ai)"
-              strokeWidth={2}
-              dot={false}
-              connectNulls
-              isAnimationActive={false}
-            />
-            <Line
-              dataKey="baseline"
-              type="linear"
-              stroke="var(--color-baseline)"
               strokeWidth={2}
               dot={false}
               connectNulls

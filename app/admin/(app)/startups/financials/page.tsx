@@ -156,7 +156,7 @@ export default async function FinancialsPage({ searchParams }: Props) {
     countRows("brreg_financials_fetch_state", `last_fetch_status=eq.NO_FILINGS`),
     countRows("brreg_financials_fetch_state", `last_fetch_status=eq.HTTP_ERROR`),
     sbFetch<YearlyRow[]>(
-      `/brreg_snapshot_financials_yearly?select=fiscal_year,is_ai_relevant,company_count,sum_omsetning,gini_omsetning,top10_share&order=fiscal_year.desc,is_ai_relevant.desc&limit=20`,
+      `/brreg_snapshot_financials_yearly?is_ai_relevant=is.true&select=fiscal_year,is_ai_relevant,company_count,sum_omsetning,gini_omsetning,top10_share&order=fiscal_year.desc&limit=20`,
       { service: true },
     ).catch(() => [] as YearlyRow[]),
     sbFetch<RecentFinancialRow[]>(
@@ -343,9 +343,12 @@ export default async function FinancialsPage({ searchParams }: Props) {
       <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Per år, AI vs basislinje</CardTitle>
+            <CardTitle>Per år (KI-relatert)</CardTitle>
             <CardDescription>
-              Fra brreg_snapshot_financials_yearly. AI = is_ai_relevant=true.
+              Fra brreg_snapshot_financials_yearly hvor
+              is_ai_relevant=true. Regnskap hentes kun for KI-flagga
+              foretak, så «basislinje»-raden i snapshotet er tom og
+              utelates her.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
@@ -353,7 +356,6 @@ export default async function FinancialsPage({ searchParams }: Props) {
               <TableHeader>
                 <TableRow>
                   <TableHead>År</TableHead>
-                  <TableHead>Subset</TableHead>
                   <TableHead className="text-right">Selskaper</TableHead>
                   <TableHead className="text-right">Sum omsetning</TableHead>
                   <TableHead className="text-right">Gini</TableHead>
@@ -364,7 +366,7 @@ export default async function FinancialsPage({ searchParams }: Props) {
                 {yearlyRows.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={6}
+                      colSpan={5}
                       className="text-center text-sm text-muted-foreground"
                     >
                       Ingen aggregat ennå — trigg drain + refresh snapshot.
@@ -372,11 +374,8 @@ export default async function FinancialsPage({ searchParams }: Props) {
                   </TableRow>
                 ) : (
                   yearlyRows.map((r) => (
-                    <TableRow key={`${r.fiscal_year}-${r.is_ai_relevant}`}>
+                    <TableRow key={r.fiscal_year}>
                       <TableCell className="text-xs">{r.fiscal_year}</TableCell>
-                      <TableCell className="text-xs">
-                        {r.is_ai_relevant ? "AI" : "Basislinje"}
-                      </TableCell>
                       <TableCell className="text-right tabular-nums text-xs">
                         {formatNum(r.company_count)}
                       </TableCell>

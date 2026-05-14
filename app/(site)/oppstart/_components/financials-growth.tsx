@@ -2,9 +2,10 @@
 
 import { useMemo, useState } from "react";
 import {
+  Bar,
+  BarChart,
   CartesianGrid,
-  Line,
-  LineChart,
+  Cell,
   ReferenceArea,
   XAxis,
   YAxis,
@@ -12,8 +13,6 @@ import {
 
 import {
   ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
@@ -27,16 +26,14 @@ type Props = {
 const NB = new Intl.NumberFormat("nb-NO");
 
 const chartConfig = {
-  ai: { label: "AI-relevante", color: "var(--chart-1)" },
-  baseline: { label: "Basislinje", color: "var(--chart-3)" },
+  omsetning: { label: "KI-relatert omsetning", color: "var(--chart-1)" },
 } satisfies ChartConfig;
 
 type Point = {
   fiscal_year: number;
-  ai: number | null;
-  baseline: number | null;
-  aiNok: number | null;
-  baselineNok: number | null;
+  omsetning: number;
+  company_count: number;
+  preliminary: boolean;
 };
 
 function fmtNok(n: number | null | undefined): string {
@@ -59,47 +56,18 @@ export function FinancialsGrowth({ rows }: Props) {
   const [currentYear] = useState(() => new Date().getFullYear());
 
   const points = useMemo<Point[]>(() => {
-    const byYear = new Map<number, { ai: number | null; baseline: number | null }>();
-    for (const r of rows) {
-      const cur = byYear.get(r.fiscal_year) ?? { ai: null, baseline: null };
-      if (r.is_ai_relevant) cur.ai = r.sum_omsetning;
-      else cur.baseline = r.sum_omsetning;
-      byYear.set(r.fiscal_year, cur);
-    }
-    const sorted = [...byYear.entries()].sort(([a], [b]) => a - b);
-    if (sorted.length === 0) return [];
-
-    // Index to 100 at the first year where both series have data.
-    const baseYear = sorted.find(([, v]) => v.ai !== null && v.baseline !== null);
-    if (!baseYear) {
-      // Fallback: just index AI to its first available year. Baseline left as raw.
-      return sorted.map(([y, v]) => ({
-        fiscal_year: y,
-        ai: null,
-        baseline: null,
-        aiNok: v.ai,
-        baselineNok: v.baseline,
-      }));
-    }
-    const [, baseVals] = baseYear;
-    const baseAi = baseVals.ai ?? 1;
-    const baseBaseline = baseVals.baseline ?? 1;
-    return sorted.map(([y, v]) => ({
-      fiscal_year: y,
-      ai: v.ai !== null ? Math.round((v.ai / baseAi) * 100) : null,
-      baseline:
-        v.baseline !== null ? Math.round((v.baseline / baseBaseline) * 100) : null,
-      aiNok: v.ai,
-      baselineNok: v.baseline,
+    const aiRows = rows
+      .filter((r) => r.is_ai_relevant)
+      .sort((a, b) => a.fiscal_year - b.fiscal_year);
+    if (aiRows.length === 0) return [];
+    const latest = aiRows[aiRows.length - 1].fiscal_year;
+    return aiRows.map((r) => ({
+      fiscal_year: r.fiscal_year,
+      omsetning: r.sum_omsetning,
+      company_count: r.company_count,
+      preliminary: r.fiscal_year === latest,
     }));
   }, [rows]);
-
-  // Latest year is "preliminary": filings land Jul-Sep so a year ending in
-  // 2024 wouldn't be complete until late 2025. Render its area as a
-  // shaded reference area so readers see the year is not fully filed.
-  const latestYear = points.length > 0 ? points[points.length - 1].fiscal_year : null;
-  const partialFromYear = latestYear !== null ? latestYear - 0.5 : null;
-  const partialToYear = latestYear !== null ? latestYear + 0.5 : null;
 
   if (points.length === 0) {
     return (
@@ -109,108 +77,64 @@ export function FinancialsGrowth({ rows }: Props) {
     );
   }
 
-  // KPIs: latest year sum (AI), growth since 2020, growth gap pp.
   const latest = points[points.length - 1];
-  const since2020 = points.find((p) => p.fiscal_year === 2020) ?? points[0];
-  const aiGrowth =
-    latest.ai !== null && since2020.ai !== null
-      ? ((latest.ai - since2020.ai) / since2020.ai) * 100
-      : null;
-  const baselineGrowth =
-    latest.baseline !== null && since2020.baseline !== null
-      ? ((latest.baseline - since2020.baseline) / since2020.baseline) * 100
-      : null;
-  const gapPP =
-    aiGrowth !== null && baselineGrowth !== null
-      ? aiGrowth - baselineGrowth
-      : null;
-
-  function fmtGrowth(p: number | null): string {
-    if (p === null) return "—";
-    return `${p >= 0 ? "+" : ""}${p.toFixed(0)} %`;
-  }
+  const partialFromYear = latest.fiscal_year - 0.5;
+  const partialToYear = latest.fiscal_year + 0.5;
+  const latestIsPreliminary = latest.fiscal_year === currentYear - 1;
 
   return (
     <div className="flex h-full w-full flex-col gap-4">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <KpiTile
-          label={`AI-sektor omsetning ${latest.fiscal_year}`}
-          value={fmtNok(latest.aiNok)}
+          label={`KI-omsetning ${latest.fiscal_year}`}
+          value={fmtNok(latest.omsetning)}
           hint={
-            latestYear === currentYear - 1
+            latestIsPreliminary
               ? "Foreløpig — innleveringer kommer Jul–Sep"
               : "Sum sum_driftsinntekter"
           }
         />
         <KpiTile
-          label="Vekst fra 2020"
-          value={`AI ${fmtGrowth(aiGrowth)} · basislinje ${fmtGrowth(baselineGrowth)}`}
-          hint="Indeksert til 100 i basisåret"
-        />
-        <KpiTile
-          label="Gap"
-          value={
-            gapPP !== null
-              ? `${gapPP >= 0 ? "+" : ""}${gapPP.toFixed(0)} pp`
-              : "—"
-          }
-          hint={
-            gapPP !== null && gapPP >= 0
-              ? "AI vokser raskere"
-              : "AI vokser saktere"
-          }
+          label={`Antall filere ${latest.fiscal_year}`}
+          value={NB.format(latest.company_count)}
+          hint="Foretak med positiv omsetning"
         />
       </div>
 
       <div className="min-h-0 flex-1">
         <ChartContainer config={chartConfig} className="h-full w-full">
-          <LineChart
+          <BarChart
             data={points}
             margin={{ left: 8, right: 8, top: 8, bottom: 0 }}
           >
             <CartesianGrid vertical={false} strokeDasharray="3 3" />
             <XAxis
               dataKey="fiscal_year"
-              type="number"
-              domain={["dataMin", "dataMax"]}
               tickLine={false}
               axisLine={false}
               tickMargin={8}
               tickFormatter={(v) => String(v)}
-              allowDecimals={false}
             />
             <YAxis
-              tickFormatter={(v) => String(v)}
+              tickFormatter={(v) => fmtNok(Number(v))}
               tickLine={false}
               axisLine={false}
-              width={40}
-              label={{
-                value: "Indeks (basisår = 100)",
-                angle: -90,
-                position: "insideLeft",
-                style: { fontSize: 11, fill: "var(--muted-foreground)" },
-              }}
+              width={72}
             />
             <ChartTooltip
               cursor={{ strokeDasharray: "3 3" }}
               content={
                 <ChartTooltipContent
                   labelFormatter={(label) => `Regnskapsår ${label}`}
-                  formatter={(value, name, item) => {
+                  formatter={(value, _name, item) => {
                     if (typeof value !== "number") return "—";
-                    const label =
-                      name === "ai" ? "AI-relevante" : "Basislinje";
-                    const raw =
-                      name === "ai"
-                        ? (item.payload as Point).aiNok
-                        : (item.payload as Point).baselineNok;
-                    return `${label}: ${value} (${fmtNok(raw)})`;
+                    const p = item.payload as Point;
+                    return `${fmtNok(value)} · ${NB.format(p.company_count)} filere`;
                   }}
                 />
               }
             />
-            <ChartLegend content={<ChartLegendContent />} />
-            {partialFromYear !== null && partialToYear !== null ? (
+            {latestIsPreliminary ? (
               <ReferenceArea
                 x1={partialFromYear}
                 x2={partialToYear}
@@ -225,25 +149,21 @@ export function FinancialsGrowth({ rows }: Props) {
                 }}
               />
             ) : null}
-            <Line
-              dataKey="ai"
-              type="linear"
-              stroke="var(--color-ai)"
-              strokeWidth={2}
-              dot
-              connectNulls
+            <Bar
+              dataKey="omsetning"
+              fill="var(--color-omsetning)"
               isAnimationActive={false}
-            />
-            <Line
-              dataKey="baseline"
-              type="linear"
-              stroke="var(--color-baseline)"
-              strokeWidth={2}
-              dot
-              connectNulls
-              isAnimationActive={false}
-            />
-          </LineChart>
+              radius={[4, 4, 0, 0]}
+            >
+              {points.map((p) => (
+                <Cell
+                  key={p.fiscal_year}
+                  fill="var(--color-omsetning)"
+                  fillOpacity={p.preliminary && latestIsPreliminary ? 0.55 : 1}
+                />
+              ))}
+            </Bar>
+          </BarChart>
         </ChartContainer>
       </div>
     </div>

@@ -618,10 +618,10 @@ export function Scroller({
       <section className="snap-segment sm:snap-start sm:snap-always">
         <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
           <h2 className="text-lg font-medium tracking-tight sm:text-xl">
-            Variansen i AI-økonomien
+            Variansen i KI-økonomien
           </h2>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
-            Hvor konsentrert er omsetningen blant AI-relevante foretak?
+            Hvor konsentrert er omsetningen blant KI-relevante foretak?
             Lorenz-kurven viser kumulativ andel selskaper (sortert lavest
             til høyest omsetning) mot kumulativ andel av sektorens
             omsetning. 45°-linjen tilsvarer perfekt likhet — jo lengre
@@ -637,13 +637,15 @@ export function Scroller({
       <section className="snap-segment sm:snap-start sm:snap-always">
         <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
           <h2 className="text-lg font-medium tracking-tight sm:text-xl">
-            Omsetning over tid — AI vs basislinje
+            KI-relatert omsetning over tid
           </h2>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
-            Sum sum_driftsinntekter per regnskapsår, indeksert til 100 i
-            basisåret. Skraffert område markerer det siste året — det er
-            foreløpig fordi årsregnskap leveres Jul–Sep året etter
-            rapporteringsåret.
+            Sum sum_driftsinntekter per regnskapsår, i kroner. Skraffert
+            område markerer siste år — det er foreløpig fordi årsregnskap
+            leveres Jul–Sep året etter rapporteringsåret. Tallene
+            inkluderer hele omsetningen til foretak som er flagget
+            KI-relatert basert på nøkkelord i firmanavn eller aktivitet;
+            for noen er KI hovedvirksomheten, for andre en mindre del.
           </p>
           <div className="min-h-0 flex-1">
             <FinancialsGrowth rows={financialsYearly} />
@@ -658,10 +660,11 @@ export function Scroller({
             Hvor mange overlever?
           </h2>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
-            Hver årgang AI-selskap (fra Brønnøysundregistrene)
-            sammenlignet med basislinjen ved siste hele rapporteringsår.
-            Kortets ramme er grønn når årgangen overlever bedre enn
-            basislinjen, rød når den overlever dårligere.
+            Hver årgang KI-selskap (fra Brønnøysundregistrene) ved siste
+            hele rapporteringsår. Kortets ramme er grønn når årgangen
+            overlever bedre enn alle nye foretak fra samme år, rød når
+            den overlever dårligere. Overlevelse måles mot
+            Brønnøysund-status, ikke regnskapsdata.
           </p>
           <div className="min-h-0 flex-1">
             <FinancialsCohortCards rows={financialsCohort} />

@@ -39,9 +39,9 @@ type CardData = {
   top_orgnr: string | null;
   top_name: string | null;
   top_revenue: number | null;
-  baseline_alive_share: number | null;
-  baseline_filing_share: number | null;
-  // Survival quartile tint: 0 (worst) .. 3 (best) vs baseline cohort.
+  // Survival quartile tint: 0 (worst) .. 3 (best) vs same-year baseline
+  // cohort. Tint uses alive_share, which comes from brreg_companies for
+  // both populations — honest even though brreg_financials is AI-only.
   tint_bucket: 0 | 1 | 2 | 3 | null;
 };
 
@@ -102,7 +102,6 @@ export function FinancialsCohortCards({ rows }: Props) {
       if (!pair.ai) continue;
       const obs = pair.ai.observation_year;
       const ai = pair.ai;
-      const baseline = pair.baseline;
       const ratio = ratios.find((r) => r.cohort_year === year)?.ratio ?? null;
       out.push({
         cohort_year: year,
@@ -114,14 +113,6 @@ export function FinancialsCohortCards({ rows }: Props) {
         top_orgnr: ai.top_performer_orgnr,
         top_name: ai.top_performer_name,
         top_revenue: ai.top_performer_revenue,
-        baseline_alive_share:
-          baseline && baseline.cohort_size > 0
-            ? baseline.alive_count / baseline.cohort_size
-            : null,
-        baseline_filing_share:
-          baseline && baseline.cohort_size > 0
-            ? baseline.filing_positive_count / baseline.cohort_size
-            : null,
         tint_bucket: ratio !== null ? quartile(ratio) : null,
       });
     }
@@ -183,13 +174,6 @@ export function FinancialsCohortCards({ rows }: Props) {
                 {fmtNok(c.top_revenue)}
               </p>
             </div>
-          ) : null}
-          {c.baseline_alive_share !== null && c.baseline_filing_share !== null ? (
-            <p className="border-t pt-1 text-[0.65rem] text-muted-foreground">
-              Basislinje:{" "}
-              {Math.round(c.baseline_alive_share * 100)} % lever ·{" "}
-              {Math.round(c.baseline_filing_share * 100)} % positiv
-            </p>
           ) : null}
         </article>
       ))}
