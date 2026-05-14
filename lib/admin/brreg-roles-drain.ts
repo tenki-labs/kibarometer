@@ -26,6 +26,11 @@ const CHUNK_SIZE = 100;
 const ROLE_FETCH_MAX_ATTEMPTS = 3;
 const POLITE_DELAY_MS = 250; // matches brreg-client.js; used for ETA only
 
+// Sub-batch size for the registrert_dato pre-fetch. Keeps each
+// /brreg_companies?orgnr=in.(...) request well under any URL-length
+// cliff and bounds the blast radius if one of them fails transiently.
+const REG_DATE_BATCH_SIZE = 25;
+
 type JobLite = { id: string; metadata: Record<string, unknown> | null };
 
 // Heartbeats fire every 10 rows (~2.5 s on a healthy drain at the 250 ms
@@ -366,18 +371,34 @@ export async function runBrregRolesFullDrain(args: {
         break;
       }
 
-      // One-shot lookup of registrert_dato for the chunk — drives the
-      // founder-age math inside processRollerPayload.
+      // Lookup of registrert_dato for the chunk — drives the founder-age
+      // math inside processRollerPayload. Split into smaller in-lists so
+      // a single transient PostgREST blip can't kill a 9-hour drain;
+      // processRollerPayload tolerates a missing reg date by leaving
+      // youngest_age_at_reg null, so partial failure here degrades the
+      // founder-age stat for those rows but never blocks the drain.
       const orgnrs = pending.map((p) => p.orgnr);
-      const inList = orgnrs.map(encodeURIComponent).join(",");
       type CompanyDate = { orgnr: string; registrert_dato: string | null };
-      const companies = await sb<CompanyDate[]>(
-        `/brreg_companies?orgnr=in.(${inList})&select=orgnr,registrert_dato`,
-        { service: true },
-      );
-      const regDateByOrgnr = new Map(
-        companies.map((c) => [c.orgnr, c.registrert_dato]),
-      );
+      const regDateByOrgnr = new Map<string, string | null>();
+      for (let i = 0; i < orgnrs.length; i += REG_DATE_BATCH_SIZE) {
+        const slice = orgnrs.slice(i, i + REG_DATE_BATCH_SIZE);
+        const inList = slice.map(encodeURIComponent).join(",");
+        try {
+          const companies = await sb<CompanyDate[]>(
+            `/brreg_companies?orgnr=in.(${inList})&select=orgnr,registrert_dato`,
+            { service: true },
+          );
+          for (const c of companies) {
+            regDateByOrgnr.set(c.orgnr, c.registrert_dato);
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(
+            `brreg roles-drain ${jobId}: regDate lookup batch failed ` +
+              `(${slice.length} orgnrs), continuing with null regDate. ${msg}`,
+          );
+        }
+      }
 
       for (const row of pending) {
         if (await isCancelRequested(sb, jobId)) {
