@@ -86,11 +86,16 @@ export function NorwayMap({ geography, paths, viewBox, unit }: Props) {
     });
   }
 
+  // Bars show share of the *national* AI total — same denominator as the
+  // desktop choropleth fill and tooltip. Passing grandTotalAi as `total`
+  // makes HBarList render `value / grandTotalAi` so the percentages sum
+  // to 100% across fylker (geographic distribution), not the per-fylke
+  // AI penetration rate.
   const hbarRows = [...FYLKER]
     .map((f) => ({
       label: f,
       value: aggregated.get(f)!.ai,
-      total: aggregated.get(f)!.total || undefined,
+      total: grandTotalAi || undefined,
     }))
     .sort((a, b) => b.value - a.value);
 
