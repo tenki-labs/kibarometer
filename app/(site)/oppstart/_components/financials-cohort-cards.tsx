@@ -32,97 +32,35 @@ function pct(num: number, denom: number): string {
 type CardData = {
   cohort_year: number;
   age: number;
-  ai_size: number;
-  ai_alive: number;
-  ai_filing: number;
-  ai_median: number | null;
+  // cohort_size from brreg_snapshot_financials_cohort. Renamed `active`
+  // here because our brreg ingest is forward-only against the active
+  // Enhetsregister — companies struck off before bootstrap (2026) are
+  // invisible. So cohort_size is a count of *currently active* KI-foretak
+  // founded in cohort_year, not the true historical cohort. We drop the
+  // "% lever" framing entirely because alive_count / cohort_size is a
+  // tautology (≈100 %) for pre-bootstrap years.
+  active: number;
+  filing_positive: number;
+  median_revenue: number | null;
   top_orgnr: string | null;
   top_name: string | null;
   top_revenue: number | null;
-  baseline_alive_share: number | null;
-  baseline_filing_share: number | null;
-  // Survival quartile tint: 0 (worst) .. 3 (best) vs baseline cohort.
-  tint_bucket: 0 | 1 | 2 | 3 | null;
-};
-
-const TINT_CLASSES: Record<number, string> = {
-  0: "border-red-300 dark:border-red-900/60",
-  1: "border-amber-300 dark:border-amber-900/60",
-  2: "border-emerald-300 dark:border-emerald-900/60",
-  3: "border-emerald-500 dark:border-emerald-500/70",
 };
 
 export function FinancialsCohortCards({ rows }: Props) {
   const cards = useMemo<CardData[]>(() => {
-    // Pair AI + baseline rows by cohort_year.
-    const byCohort = new Map<
-      number,
-      {
-        ai: BrregSnapshotFinancialsCohort | null;
-        baseline: BrregSnapshotFinancialsCohort | null;
-      }
-    >();
-    for (const r of rows) {
-      const cur = byCohort.get(r.cohort_year) ?? { ai: null, baseline: null };
-      if (r.is_ai_relevant) cur.ai = r;
-      else cur.baseline = r;
-      byCohort.set(r.cohort_year, cur);
-    }
-
-    const ratios: { cohort_year: number; ratio: number | null }[] = [];
-    for (const [year, pair] of byCohort) {
-      if (!pair.ai) continue;
-      const aiAliveShare = pair.ai.cohort_size > 0
-        ? pair.ai.alive_count / pair.ai.cohort_size
-        : 0;
-      const baselineAliveShare =
-        pair.baseline && pair.baseline.cohort_size > 0
-          ? pair.baseline.alive_count / pair.baseline.cohort_size
-          : null;
-      const ratio =
-        baselineAliveShare !== null && baselineAliveShare > 0
-          ? aiAliveShare / baselineAliveShare
-          : null;
-      ratios.push({ cohort_year: year, ratio });
-    }
-
-    // Quartile cutoffs for tinting — use baseline-relative survival ratio.
-    const validRatios = ratios
-      .map((r) => r.ratio)
-      .filter((r): r is number => r !== null)
-      .sort((a, b) => a - b);
-    const quartile = (r: number): 0 | 1 | 2 | 3 => {
-      if (validRatios.length === 0) return 2;
-      const idx = Math.floor((validRatios.indexOf(r) / validRatios.length) * 4);
-      return Math.min(3, Math.max(0, idx)) as 0 | 1 | 2 | 3;
-    };
-
     const out: CardData[] = [];
-    for (const [year, pair] of byCohort) {
-      if (!pair.ai) continue;
-      const obs = pair.ai.observation_year;
-      const ai = pair.ai;
-      const baseline = pair.baseline;
-      const ratio = ratios.find((r) => r.cohort_year === year)?.ratio ?? null;
+    for (const r of rows) {
+      if (!r.is_ai_relevant) continue;
       out.push({
-        cohort_year: year,
-        age: obs - year,
-        ai_size: ai.cohort_size,
-        ai_alive: ai.alive_count,
-        ai_filing: ai.filing_positive_count,
-        ai_median: ai.median_revenue_filing,
-        top_orgnr: ai.top_performer_orgnr,
-        top_name: ai.top_performer_name,
-        top_revenue: ai.top_performer_revenue,
-        baseline_alive_share:
-          baseline && baseline.cohort_size > 0
-            ? baseline.alive_count / baseline.cohort_size
-            : null,
-        baseline_filing_share:
-          baseline && baseline.cohort_size > 0
-            ? baseline.filing_positive_count / baseline.cohort_size
-            : null,
-        tint_bucket: ratio !== null ? quartile(ratio) : null,
+        cohort_year: r.cohort_year,
+        age: r.observation_year - r.cohort_year,
+        active: r.cohort_size,
+        filing_positive: r.filing_positive_count,
+        median_revenue: r.median_revenue_filing,
+        top_orgnr: r.top_performer_orgnr,
+        top_name: r.top_performer_name,
+        top_revenue: r.top_performer_revenue,
       });
     }
     return out.sort((a, b) => a.cohort_year - b.cohort_year);
@@ -142,11 +80,7 @@ export function FinancialsCohortCards({ rows }: Props) {
       {cards.map((c) => (
         <article
           key={c.cohort_year}
-          className={`flex flex-col gap-2 rounded-md border-2 bg-card p-3 text-sm ${
-            c.tint_bucket !== null
-              ? TINT_CLASSES[c.tint_bucket]
-              : "border-border"
-          }`}
+          className="flex flex-col gap-2 rounded-md border bg-card p-3 text-sm"
         >
           <header>
             <p className="font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
@@ -158,20 +92,18 @@ export function FinancialsCohortCards({ rows }: Props) {
           </header>
           <div className="space-y-1">
             <p className="text-base font-semibold tabular-nums">
-              {NB.format(c.ai_size)} AI-selskap
+              {NB.format(c.active)} aktive KI-foretak
             </p>
             <p className="text-xs tabular-nums">
-              {NB.format(c.ai_alive)} lever ·{" "}
-              <span className="font-medium">{pct(c.ai_alive, c.ai_size)}</span>
-            </p>
-            <p className="text-xs tabular-nums">
-              {NB.format(c.ai_filing)} positiv omsetning ·{" "}
-              <span className="font-medium">{pct(c.ai_filing, c.ai_size)}</span>
+              {NB.format(c.filing_positive)} har innlevert ·{" "}
+              <span className="font-medium">
+                {pct(c.filing_positive, c.active)}
+              </span>
             </p>
           </div>
           <div className="text-xs">
-            <p className="text-muted-foreground">Median omsetning</p>
-            <p className="font-medium tabular-nums">{fmtNok(c.ai_median)}</p>
+            <p className="text-muted-foreground">Median omsetning blant filere</p>
+            <p className="font-medium tabular-nums">{fmtNok(c.median_revenue)}</p>
           </div>
           {c.top_name && c.top_revenue !== null ? (
             <div className="mt-auto text-[0.7rem]">
@@ -183,13 +115,6 @@ export function FinancialsCohortCards({ rows }: Props) {
                 {fmtNok(c.top_revenue)}
               </p>
             </div>
-          ) : null}
-          {c.baseline_alive_share !== null && c.baseline_filing_share !== null ? (
-            <p className="border-t pt-1 text-[0.65rem] text-muted-foreground">
-              Basislinje:{" "}
-              {Math.round(c.baseline_alive_share * 100)} % lever ·{" "}
-              {Math.round(c.baseline_filing_share * 100)} % positiv
-            </p>
           ) : null}
         </article>
       ))}
