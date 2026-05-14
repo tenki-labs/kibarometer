@@ -21,6 +21,14 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Lint PostgREST upserts
+        # Catches the retag-shaped-upsert defect from PR #172: a POST
+        # to /<table>?on_conflict=… with merge-duplicates whose body
+        # omits a NOT NULL no-default column. PostgreSQL validates
+        # NOT NULL on the proposed INSERT row BEFORE routing to DO
+        # UPDATE, so the upsert fails even when every row exists.
+        run: pnpm lint:postgrest
+
       - name: Test
         run: pnpm test
 
