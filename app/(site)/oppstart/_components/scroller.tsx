@@ -657,14 +657,16 @@ export function Scroller({
       <section className="snap-segment sm:snap-start sm:snap-always">
         <div className="flex h-full w-full flex-col gap-4 px-4 pt-6 pb-8 sm:px-8">
           <h2 className="text-lg font-medium tracking-tight sm:text-xl">
-            Hvor mange overlever?
+            Aktive KI-foretak per stiftelsesår
           </h2>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
-            Hver årgang KI-selskap (fra Brønnøysundregistrene) ved siste
-            hele rapporteringsår. Kortets ramme er grønn når årgangen
-            overlever bedre enn alle nye foretak fra samme år, rød når
-            den overlever dårligere. Overlevelse måles mot
-            Brønnøysund-status, ikke regnskapsdata.
+            KI-foretak som fortsatt er aktive i Brønnøysundregistrene,
+            gruppert etter stiftelsesår. Vi har ingen data om foretak
+            som ble slettet før vi startet henting fra BRREG våren 2026
+            — historisk dødelighet i KI-segmentet er derfor ukjent, og
+            tallene viser en overlever-andel, ikke en hel årgang.
+            Innleveringsandel og median omsetning gjelder filere blant
+            de aktive.
           </p>
           <div className="min-h-0 flex-1">
             <FinancialsCohortCards rows={financialsCohort} />
