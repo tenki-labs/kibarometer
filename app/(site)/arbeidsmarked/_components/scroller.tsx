@@ -23,10 +23,8 @@ import {
   PillarHeroEmpty,
   type PillarHeroStat,
 } from "@/app/(site)/_components/pillar-hero";
-import {
-  StackedAreaChart,
-  type Series,
-} from "@/app/(site)/_components/stacked-area-chart";
+import { type Series } from "@/app/(site)/_components/stacked-area-chart";
+import { StackedBarChart } from "@/app/(site)/_components/stacked-bar-chart";
 import {
   TimeRangeToggle,
   type Range,
@@ -332,7 +330,7 @@ export function Scroller({
             ferdighetskategori. Grafen viser fordelingen blant de
             klassifiserte stillingene — totalen følger derfor ikke
             nødvendigvis hovedtallet, og én stilling kan tilhøre flere
-            kategorier (området summerer 100 %).
+            kategorier (søylene summerer 100 %).
           </p>
           <LlmCoverageBanner
             rows={tier2Coverage}
@@ -340,7 +338,7 @@ export function Scroller({
             nowMs={nowMs}
           />
           <div className="min-h-0 flex-1">
-            <StackedAreaChart
+            <StackedBarChart
               series={skillSeries}
               taxonomy={taxonomy}
               variant="skill"
