@@ -3,10 +3,8 @@
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import {
-  StackedAreaChart,
-  type Series,
-} from "@/app/(site)/_components/stacked-area-chart";
+import { type Series } from "@/app/(site)/_components/stacked-area-chart";
+import { StackedBarChart } from "@/app/(site)/_components/stacked-bar-chart";
 import {
   TimeRangeToggle,
   type Range,
@@ -208,7 +206,7 @@ export function Scroller({
     [categoryDaily, cutoffMs, grain],
   );
 
-  // Adapt media_categories into the TaxonomyCategory shape StackedAreaChart
+  // Adapt media_categories into the TaxonomyCategory shape StackedBarChart
   // expects (bandDescription pulls definition_md for variant="skill").
   const taxonomyAdapter = useMemo<TaxonomyCategory[]>(
     () =>
@@ -382,7 +380,7 @@ export function Scroller({
             nowMs={nowMs}
           />
           <div className="min-h-0 flex-1">
-            <StackedAreaChart
+            <StackedBarChart
               series={categorySeries}
               taxonomy={taxonomyAdapter}
               variant="skill"

@@ -7,10 +7,8 @@ import {
   AIVolumeAreaChart,
   type AIShareBucket,
 } from "@/app/(site)/_components/ai-volume-area-chart";
-import {
-  StackedAreaChart,
-  type Series,
-} from "@/app/(site)/_components/stacked-area-chart";
+import { type Series } from "@/app/(site)/_components/stacked-area-chart";
+import { StackedBarChart } from "@/app/(site)/_components/stacked-bar-chart";
 import {
   TimeRangeToggle,
   type Range,
@@ -366,7 +364,7 @@ export function Scroller({
     [daily, range, nowMs],
   );
 
-  // taxonomyAdapter feeds StackedAreaChart's "skill" variant for label,
+  // taxonomyAdapter feeds StackedBarChart's "skill" variant for label,
   // tooltip definition, and band ordering. The synthetic "Andre" entry sits
   // at the end of the sort order so the residual band lands last (least
   // visually prominent), and its definition surfaces in the tooltip on hover
@@ -538,7 +536,7 @@ export function Scroller({
             % av perioden samles i «{RESIDUAL_LABEL}», sammen med samlebåsen «annet» fra NACE.
           </p>
           <div className="min-h-0 flex-1">
-            <StackedAreaChart
+            <StackedBarChart
               series={categoryMixSeries}
               taxonomy={taxonomyAdapter}
               variant="skill"
