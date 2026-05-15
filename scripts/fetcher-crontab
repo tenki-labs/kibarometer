@@ -152,6 +152,14 @@
 # (:13/:28/:43/:58), brreg Tier 2 (:07/:22/:37/:52). Skips silently when
 # storting_categories or the offentlig_storting_tier2 prompt is missing.
 10,25,40,55 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 90 ${ADMIN_URL}/admin/api/jobs/offentlig-llm-tier2 > /var/log/last-offentlig-tier2.log 2>&1 || logger -s "kiba-fetcher: offentlig-llm-tier2 failed at $(date -Iseconds)"
+# /offentlig watchdog. Reaps any storting job stuck in status=running past
+# the shared STALE_RUNNING_MS (30 min) or HEARTBEAT_STALE_MS (5 min) by
+# calling sweepStaleRunningJobs (lib/admin/legacy/jobs.js). Standalone
+# safety net for the opportunistic sweep that storting orchestrators
+# already call at startup. Offset 1-56/5 keeps separation from brreg
+# watchdogs at */5 (roles) and 2-57/5 (financials). -m 30 since worst
+# case is two cheap PATCHes.
+1-56/5 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 30 ${ADMIN_URL}/admin/api/jobs/storting-watchdog > /var/log/last-storting-watchdog.log 2>&1 || logger -s "kiba-fetcher: storting-watchdog failed at $(date -Iseconds)"
 # /offentlig snapshot refresh. Truncate+insert across the seven
 # offentlig_snapshot_* tables — runs in seconds. Offset 05:00 UTC so the
 # four snapshot RPCs don't queue: NAV at 04:00, media at 04:30, brreg at
