@@ -61,18 +61,14 @@ export async function ingestAction(formData: FormData) {
 }
 
 // Re-tag every brreg_companies row against the current keyword catalogue.
-// Wraps reprocessBrregCompanies with a coordinator-row pattern (mirroring
-// fastForwardAction in /admin/job-market/actions.ts) so the long-running
-// scan gets a UI-visible banner + STOP support. Re-entrancy guard: only
-// one drain at a time.
-type BrregReprocessCoordinator = {
-  id: string;
-  metadata: Record<string, unknown> | null;
-};
-
+// Single-row pattern (mirror of NAV reprocessAction + storting
+// reprocessKeywordsAction): defer the scan with after() and let
+// reprocessBrregCompanies own its jobs row + heartbeats directly. STOP
+// PATCHes that same row to non-running; the worker's inter-batch poll
+// trips and bails after the current page.
 export async function reprocessKeywordsAction() {
   const running = await sbFetch<{ id: string }[]>(
-    `/jobs?name=eq.brreg_reprocess_drain&status=eq.running&select=id&limit=1`,
+    `/jobs?name=eq.reprocess_brreg_keywords&status=eq.running&select=id&limit=1`,
     { service: true },
   );
   if (running.length > 0) {
@@ -80,68 +76,13 @@ export async function reprocessKeywordsAction() {
       `/admin/startups${flashQs({ error: "Re-tagging kjører allerede." })}`,
     );
   }
-
-  // Insert coordinator BEFORE redirect so the post-redirect render
-  // already shows a running row (no dead-window flicker).
-  const coordRows = await sbFetch<BrregReprocessCoordinator[]>(`/jobs`, {
-    service: true,
-    method: "POST",
-    body: {
-      name: "brreg_reprocess_drain",
-      trigger: "manual",
-      status: "running",
-      metadata: {
-        phase: "starting",
-        drain_started_at: new Date().toISOString(),
-      },
-    },
-    prefer: "return=representation",
-  });
-  const coordinator = coordRows[0];
-
   after(async () => {
     try {
-      await reprocessBrregCompanies({
-        sb: sbFetch,
-        trigger: "manual",
-        coordinatorId: coordinator.id,
-      });
-      // The orchestrator finished naturally — flip the coordinator
-      // success unless STOP already moved it.
-      const me = await sbFetch<{ status: string }[]>(
-        `/jobs?id=eq.${coordinator.id}&select=status`,
-        { service: true },
-      );
-      if (me[0]?.status === "running") {
-        await sbFetch(`/jobs?id=eq.${coordinator.id}`, {
-          service: true,
-          method: "PATCH",
-          body: {
-            status: "success",
-            finished_at: new Date().toISOString(),
-            progress_pct: 100,
-            current_step: "drain completed",
-          },
-          prefer: "return=minimal",
-        });
-      }
-    } catch (err) {
-      await sbFetch(`/jobs?id=eq.${coordinator.id}`, {
-        service: true,
-        method: "PATCH",
-        body: {
-          status: "failed",
-          finished_at: new Date().toISOString(),
-          error: String(err instanceof Error ? err.message : err).slice(
-            0,
-            1000,
-          ),
-        },
-        prefer: "return=minimal",
-      });
+      await reprocessBrregCompanies({ sb: sbFetch, trigger: "manual" });
+    } catch {
+      // reprocessBrregCompanies writes its own failure PATCH to the jobs row.
     }
   });
-
   redirect(
     `/admin/keywords${flashQs({
       ok: "Re-tagging av brreg-selskaper startet — se /admin/processes for status.",
@@ -149,13 +90,13 @@ export async function reprocessKeywordsAction() {
   );
 }
 
-// STOP button for the keyword-reprocess drain. Same pattern as NAV's
-// stopDrainAction: flip the coordinator to failed, the loop's pre-batch
-// check sees status != running and bails after the current page.
+// STOP button for the keyword-reprocess scan. Flip the worker row to
+// failed; the loop's pre-batch self-check sees status != running and
+// bails after the current page.
 export async function stopReprocessAction() {
   try {
     await sbFetch(
-      `/jobs?name=eq.brreg_reprocess_drain&status=eq.running`,
+      `/jobs?name=eq.reprocess_brreg_keywords&status=eq.running`,
       {
         service: true,
         method: "PATCH",
