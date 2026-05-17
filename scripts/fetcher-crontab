@@ -106,6 +106,18 @@
 # 45 min after NAV's 04:00 snapshot refresh so the two RPCs don't compete
 # for Postgres locks.
 45 4 * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 120 ${ADMIN_URL}/admin/api/jobs/brreg-refresh-snapshots > /var/log/last-brreg-snapshots.log 2>&1 || logger -s "kiba-fetcher: brreg-refresh-snapshots failed at $(date -Iseconds)"
+# brreg retag (/oppstart). Re-applies the current canonical keyword
+# matcher to every brreg_companies row. Same drift problem as NAV
+# reprocess at 03:30 UTC: forward-only ingest means historical rows
+# retain the matcher verdict from their ingest time, and is_ai_relevant
+# drifts as canonical keywords get promoted. reprocessBrregCompanies
+# chains into refreshBrregSnapshots on success, so /oppstart dashboards
+# reflect the new tag state immediately. Runs Sundays 05:15 UTC — after
+# the 04:45 daily brreg snapshot refresh and the 05:00 offentlig
+# snapshot refresh. On Sundays the chained refresh fires a second
+# brreg snapshot rebuild after the daily one; that's intentional and
+# idempotent. -m 1800 gives generous slack for the full corpus scan.
+15 5 * * 0 curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 1800 ${ADMIN_URL}/admin/api/jobs/brreg-retag > /var/log/last-brreg-retag.log 2>&1 || logger -s "kiba-fetcher: brreg-retag failed at $(date -Iseconds)"
 # brreg financials drain (/oppstart). Hourly tick at :18 — drains K=50
 # AI-flagged orgnrs/tick from Regnskapsregisteret. 180-day per-orgnr retry
 # cadence means most ticks no-op once the backfill is ajour. Offset :18

@@ -113,7 +113,7 @@ export default async function QueuePage({ searchParams }: Props) {
       { service: true },
     ).catch(() => [] as QueueRow[]),
     sbFetch<ReprocessDrainRow[]>(
-      "/jobs?name=eq.brreg_reprocess_drain&order=started_at.desc&limit=1&select=id,status,current_step",
+      "/jobs?name=eq.reprocess_brreg_keywords&order=started_at.desc&limit=1&select=id,status,current_step",
       { service: true },
     ).catch(() => [] as ReprocessDrainRow[]),
     sbFetch<ReprocessDrainRow[]>(
