@@ -37,6 +37,14 @@ const schema = z.object({
   // media-scraper-client.js throws a clear "ikke konfigurert" error
   // at first use when unset.
   SCRAPER_URL: z.string().url().optional(),
+  // /bruk pillar (PR 1+). Resend transactional email for magic-link
+  // confirmation; ioredis-backed rate limiting. All optional so a build
+  // without these still passes — lib/email/resend.ts and lib/redis.ts each
+  // degrade gracefully when missing (Resend: send fails with a clear error;
+  // Redis: falls back to in-memory counters).
+  RESEND_API_KEY: z.string().optional(),
+  RESEND_FROM: z.string().optional(),
+  REDIS_URL: z.string().optional(),
 });
 
 export type Env = z.infer<typeof schema>;

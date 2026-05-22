@@ -178,3 +178,12 @@
 # 04:45, offentlig here. Storting-only sub-functions populate today;
 # doffin sub-functions land in a later migration via CREATE OR REPLACE.
 0 5 * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 120 ${ADMIN_URL}/admin/api/jobs/offentlig-refresh-snapshots > /var/log/last-offentlig-snapshots.log 2>&1 || logger -s "kiba-fetcher: offentlig-refresh-snapshots failed at $(date -Iseconds)"
+# /bruk aggregate refresh. Calls refresh_bruk_aggregate_snapshot() — a single
+# TRUNCATE + INSERT across all seven cuts in one transaction, plus a sweep
+# of pending rows older than 30 days. Fast (<5 s even at 10k+ confirmed rows)
+# and touches only the bruk_* tables, so Postgres lock contention with the
+# other pillar snapshot refreshes is zero. Runs every 15 min so manual
+# operator demos see fresh numbers quickly; the */15 schedule overlaps
+# brreg-roles-watchdog (*/5) which is a different table, harmless. No MLX,
+# no outbound HTTP, no rate-limit concerns.
+*/15 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 60 ${ADMIN_URL}/admin/api/jobs/bruk-refresh-stats > /var/log/last-bruk-refresh.log 2>&1 || logger -s "kiba-fetcher: bruk-refresh-stats failed at $(date -Iseconds)"

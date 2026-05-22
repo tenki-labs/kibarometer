@@ -2,27 +2,44 @@
 
 You are working in **`tenki-labs/kibarometer`**, the repo for kibarometer.no.
 Read this top-to-bottom on a cold start. Kibarometer is one platform with
-**three independent data pipelines** — see §2 before diving into any pillar.
+**five pillars — four ingest-driven, one survey-driven** — see §2 before
+diving into any pillar.
 
 ## 1. Mission
 
-Track how AI is reshaping Norwegian working life, news coverage, and
-company formation. Three independent pipelines feed one platform: NAV's
-job feed, scrapegraphai-extracted articles from Norwegian news outlets,
-and Brønnøysundregistrene's enterprise registry. We run our own analysis
-and publish cite-able pages and JSON for journalists.
+Track how AI is reshaping Norwegian working life, news coverage, company
+formation, public-sector activity, and self-reported usage. Five pillars
+feed one platform: NAV's job feed, scrapegraphai-extracted articles from
+Norwegian news outlets, Brønnøysundregistrene's enterprise registry,
+Stortinget's saker (+ Doffin coming), and a self-reported survey at
+/bruk. We run our own analysis and publish cite-able pages and JSON for
+journalists.
 
-## 2. The three pillars
+## 2. The five pillars
 
-Kibarometer is one platform, three independent data pipelines. Each
-pillar owns its own tables, snapshots, admin section, and cron prefix;
-they share the LLM stack, the admin shell, and the marketing site.
+Kibarometer is one platform, five pillars. Each pillar owns its own
+tables, snapshots, admin section, and cron prefix; they share the LLM
+stack (where applicable), the admin shell, and the marketing site.
 
-| Pillar         | Source                                                      | Public      | Admin             | Cron prefix                |
-| -------------- | ----------------------------------------------------------- | ----------- | ----------------- | -------------------------- |
-| Arbeidsmarked  | NAV stillingsfeed                                           | /arbeidsmarked | /admin/job-market | backfill/enrich-nav, llm-* |
-| Medie-dekning  | scrapegraphai via `kiba-scraper` (+ RSS for legacy sources) | /media      | /admin/media      | media-*                    |
-| Oppstart       | Brønnøysundregistrene                                       | /oppstart   | /admin/startups   | brreg-*                    |
+| Pillar          | Source                                                      | Public         | Admin              | Cron prefix                |
+| --------------- | ----------------------------------------------------------- | -------------- | ------------------ | -------------------------- |
+| Arbeidsmarked   | NAV stillingsfeed                                           | /arbeidsmarked | /admin/job-market  | backfill/enrich-nav, llm-* |
+| Medie-dekning   | scrapegraphai via `kiba-scraper` (+ RSS for legacy sources) | /media         | /admin/media       | media-*                    |
+| Oppstart        | Brønnøysundregistrene                                       | /oppstart      | /admin/startups    | brreg-*                    |
+| Offentlig sektor | data.stortinget.no (+ Doffin/DFØ pending)                  | /offentlig     | /admin/offentlig   | offentlig-*, storting-*    |
+| Bruk            | Self-reported survey (anon INSERT, email-verified)          | /bruk          | /admin/bruk        | bruk-*                     |
+
+**Survey pillar shape (Bruk).** /bruk deviates from the four
+ingest-driven pillars: visitors POST a form (the first public-write
+surface in the codebase — anon INSERT into `bruk_responses` with a
+defense-in-depth RLS policy), confirm via a Resend magic link, and we
+publish aggregate-only stats. No MLX, no Tier 1/Tier 2 LLM, no keyword
+matcher. Snapshot rebuild via `bruk-refresh-stats` cron every 15 min
+calls `refresh_bruk_aggregate_snapshot()`. Rate limit via `kiba-redis`
+(per-IP, per-email). GDPR self-serve delete via a long-lived token in
+the confirmation email. Methodology page at /docs/bruk explicitly warns
+that self-reported data is a cohort study, not a population study —
+cite-ability hinges on that disclaimer staying loud.
 
 **Shared LLM pattern.** Each pillar runs the same two-stage pipeline
 against the external MLX endpoint (Gemma 3 4B-IT 4-bit at `mlx.tenki.no`).
@@ -302,8 +319,16 @@ stack.
    `searchParams`, renders shadcn primitives).
 4. Server actions: `app/admin/(app)/<name>/actions.ts` (`"use server"`,
    each action calls `sbFetch` and `redirect()` with a flash QS).
-5. Add nav entry to `ADMIN_NAV` in [app/admin/_components/admin-nav.ts](app/admin/_components/admin-nav.ts) — pick **Drift**, **Arbeidsmarked**, **Medie-dekning**, **Oppstart**, **Data**, or **Nettside**, or add a new section.
+5. Add nav entry to `ADMIN_NAV` in [app/admin/_components/admin-nav.ts](app/admin/_components/admin-nav.ts) — pick **Drift**, **Arbeidsmarked**, **Medie-dekning**, **Oppstart**, **Offentlig sektor**, **Bruk**, **Data**, or **Nettside**, or add a new section.
 6. Test locally (`./local-dev/setup.sh` + `pnpm dev`), commit, push.
+
+**Survey-pillar deviation.** The steps above describe ingest pillars
+(forward-poll an external API → upsert rows → LLM tier → snapshot). The
+/bruk pillar is shaped differently: public anon-INSERT form, Resend
+magic-link confirmation, kiba-redis rate limit, no MLX, no Tier 1/Tier 2.
+See [supabase/migrations/0073_bruk_responses.sql](supabase/migrations/0073_bruk_responses.sql)
++ [app/(site)/bruk/actions.ts](app/(site)/bruk/actions.ts) as the canonical
+shape for any future survey-style pillar.
 
 **Editable static copy.** Prose for `/om`, `/media`, and
 `/docs/{arbeidsmarked,media,oppstart}` lives in

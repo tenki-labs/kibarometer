@@ -22,10 +22,27 @@ import {
   formatQuarterLong,
   priorYearQuarter,
 } from "./_lib/format-quarter";
+import { OFFENTLIG_DATA_CUTOFF } from "./_lib/offentlig-cutoff";
 import {
   TemperaturCard,
   TemperaturCardEmpty,
 } from "./_components/temperatur-card";
+
+type OffentligHeadlineRow = {
+  computed_for: string;
+  computed_at: string;
+  total_saker_ai_12m: number | null;
+  debate_yoy_pct: number | null;
+};
+type OffentligMonthlyRow = { computed_for: string; ai_count: number };
+
+type BrukAggregateRow = {
+  cut: string;
+  bucket: string;
+  confirmed_count: number;
+  share_pct: number | null;
+  computed_at: string;
+};
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
@@ -142,6 +159,9 @@ export default async function LandingPage() {
     brregDaily,
     brregYoy,
     mediaSeries,
+    offentligHeadline,
+    offentligMonthly,
+    brukAggregate,
     versionRow,
   ] = await Promise.all([
       sb<SnapshotHeadline[]>(
@@ -169,6 +189,23 @@ export default async function LandingPage() {
       ).catch(() => null),
       sb<MediaSnapshotIndex[]>(
         "/media_snapshot_index?order=date.desc&limit=90",
+      ).catch(() => null),
+      sb<OffentligHeadlineRow[]>(
+        "/offentlig_snapshot_headline?order=computed_for.desc&limit=1&select=computed_for,computed_at,total_saker_ai_12m,debate_yoy_pct",
+      ).catch(() => null),
+      // Monthly storting saker, summed across categories per month. Used
+      // for the 12-month rolling gauge series. Filtered to the offentlig
+      // pillar's documented cutoff so pre-2019 backfill noise doesn't
+      // skew the gauge percentiles.
+      sb<OffentligMonthlyRow[]>(
+        `/offentlig_snapshot_storting_monthly?order=computed_for.asc&computed_for=gte.${OFFENTLIG_DATA_CUTOFF}&select=computed_for,ai_count`,
+      ).catch(() => null),
+      // /bruk aggregate snapshot — used to build the 5th homepage card.
+      // Cuts of interest: 'overall' (total confirmed) and 'by_q2_frequency'
+      // (to derive the weekly+ share). Pre-launch this returns an empty
+      // array; brukCard falls through to the Empty variant in that case.
+      sb<BrukAggregateRow[]>(
+        "/bruk_aggregate_snapshot?cut=in.(overall,by_q2_frequency)&select=cut,bucket,confirmed_count,share_pct,computed_at",
       ).catch(() => null),
       sb<Array<{ title: string }>>(
         "/site_content?slug=eq.landing-version&select=title&limit=1",
@@ -276,10 +313,92 @@ export default async function LandingPage() {
     );
   }
 
+  const off = offentligHeadline?.[0] ?? null;
+  let offentligCard;
+  if (off && offentligMonthly && offentligMonthly.length >= 12) {
+    // Sum across categories per month so the gauge series matches the
+    // headline's "total saker AI" semantics (not per-category).
+    const byMonth = new Map<string, number>();
+    for (const r of offentligMonthly) {
+      byMonth.set(
+        r.computed_for,
+        (byMonth.get(r.computed_for) ?? 0) + r.ai_count,
+      );
+    }
+    const monthly = Array.from(byMonth.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, v]) => v);
+    // 12-month rolling sum so the gauge value (total_saker_ai_12m) is
+    // dimensionally comparable to the series percentiles.
+    const series: number[] = [];
+    let sum = 0;
+    for (let i = 0; i < monthly.length; i++) {
+      sum += monthly[i];
+      if (i >= 12) sum -= monthly[i - 12];
+      if (i >= 11) series.push(sum);
+    }
+    const currentValue =
+      off.total_saker_ai_12m ?? series[series.length - 1] ?? 0;
+    const gauge = gaugeFromSeries(currentValue, series);
+    const m = fmtMomentumPct(off.debate_yoy_pct);
+    offentligCard = (
+      <TemperaturCard
+        href="/offentlig"
+        pillarLabel="Offentlig sektor"
+        headlineValue={m.display}
+        headlineCaption="siste 12 mnd vs. forrige 12 mnd"
+        levelLabel={levelDescriptor(currentValue, gauge)}
+        levelCaption={`${fmtNumber(currentValue)} ai-saker siste 12 mnd`}
+        gauge={gauge}
+      />
+    );
+  } else {
+    offentligCard = (
+      <TemperaturCardEmpty href="/offentlig" pillarLabel="Offentlig sektor" />
+    );
+  }
+
+  // /bruk card — no time-series momentum yet (would require a weekly trend
+  // cut in the aggregate snapshot we haven't added). Use Empty until we
+  // have confirmed registrants; once data lands, show total + weekly+ share
+  // as a plain card (no gauge). Distinct from the other pillars' MoM/YoY
+  // momentum because survey data isn't time-stamped that way.
+  const brukOverallRow = brukAggregate?.find((r) => r.cut === "overall");
+  const brukFrequencyRows =
+    brukAggregate?.filter((r) => r.cut === "by_q2_frequency") ?? [];
+  const totalConfirmed = brukOverallRow?.confirmed_count ?? 0;
+  const weeklyPlusCount = brukFrequencyRows
+    .filter((r) => r.bucket === "daglig" || r.bucket === "ukentlig")
+    .reduce((acc, r) => acc + r.confirmed_count, 0);
+  const weeklyPlusPct =
+    totalConfirmed > 0 ? (weeklyPlusCount / totalConfirmed) * 100 : null;
+  let brukCard;
+  if (totalConfirmed > 0) {
+    brukCard = (
+      <TemperaturCard
+        href="/bruk"
+        pillarLabel="Bruk"
+        headlineValue={
+          weeklyPlusPct !== null
+            ? `${new Intl.NumberFormat("nb-NO", { maximumFractionDigits: 0 }).format(weeklyPlusPct)} %`
+            : "—"
+        }
+        headlineCaption="bruker AI ukentlig eller oftere"
+        levelLabel={"selvrapportert"}
+        levelCaption={`${fmtNumber(totalConfirmed)} bekreftede svar`}
+        gauge={null}
+      />
+    );
+  } else {
+    brukCard = <TemperaturCardEmpty href="/bruk" pillarLabel="Bruk" />;
+  }
+
   const stampMs = [
     jobs?.computed_at,
     brreg?.computed_at,
     mediaLatest?.date ? `${mediaLatest.date}T00:00:00Z` : null,
+    off?.computed_at,
+    brukOverallRow?.computed_at,
   ]
     .filter((x): x is string => Boolean(x))
     .map((x) => new Date(x).getTime())
@@ -312,15 +431,17 @@ export default async function LandingPage() {
           Open source kartlegging av kunstig intelligens i Norge.
         </h1>
         <p className="mx-auto mt-8 max-w-xl text-base text-muted-foreground sm:text-lg">
-          Daglig oppdaterte tall fra Norges arbeidsmarked, selskapsstiftelse og
-          mediedekning.
+          Daglig oppdaterte tall fra Norges arbeidsmarked, selskapsstiftelser,
+          mediedekning, offentlig sektor og selvrapportert AI-bruk.
         </p>
       </section>
 
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
         {jobsCard}
         {oppstartCard}
         {mediaCard}
+        {offentligCard}
+        {brukCard}
       </section>
 
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">

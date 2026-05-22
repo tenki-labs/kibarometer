@@ -17,6 +17,7 @@ import {
   Rss,
   Sparkles,
   Tag,
+  Users,
   Wallet,
 } from "lucide-react";
 
@@ -137,6 +138,14 @@ export const ADMIN_NAV: AdminNavSection[] = [
     ],
   },
   {
+    label: "Bruk",
+    items: [
+      { href: "/admin/bruk", label: "Oversikt", icon: Users },
+      { href: "/admin/bruk/responses", label: "Svar", icon: ListChecks },
+      { href: "/admin/bruk/stats", label: "Statistikk", icon: BarChart3 },
+    ],
+  },
+  {
     label: "Data",
     items: [
       { href: "/admin/keywords", label: "Nøkkelord", icon: Tag },
@@ -176,6 +185,9 @@ export const ADMIN_SEGMENT_LABELS: Record<string, string> = (() => {
   out.startups = "Oppstart";
   out.media = "Medie-dekning";
   out.offentlig = "Offentlig sektor";
+  out.bruk = "Bruk";
+  out.responses = "Svar";
+  out.stats = "Statistikk";
   out.notices = "Notiser & saker";
   out.storting = "Stortinget";
   out.doffin = "Doffin";
