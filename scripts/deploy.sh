@@ -90,6 +90,19 @@ for KV in "ANTHROPIC_API_KEY=" "ANTHROPIC_CONCURRENCY="; do
   fi
 done
 
+# /bruk pillar (PR 1+): Resend transactional email + Redis rate-limit URL.
+# RESEND_API_KEY blank by default — operator pastes a re_… key from the Resend
+# dashboard. RESEND_FROM defaults to noreply@kibarometer.no; SPF + DKIM on
+# kibarometer.no must be configured in Resend before the first send.
+# REDIS_URL points at the existing kiba-redis service on the kiba network.
+for KV in "RESEND_API_KEY=" "RESEND_FROM=Kibarometer <noreply@kibarometer.no>" "REDIS_URL=redis://kiba-redis:6379"; do
+  KEY=${KV%%=*}
+  if ! sudo grep -q "^${KEY}=" "$ADMIN_ENV_PRE"; then
+    echo "  appending $KEY to admin.env"
+    echo "$KV" | sudo tee -a "$ADMIN_ENV_PRE" >/dev/null
+  fi
+done
+
 cd "$INCOMING"
 
 echo "== merge admin secrets into .env.production =="
@@ -154,6 +167,20 @@ for KEY in ANTHROPIC_API_KEY ANTHROPIC_CONCURRENCY; do
   fi
 done
 
+# Mutable /bruk pillar config — Resend transactional email + Redis URL. Same
+# upsert pattern. RESEND_API_KEY starts blank until the operator pastes it from
+# the Resend dashboard; lib/email/resend.ts surfaces "ikke konfigurert" while
+# unset, and the /bruk submit action falls back to keeping the pending row
+# with a clear error message so the user can retry.
+for KEY in RESEND_API_KEY RESEND_FROM REDIS_URL; do
+  VAL=$(sudo grep "^${KEY}=" "$ADMIN_ENV" 2>/dev/null | cut -d= -f2- || echo "")
+  if sudo grep -q "^${KEY}=" "$PROD_ENV"; then
+    sudo sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$PROD_ENV"
+  else
+    echo "${KEY}=${VAL}" | sudo tee -a "$PROD_ENV" >/dev/null
+  fi
+done
+
 # Internal-only — kiba-web reaches the scraper sidecar at this URL on the
 # kiba Docker network. Hardcoded; not a secret. Propagated into the env
 # file kiba-scraper itself reads (via env_file: in compose.yml) so MLX_*
@@ -203,7 +230,7 @@ sudo chown -R deploy:deploy "$WEBSITE/docker/scraper"
 echo "== apply idempotent migrations =="
 # Add new filenames here as you write them. They MUST be idempotent.
 PGPW=$(grep '^POSTGRES_PASSWORD=' /opt/kibarometer/env/supabase.env | cut -d= -f2)
-for migration in 0001_baseline.sql 0002_nav_raw.sql 0005_jobs.sql 0006_keywords.sql 0006a_jobs_metadata.sql 0007_nav_postings.sql 0008_nav_snapshots.sql 0009_umami_db.sql 0010_admin_diag.sql 0011_site_content.sql 0012_jobs_progress.sql 0013_admin_list_columns.sql 0014_nav_postings_llm_columns.sql 0015_keyword_status.sql 0016_keyword_candidates.sql 0017_taxonomy.sql 0018_llm_prompts.sql 0019_promote_keyword_candidate.sql 0020_mlx_health.sql 0021_skill_snapshot.sql 0022_retire_redundant_keywords.sql 0023_nav_postings_nav_raw_id_idx.sql 0024_app_settings.sql 0025_jobs_trigger_fast_forward.sql 0026_site_content_media.sql 0027_snapshot_categories_daily.sql 0028_fix_skill_snapshot_jsonb_path.sql 0029_media.sql 0030_brreg.sql 0031_media_llm_prompts.sql 0032_site_content_mediedekning.sql 0033_brreg_floor_deprecated.sql 0034_keyword_candidates_media.sql 0035_more_media_sources.sql 0036_media_retagged_at.sql 0037_brreg_llm_columns.sql 0038_brreg_categories.sql 0039_brreg_llm_prompts.sql 0040_keyword_candidates_brreg.sql 0041_keyword_candidates_jsonb_refactor.sql 0042_brreg_snapshot_timeout.sql 0043_site_content_docs.sql 0044_scrapegraph_backfill_method.sql 0045_metode_to_docs.sql 0046_retire_mediedekning_content.sql 0047_brreg_2018_floor.sql 0048_brreg_founder_age_yearly.sql 0049_fix_refresh_snapshot_keywords.sql 0050_ingest_mode.sql 0051_brreg_founder_age_monthly.sql 0052_brreg_snapshot_keywords.sql 0053_oppstart_methodology_keyword_only.sql 0054_docs_jobbmarked_media_keyword_first.sql 0055_tier1_prompt_drop_ai_relevant.sql 0056_tier2_coverage_daily.sql 0057_scrapegraph_only.sql 0058_brreg_founder_age_monthly_mean.sql 0059_jobs_trigger_post_reprocess.sql 0060_arbeidsmarked_prose.sql 0061_media_sitemap_method.sql 0062_media_queue_ingest_mode_priority.sql 0063_media_backfill_floor.sql 0064_brreg_financials.sql 0064_offentlig_storting.sql 0065_brreg_snapshot_quarterly_ai_growth.sql 0066_media_snapshot_floor.sql 0067_offentlig_storting_llm_prompts.sql 0068_offentlig_snapshots.sql 0069_site_content_landing_version.sql 0070_fix_brreg_financials_top1pct_filter.sql 0071_oppstart_methodology_financials.sql 0072_oppstart_methodology_survivor_bias.sql; do
+for migration in 0001_baseline.sql 0002_nav_raw.sql 0005_jobs.sql 0006_keywords.sql 0006a_jobs_metadata.sql 0007_nav_postings.sql 0008_nav_snapshots.sql 0009_umami_db.sql 0010_admin_diag.sql 0011_site_content.sql 0012_jobs_progress.sql 0013_admin_list_columns.sql 0014_nav_postings_llm_columns.sql 0015_keyword_status.sql 0016_keyword_candidates.sql 0017_taxonomy.sql 0018_llm_prompts.sql 0019_promote_keyword_candidate.sql 0020_mlx_health.sql 0021_skill_snapshot.sql 0022_retire_redundant_keywords.sql 0023_nav_postings_nav_raw_id_idx.sql 0024_app_settings.sql 0025_jobs_trigger_fast_forward.sql 0026_site_content_media.sql 0027_snapshot_categories_daily.sql 0028_fix_skill_snapshot_jsonb_path.sql 0029_media.sql 0030_brreg.sql 0031_media_llm_prompts.sql 0032_site_content_mediedekning.sql 0033_brreg_floor_deprecated.sql 0034_keyword_candidates_media.sql 0035_more_media_sources.sql 0036_media_retagged_at.sql 0037_brreg_llm_columns.sql 0038_brreg_categories.sql 0039_brreg_llm_prompts.sql 0040_keyword_candidates_brreg.sql 0041_keyword_candidates_jsonb_refactor.sql 0042_brreg_snapshot_timeout.sql 0043_site_content_docs.sql 0044_scrapegraph_backfill_method.sql 0045_metode_to_docs.sql 0046_retire_mediedekning_content.sql 0047_brreg_2018_floor.sql 0048_brreg_founder_age_yearly.sql 0049_fix_refresh_snapshot_keywords.sql 0050_ingest_mode.sql 0051_brreg_founder_age_monthly.sql 0052_brreg_snapshot_keywords.sql 0053_oppstart_methodology_keyword_only.sql 0054_docs_jobbmarked_media_keyword_first.sql 0055_tier1_prompt_drop_ai_relevant.sql 0056_tier2_coverage_daily.sql 0057_scrapegraph_only.sql 0058_brreg_founder_age_monthly_mean.sql 0059_jobs_trigger_post_reprocess.sql 0060_arbeidsmarked_prose.sql 0061_media_sitemap_method.sql 0062_media_queue_ingest_mode_priority.sql 0063_media_backfill_floor.sql 0064_brreg_financials.sql 0064_offentlig_storting.sql 0065_brreg_snapshot_quarterly_ai_growth.sql 0066_media_snapshot_floor.sql 0067_offentlig_storting_llm_prompts.sql 0068_offentlig_snapshots.sql 0069_site_content_landing_version.sql 0070_fix_brreg_financials_top1pct_filter.sql 0071_oppstart_methodology_financials.sql 0072_oppstart_methodology_survivor_bias.sql 0073_bruk_responses.sql; do
   if [[ -f "$INCOMING/supabase/migrations/$migration" ]]; then
     # Wrap each migration in a single transaction so a mid-file failure
     # rolls back cleanly instead of leaving the schema half-applied.
