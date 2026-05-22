@@ -15,10 +15,9 @@ import { flashQs } from "@/lib/admin/flash";
 import { sbFetch } from "@/lib/admin/sb";
 import { resendConfigured, sendEmail } from "@/lib/email/resend";
 import {
-  ConfirmEmail,
+  confirmEmailHtml,
   confirmEmailText,
 } from "@/lib/email/templates/confirm";
-import { renderToStaticMarkup } from "react-dom/server";
 
 const LIST = "/admin/bruk";
 const RESPONSES = "/admin/bruk/responses";
@@ -105,11 +104,10 @@ export async function resendConfirmAdminAction(formData: FormData) {
     }
 
     const confirmUrl = `${SITE_URL}/bruk/bekreft?token=${plain}`;
-    const html = renderToStaticMarkup(ConfirmEmail({ confirmUrl }));
     const send = await sendEmail({
       to: row.email,
       subject: "Bekreft din registrering på Kibarometer",
-      html: `<!doctype html>${html}`,
+      html: confirmEmailHtml({ confirmUrl }),
       text: confirmEmailText(confirmUrl),
     });
 

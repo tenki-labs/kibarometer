@@ -23,16 +23,15 @@ import { flashQs } from "@/lib/admin/flash";
 import { sbFetch } from "@/lib/admin/sb";
 import { isDisposableEmail } from "@/lib/email/disposable-domains";
 import {
-  ConfirmEmail,
+  confirmEmailHtml,
   confirmEmailText,
 } from "@/lib/email/templates/confirm";
 import {
-  ConfirmedEmail,
+  confirmedEmailHtml,
   confirmedEmailText,
 } from "@/lib/email/templates/confirmed";
 import { resendConfigured, sendEmail } from "@/lib/email/resend";
 import { checkRate } from "@/lib/redis";
-import { renderToStaticMarkup } from "react-dom/server";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -313,13 +312,10 @@ export async function submitBrukAction(formData: FormData): Promise<void> {
   // the user can retry from /sjekk-eposten.
   const confirmUrl = `${SITE_URL}/bruk/bekreft?token=${confirmPlain}`;
   if (resendConfigured()) {
-    const html = renderToStaticMarkup(
-      ConfirmEmail({ confirmUrl }),
-    );
     const send = await sendEmail({
       to: data.email,
       subject: "Bekreft din registrering på Kibarometer",
-      html: `<!doctype html>${html}`,
+      html: confirmEmailHtml({ confirmUrl }),
       text: confirmEmailText(confirmUrl),
     });
     if (send.ok === false) {
@@ -417,11 +413,10 @@ export async function reissueConfirmEmailAction(
 
   if (resendConfigured()) {
     const confirmUrl = `${SITE_URL}/bruk/bekreft?token=${plain}`;
-    const html = renderToStaticMarkup(ConfirmEmail({ confirmUrl }));
     await sendEmail({
       to: email,
       subject: "Bekreft din registrering på Kibarometer (ny lenke)",
-      html: `<!doctype html>${html}`,
+      html: confirmEmailHtml({ confirmUrl }),
       text: confirmEmailText(confirmUrl),
     });
   }
@@ -512,13 +507,10 @@ export async function confirmTokenServerSide(
   if (resendConfigured()) {
     const deleteUrl = `${SITE_URL}/bruk/slett?token=${deleteToken}`;
     const brukUrl = `${SITE_URL}/bruk`;
-    const html = renderToStaticMarkup(
-      ConfirmedEmail({ deleteUrl, brukUrl }),
-    );
     const send = await sendEmail({
       to: row.email,
       subject: "Du er registrert på Kibarometer",
-      html: `<!doctype html>${html}`,
+      html: confirmedEmailHtml({ deleteUrl, brukUrl }),
       text: confirmedEmailText(deleteUrl, brukUrl),
     });
     if (send.ok === false) {
