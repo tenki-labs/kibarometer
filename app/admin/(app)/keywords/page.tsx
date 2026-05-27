@@ -31,8 +31,7 @@ import { PageHeader } from "@/app/admin/_components/page-header";
 import { StatCard } from "@/app/admin/_components/stat-card";
 import { SubmitButton } from "@/app/admin/_components/submit-button";
 import { sbFetch } from "@/lib/admin/sb";
-import { reprocessAction } from "../job-market/actions";
-import { createAction } from "./actions";
+import { createAction, reprocessAllAction } from "./actions";
 
 const SELECT_COLS =
   "id,term,language,category,match_type,status,notes,created_at,updated_at";
@@ -123,12 +122,12 @@ export default async function KeywordsPage({ searchParams }: Props) {
       <PageHeader
         eyebrow="Taksonomi"
         title="Nøkkelord"
-        description="Inkluderingslisten avgjør hva som teller som AI-relatert. Endringer slår igjennom på neste re-tagging av nav_postings."
+        description="Inkluderingslisten avgjør hva som teller som AI-relatert. Endringer slår igjennom på neste re-tagging av nav_postings, brreg_companies og media_articles."
         action={
-          <form action={reprocessAction}>
+          <form action={reprocessAllAction}>
             <SubmitButton variant="outline" pendingLabel="Re-tagger…">
               <RefreshCw />
-              Re-tag alle stillinger
+              Re-tag alle pilarer
             </SubmitButton>
           </form>
         }
@@ -158,7 +157,7 @@ export default async function KeywordsPage({ searchParams }: Props) {
           </CardTitle>
           <CardDescription>
             Lagrer som aktivt. Bruk Re-tag-knappen øverst for å oppdatere
-            eksisterende stillinger.
+            stillinger, selskaper og artikler.
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -1,11 +1,15 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import {
   create,
   toggle,
   update,
 } from "@/lib/admin/legacy/keywords.js";
+import { reprocessNavPostings } from "@/lib/admin/legacy/jobs.js";
+import { reprocessBrregCompanies } from "@/lib/admin/legacy/brreg-reprocess.js";
+import { reprocessMediaArticles } from "@/lib/admin/legacy/media-reprocess.js";
 import { sbFetch } from "@/lib/admin/sb";
 import { flashQs } from "@/lib/admin/flash";
 
@@ -15,6 +19,26 @@ function bodyFromFormData(form: FormData): Record<string, string> {
     if (typeof v === "string") body[k] = v;
   }
   return body;
+}
+
+// Fans out a keyword retag across all three keyword-driven pillars (NAV,
+// BRREG, media). The catalog at /admin/keywords is shared, so editing a
+// keyword should refresh all three. Each orchestrator owns its own jobs
+// row + heartbeats + terminal PATCH; we use Promise.allSettled so one
+// orchestrator failing doesn't poison the other two. The per-orchestrator
+// .catch() blocks swallow rejection so allSettled sees fulfilled
+// promises — each orchestrator already wrote its own failure PATCH.
+export async function reprocessAllAction() {
+  after(async () => {
+    await Promise.allSettled([
+      reprocessNavPostings({ sb: sbFetch, trigger: "manual" }).catch(() => {}),
+      reprocessBrregCompanies({ sb: sbFetch, trigger: "manual" }).catch(() => {}),
+      reprocessMediaArticles({ sb: sbFetch, trigger: "manual" }).catch(() => {}),
+    ]);
+  });
+  redirect(
+    `/admin/keywords${flashQs({ ok: "Re-tagging av alle pilarer startet — se /admin/processes for status." })}`,
+  );
 }
 
 export async function createAction(formData: FormData) {
