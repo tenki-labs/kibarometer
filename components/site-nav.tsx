@@ -42,11 +42,6 @@ const KIBAROMETRE: Kibarometer[] = [
     title: "Offentlig sektor",
     description: "AI-debatt på Stortinget (+ Doffin kommer)",
   },
-  {
-    href: "/bruk",
-    title: "Bruk",
-    description: "Hvordan nordmenn faktisk bruker AI (selvrapportert)",
-  },
 ];
 
 // Shared styling for the top-level nav items (matches the previous

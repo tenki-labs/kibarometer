@@ -6,7 +6,6 @@
 // → methodology link.
 
 import type { Metadata } from "next";
-import Link from "next/link";
 
 import { sb } from "@/lib/supabase";
 
@@ -311,24 +310,7 @@ export default async function BrukPage() {
               Nei. Respondentene har selv valgt å delta, og kommer
               disproporsjonalt fra grupper som er interessert i AI. Tall
               fra denne siden bør siteres som kohortstudie, ikke
-              populasjonsstudie. Mer i{" "}
-              <Link href="/docs/bruk" className="underline underline-offset-2">
-                metoden vår
-              </Link>
-              .
-            </dd>
-          </div>
-          <div>
-            <dt className="font-medium">JSON / cite-bare data</dt>
-            <dd className="mt-1 text-muted-foreground">
-              Aggregerte tall i maskinlesbar form på{" "}
-              <Link
-                href="/api/v1/bruk/snapshot"
-                className="underline underline-offset-2"
-              >
-                /api/v1/bruk/snapshot
-              </Link>
-              . Lisens: CC-BY 4.0.
+              populasjonsstudie.
             </dd>
           </div>
         </dl>

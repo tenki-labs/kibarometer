@@ -196,7 +196,10 @@
 # operator demos see fresh numbers quickly; the */15 schedule overlaps
 # brreg-roles-watchdog (*/5) which is a different table, harmless. No MLX,
 # no outbound HTTP, no rate-limit concerns.
-*/15 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 60 ${ADMIN_URL}/admin/api/jobs/bruk-refresh-stats > /var/log/last-bruk-refresh.log 2>&1 || logger -s "kiba-fetcher: bruk-refresh-stats failed at $(date -Iseconds)"
+# PAUSED 2026-05-28 — /bruk pillar hidden from public site (nav, docs,
+# JSON API, homepage tile). /admin/bruk stays functional and can trigger
+# refresh_bruk_aggregate_snapshot() manually. Restore by uncommenting.
+#*/15 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 60 ${ADMIN_URL}/admin/api/jobs/bruk-refresh-stats > /var/log/last-bruk-refresh.log 2>&1 || logger -s "kiba-fetcher: bruk-refresh-stats failed at $(date -Iseconds)"
 # MLX heartbeat. Cheap GET against mlx.tenki.no/v1/models so the /admin/llm
 # "Tunnel" badge reflects actual reachability rather than work volume.
 # Without this, the badge ages out to "Utilgjengelig" whenever all four
