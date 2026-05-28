@@ -32,6 +32,16 @@
 # before the 04:00 daily snapshot, after the 03:00 backup. -m 1800 covers
 # ~370k rows at PAGE=1000 with conservative slack.
 30 3 * * 0 curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 1800 ${ADMIN_URL}/admin/api/jobs/reprocess > /var/log/last-nav-reprocess.log 2>&1 || logger -s "kiba-fetcher: nav reprocess failed at $(date -Iseconds)"
+# Media retag: same forward-only-ingest drift the NAV retag solves, for
+# media_articles. Historical rows carry the keyword matcher's verdict
+# from their ingest time; without a periodic retag, is_ai_related drifts
+# as canonical keywords get promoted. Unlike NAV/brreg, reprocessMediaArticles
+# does NOT chain into a snapshot refresh — the daily media-refresh-snapshots
+# tick at 04:30 picks up the new tags the same morning. Sundays 03:40 UTC
+# — 10 min after the NAV retag starts, well before the 04:30 media
+# snapshot. -m 600 covers ~10k+ rows at PAGE=1000. (brreg has its own
+# retag entry later in the file at 05:15 UTC — single source of truth.)
+40 3 * * 0 curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 600 ${ADMIN_URL}/admin/api/jobs/media-retag > /var/log/last-media-retag.log 2>&1 || logger -s "kiba-fetcher: media-retag failed at $(date -Iseconds)"
 # LLM Tier 1 (discovery): verbatim AI-skill phrase extraction on every new
 # posting. K=15 rows per tick, ~3 s/call on Gemma 3 4B-IT 4-bit ≈ 45 s/tick.
 # -m 90 gives slack above the 60 s wall budget. Offset from backfill
@@ -187,3 +197,13 @@
 # brreg-roles-watchdog (*/5) which is a different table, harmless. No MLX,
 # no outbound HTTP, no rate-limit concerns.
 */15 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 60 ${ADMIN_URL}/admin/api/jobs/bruk-refresh-stats > /var/log/last-bruk-refresh.log 2>&1 || logger -s "kiba-fetcher: bruk-refresh-stats failed at $(date -Iseconds)"
+# MLX heartbeat. Cheap GET against mlx.tenki.no/v1/models so the /admin/llm
+# "Tunnel" badge reflects actual reachability rather than work volume.
+# Without this, the badge ages out to "Utilgjengelig" whenever all four
+# pillars' Tier 1/Tier 2 queues are empty for 30 min — even though the
+# endpoint is fine. mlxPing() already writes mlx_health.last_success_at on
+# 200 and last_failure_at on auth/HTTP/network error, so the page-side
+# classifier picks up the heartbeat automatically. No inference, no model
+# load, no Mac contention with the Tier crons. No-op when MLX_API_KEY is
+# unset.
+*/5 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 30 ${ADMIN_URL}/admin/api/jobs/mlx-heartbeat > /var/log/last-mlx-heartbeat.log 2>&1 || logger -s "kiba-fetcher: mlx-heartbeat failed at $(date -Iseconds)"
