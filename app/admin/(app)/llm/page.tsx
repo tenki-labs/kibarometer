@@ -158,10 +158,16 @@ function progressPctNumber(v: number | string | null): number {
   return 0;
 }
 
+// Thresholds align with the */5 mlx-heartbeat cron: green band covers one
+// scheduled ping + Cloudflare round-trip slack, yellow means a couple of
+// pings missed (investigate), red means definitely broken. Without the
+// heartbeat the green band would have to be wider than the longest gap
+// between Tier 1/Tier 2 calls — which depends on queue depth, not tunnel
+// health, and is the bug this classifier+cron pair fixes.
 function classifyTunnel(lastSuccessAt: string | null): TunnelState {
   if (!lastSuccessAt) return "unknown";
   const ageMs = Date.now() - new Date(lastSuccessAt).getTime();
-  if (ageMs < 2 * 60 * 1000) return "green";
+  if (ageMs < 7 * 60 * 1000) return "green";
   if (ageMs < 30 * 60 * 1000) return "yellow";
   return "red";
 }
