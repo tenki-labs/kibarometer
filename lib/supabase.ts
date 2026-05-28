@@ -18,6 +18,19 @@ type Init = Omit<RequestInit, "body"> & {
   revalidate?: number;
 };
 
+// Kong occasionally returns a 502/503/504 when postgrest is momentarily
+// overloaded (same blip lib/admin/sb.ts retries mid-backfill). On the public
+// read path a single blip during ISR revalidation throws and the visitor
+// sees an empty page until they refresh — so retry the same transient class.
+// Every public caller is a GET (idempotent), so retrying is always safe.
+const RETRIABLE_STATUS = new Set([502, 503, 504]);
+const MAX_ATTEMPTS = 3;
+const BACKOFF_BASE_MS = 200;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function sb<T = unknown>(path: string, init: Init = {}): Promise<T> {
   // CI/build-time short-circuit: `next build` prerenders every route, which
   // would call this fn with placeholder env where SUPABASE_INTERNAL_URL is
@@ -29,7 +42,8 @@ export async function sb<T = unknown>(path: string, init: Init = {}): Promise<T>
     return [] as unknown as T;
   }
   const { revalidate = 60, body, headers, ...rest } = init;
-  const res = await fetch(`${env.SUPABASE_INTERNAL_URL}/rest/v1${path}`, {
+  const url = `${env.SUPABASE_INTERNAL_URL}/rest/v1${path}`;
+  const fetchInit: RequestInit & { next: { revalidate: number } } = {
     ...rest,
     headers: {
       apikey: env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
@@ -39,12 +53,41 @@ export async function sb<T = unknown>(path: string, init: Init = {}): Promise<T>
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
     next: { revalidate },
-  });
-  if (!res.ok) {
+  };
+
+  let lastNetworkError: unknown = null;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    let res: Response;
+    try {
+      res = await fetch(url, fetchInit);
+    } catch (err) {
+      // DNS / TCP reset / connection refused — same transient class as 5xx.
+      lastNetworkError = err;
+      if (attempt < MAX_ATTEMPTS - 1) {
+        await sleep(BACKOFF_BASE_MS * Math.pow(4, attempt));
+        continue;
+      }
+      throw err;
+    }
+
+    if (res.ok) {
+      return (await res.json()) as T;
+    }
+
+    if (RETRIABLE_STATUS.has(res.status) && attempt < MAX_ATTEMPTS - 1) {
+      // Drain body so the connection can be reused on retry.
+      await res.text().catch(() => {});
+      await sleep(BACKOFF_BASE_MS * Math.pow(4, attempt));
+      continue;
+    }
+
     const text = await res.text().catch(() => "");
     throw new Error(`PostgREST ${path} → ${res.status}: ${text.slice(0, 200)}`);
   }
-  return (await res.json()) as T;
+
+  // Defensive: the loop body always returns, continues, or throws.
+  if (lastNetworkError instanceof Error) throw lastNetworkError;
+  throw new Error(`PostgREST ${path}: exhausted retries`);
 }
 
 // ---- Row types mirroring the snapshot_* schema ------------------------
