@@ -13,7 +13,7 @@ import { sb } from "@/lib/supabase";
 import { PillarHero } from "../_components/pillar-hero";
 import { BransjeHeatmap } from "./_components/bransje-heatmap";
 import { FrequencyDonut } from "./_components/frequency-donut";
-import { SurveyForm, type TaxonomyOption } from "./_components/survey-form";
+import { type TaxonomyOption } from "./_components/survey-form";
 import { ToolBars } from "./_components/tool-bars";
 import { TrendLine } from "./_components/trend-line";
 import { UseCaseBars } from "./_components/use-case-bars";
@@ -179,17 +179,25 @@ export default async function BrukPage() {
         />
       </section>
 
+      {/* Survey form intentionally hidden while the /bruk pillar is paused.
+          Stops new pending bruk_responses from accumulating past the
+          30-day GDPR retention window (the sweep lives inside the paused
+          refresh_bruk_aggregate_snapshot() RPC — see
+          supabase/migrations/0073_bruk_responses.sql:317-319 and
+          scripts/fetcher-crontab). Existing magic-link confirmation
+          (/bruk/bekreft) and self-serve delete (/bruk/slett) flows are
+          unaffected. Restore by reverting this hunk. */}
       <section className="mx-auto mt-16 w-full max-w-3xl px-6">
-        <header className="mb-6">
-          <h2 className="text-2xl font-medium tracking-tight">
-            Delta i kartleggingen
-          </h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Tar omtrent ett minutt. Vi sender en bekreftelseslenke til
-            e-posten din — du blir ikke registrert før du klikker på den.
+        <div className="rounded-lg border border-dashed border-border bg-muted/40 px-5 py-6 text-sm text-muted-foreground">
+          <p className="font-medium text-foreground">
+            Kartleggingen tar imot ikke nye svar akkurat nå.
           </p>
-        </header>
-        <SurveyForm taxonomyOptions={taxonomyOptions} />
+          <p className="mt-2">
+            Vi har midlertidig pauset innsamlingen mens vi gjør endringer
+            i opplegget. Allerede sendte bekreftelseslenker virker
+            fortsatt, og du kan slette svarene dine når som helst.
+          </p>
+        </div>
       </section>
 
       {hasData ? (
@@ -199,8 +207,9 @@ export default async function BrukPage() {
               Aggregerte tall
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Oppdateres hvert 15. minutt. Tallene baserer seg på{" "}
-              {formatNumber(totalConfirmed)} bekreftede svar.
+              Snapshot fra mens innsamlingen var åpen. Tallene baserer
+              seg på {formatNumber(totalConfirmed)} bekreftede svar og
+              oppdateres ikke før kartleggingen tas opp igjen.
             </p>
           </header>
 
