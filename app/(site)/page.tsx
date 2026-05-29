@@ -23,6 +23,8 @@ import {
   priorYearQuarter,
 } from "./_lib/format-quarter";
 import { OFFENTLIG_DATA_CUTOFF } from "./_lib/offentlig-cutoff";
+import { percentile, type GaugeData } from "./_lib/gauge";
+import { buildMediaCardModel } from "./_lib/media-card";
 import {
   TemperaturCard,
   TemperaturCardEmpty,
@@ -77,15 +79,6 @@ const jsonLd = {
   ],
 };
 
-type GaugeData = {
-  value: number;
-  min: number;
-  max: number;
-  p10: number;
-  p50: number;
-  p90: number;
-};
-
 const NO_LONG_DATE = new Intl.DateTimeFormat("nb-NO", {
   day: "numeric",
   month: "long",
@@ -104,16 +97,6 @@ function compute30dRollingSeries(
     if (i >= 29) windows.push(sum);
   }
   return windows;
-}
-
-function percentile(sortedAsc: number[], p: number): number {
-  if (sortedAsc.length === 0) return 0;
-  if (sortedAsc.length === 1) return sortedAsc[0];
-  const idx = (sortedAsc.length - 1) * (p / 100);
-  const lo = Math.floor(idx);
-  const hi = Math.ceil(idx);
-  if (lo === hi) return sortedAsc[lo];
-  return sortedAsc[lo] + (sortedAsc[hi] - sortedAsc[lo]) * (idx - lo);
 }
 
 function gaugeFromSeries(value: number, series: number[]): GaugeData | null {
@@ -269,26 +252,22 @@ export default async function LandingPage() {
 
   const media = mediaSeries ?? [];
   const mediaLatest = media[0] ?? null;
+  // buildMediaCardModel returns null when the latest media_snapshot_index
+  // row is the no-signal sentinel (index 50, 0 AI articles) — i.e. the
+  // classification pipeline has gone quiet — so we render the Empty card
+  // instead of publishing a hard-coded-looking "50 / 100 · over snitt".
+  const mediaModel = buildMediaCardModel(media);
   let mediaCard;
-  if (mediaLatest && media.length >= 5) {
-    const sortedIdx = media.map((r) => r.index_value).sort((a, b) => a - b);
-    const gauge: GaugeData = {
-      value: mediaLatest.index_value,
-      min: 0,
-      max: 100,
-      p10: percentile(sortedIdx, 10),
-      p50: percentile(sortedIdx, 50),
-      p90: percentile(sortedIdx, 90),
-    };
+  if (mediaModel) {
     mediaCard = (
       <TemperaturCard
         href="/media"
         pillarLabel="Mediedekning"
-        headlineValue={`${mediaLatest.index_value} / 100`}
+        headlineValue={`${mediaModel.indexValue} / 100`}
         headlineCaption="kibarometer-indeks · siste 30 dager"
-        levelLabel={levelDescriptor(mediaLatest.index_value, gauge)}
-        levelCaption={`${fmtNumber(mediaLatest.ai_article_count_7d)} ai-artikler siste 7 dager`}
-        gauge={gauge}
+        levelLabel={levelDescriptor(mediaModel.indexValue, mediaModel.gauge)}
+        levelCaption={`${fmtNumber(mediaModel.aiArticleCount7d)} ai-artikler siste 7 dager`}
+        gauge={mediaModel.gauge}
       />
     );
   } else {
