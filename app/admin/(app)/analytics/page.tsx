@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { BarChart3, Globe, Link as LinkIcon, MapPin } from "lucide-react";
+import { AlertTriangle, BarChart3, Globe, Link as LinkIcon, MapPin } from "lucide-react";
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Card,
   CardContent,
@@ -124,12 +125,24 @@ export default async function AnalyticsPage({ searchParams }: Props) {
     );
   }
 
+  // Don't swallow Umami failures silently. Each call still degrades to
+  // null/[] so the render path is unchanged, but we log the real error
+  // server-side (docker logs kiba-web) and surface the first one in a
+  // banner — otherwise a 401 / unreachable Umami is indistinguishable from
+  // "no traffic" (both rendered as "—" / "Ingen data").
+  let umamiError: string | null = null;
+  const cap = (label: string) => (e: unknown) => {
+    const m = e instanceof Error ? e.message : String(e);
+    console.error(`analytics: ${label} failed:`, m);
+    umamiError ??= m;
+  };
+
   const [stats, series, topPaths, topReferrers, topCountries] = await Promise.all([
-    getStats(cfg, range).catch(() => null),
-    getPageviewSeries(cfg, range).catch(() => null),
-    getMetric(cfg, range, "path", 15).catch(() => []),
-    getMetric(cfg, range, "referrer", 10).catch(() => []),
-    getMetric(cfg, range, "country", 10).catch(() => []),
+    getStats(cfg, range).catch((e) => (cap("getStats")(e), null)),
+    getPageviewSeries(cfg, range).catch((e) => (cap("getPageviewSeries")(e), null)),
+    getMetric(cfg, range, "path", 15).catch((e) => (cap("getMetric(path)")(e), [])),
+    getMetric(cfg, range, "referrer", 10).catch((e) => (cap("getMetric(referrer)")(e), [])),
+    getMetric(cfg, range, "country", 10).catch((e) => (cap("getMetric(country)")(e), [])),
   ]);
 
   // Tiny SVG sparkline for the pageviews series.
@@ -173,6 +186,21 @@ export default async function AnalyticsPage({ searchParams }: Props) {
           </div>
         }
       />
+
+      {umamiError && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertTriangle className="size-4" />
+          <AlertTitle>Klarte ikke å hente data fra Umami</AlertTitle>
+          <AlertDescription>
+            <span className="font-mono text-xs">{umamiError}</span>
+            <span className="mt-1 block text-muted-foreground">
+              Tallene under er ikke «ingen trafikk» — kallet feilet. Sjekk{" "}
+              <code className="font-mono">docker logs kiba-web</code> og
+              Umami-innlogging (<code className="font-mono">UMAMI_PASSWORD</code>).
+            </span>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
