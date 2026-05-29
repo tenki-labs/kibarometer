@@ -31,6 +31,19 @@ RUN pip install --no-cache-dir 'playwright==1.59.0' && \
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
+# scrapegraphai 1.76.0 declares langchain-community>=0.4.0 but still imports
+# `ChatOllama` from langchain_community.chat_models in 9 of its node modules —
+# a path langchain-community 0.4.0 removed (moved to the langchain-ollama
+# package). The package is therefore broken as shipped: it builds, then
+# crash-loops at import (`ImportError: cannot import name 'ChatOllama'`),
+# which silently takes the whole media pillar offline. We can't pin
+# langchain-community<0.4 (scrapegraphai requires >=0.4.0 → unresolvable).
+# ChatOllama is only imported, never instantiated — we drive MLX over the
+# OpenAI-compatible path — so redirect the stale imports to langchain_ollama
+# (already a transitive dep that still exports ChatOllama). Drop this when
+# scrapegraphai migrates the import upstream.
+RUN find /usr/local/lib/python3.13/site-packages/scrapegraphai -name '*.py' -exec sed -i 's/from langchain_community\.chat_models import ChatOllama/from langchain_ollama import ChatOllama/g' {} +
+
 COPY server.py schemas.py ./
 
 EXPOSE 8000
