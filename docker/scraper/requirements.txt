@@ -1,5 +1,11 @@
 # Pinned per Day 0 verification (2026-05-07).
 # scrapegraphai 1.76.0 is the latest on PyPI; v2 is the JS SDK only.
+#
+# DO NOT pin langchain-community<0.4 here. scrapegraphai 1.76.0 depends on
+# langchain-community>=0.4.0, so a <0.4 pin is unresolvable and fails the
+# build. But 0.4.0 removed langchain_community.chat_models.ChatOllama, which
+# scrapegraphai still imports — so the import is patched to langchain_ollama
+# in the Dockerfile instead. See the sed step there for the full story.
 scrapegraphai==1.76.0
 
 # FastAPI server + uvicorn worker.
