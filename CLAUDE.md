@@ -262,12 +262,21 @@ stack.
   live at `/arbeidsmarked`, `/media`, `/oppstart`; methodology at `/docs/*`.
 - **Networks:** our containers are all on the `kiba` Docker network. Apollo
   also hosts unrelated stacks (tenkibench/laerkode, Apollo/Sunshine
-  streaming server) on separate networks; we never share a docker
-  network with them, so container-name and alias collisions are not a
-  concern. The `kiba-` prefix on every container is just a name
-  convention now — it originated as a workaround for alias collisions
-  on the old shared-edge VPS (see PR #11 / #12 for the historical
-  context).
+  streaming server, einar's datafish supabase) on separate networks; we
+  never share a docker network with them. The `kiba-` prefix on every
+  container originated as a workaround for alias collisions on the old
+  shared-edge VPS (see PR #11 / #12). **It is NOT sufficient on its own.**
+  The compose **project name** is the other shared namespace, and it bit
+  us repeatedly: the forked supabase compose shipped `name: supabase`,
+  which collides with other supabase stacks on Apollo (e.g.
+  `/home/einar/opt/datafish/supabase`, also project `supabase`). A
+  `docker compose up --remove-orphans` from a colliding stack treats our
+  same-project containers as orphans and **deletes `kiba-supabase-db`** —
+  killing admin login until someone recreates it. Fixed by namespacing
+  the project to `kibarometer` (matches [compose.yml](compose.yml));
+  `fork-supabase-compose.sh` rewrites + asserts it and CI guards it. If
+  admin login dies with "Ugyldig e-post eller passord" and
+  `kiba-supabase-db` is missing from `docker ps`, this is why.
 - **Supabase compose:** committed at
   [docker/supabase/docker-compose.yml](docker/supabase/docker-compose.yml).
   ALREADY rewritten by `scripts/fork-supabase-compose.sh` (container names,
@@ -450,10 +459,13 @@ the `p-limit` cap inside the drain orchestrator.
 - Don't push to `main` without PR.
 - Don't `--no-verify` or force-push.
 - Don't add npm deps to the admin.
-- Don't reuse tenki's secrets, paths, or container names. Apollo hosts
-  unrelated stacks (tenkibench/laerkode, Sunshine streaming) — staying
-  on our own `kiba-` prefix and `kiba` network keeps blast radius zero
-  even though we no longer share a docker network with them.
+- Don't reuse tenki's secrets, paths, container names, **or the compose
+  project name**. Apollo is a shared host (tenkibench/laerkode, Sunshine
+  streaming, einar's datafish supabase). The `kiba-` prefix + `kiba`
+  network namespace containers and networking, but the compose **project
+  name** is a third shared namespace — keep it `kibarometer`, never
+  `supabase`, or a colliding stack's `--remove-orphans` deletes our
+  containers (see §5 Networks). CI asserts this.
 - Don't lift `docker/supabase/docker-compose.yml` from upstream without
   re-running [scripts/fork-supabase-compose.sh](scripts/fork-supabase-compose.sh)
   — CI catches it.
