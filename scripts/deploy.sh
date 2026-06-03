@@ -16,6 +16,32 @@ docker ps --format '{{.Names}}' | grep -q '^kiba-supabase-db$' || {
   echo "kiba-supabase-db not running — run bootstrap.sh --bring-up first"; exit 1;
 }
 
+# Guard against compose project-label drift. The whole stack (web + sidecars +
+# the supabase fleet) is ONE merged compose project; its name comes from the
+# `name:` key in compose.yml + docker/supabase/docker-compose.yml, both pinned
+# to `kibarometer` (see PR #190). Docker only writes the compose-project label
+# when a container is CREATED — it never relabels in place. So if the running
+# fleet was created under a different project name (e.g. the old `supabase`,
+# before #190), the `compose up` below won't recognize the existing containers,
+# tries to create fresh ones over names that are still taken, and dies with a
+# cryptic `container name "/kiba-…" is already in use`. Detect the drift here
+# and fail with the one-time cutover instead of that confusing error.
+EXPECTED_PROJECT=kibarometer
+RUNNING_PROJECT=$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' kiba-supabase-db 2>/dev/null || true)
+if [[ "$RUNNING_PROJECT" != "$EXPECTED_PROJECT" ]]; then
+  echo "ERROR: running stack is on compose project '${RUNNING_PROJECT:-<none>}', expected '$EXPECTED_PROJECT'."
+  echo "       'compose up' would collide on container names. Run the one-time cutover"
+  echo "       (moves the whole kiba-* stack onto project '$EXPECTED_PROJECT'; Postgres"
+  echo "       data is a bind mount and survives), then re-run this deploy:"
+  echo "         cd $WEBSITE"
+  echo "         docker compose -p '${RUNNING_PROJECT:-supabase}' --env-file /opt/kibarometer/env/supabase.env \\"
+  echo "           -f compose.yml -f docker/supabase/docker-compose.yml \\"
+  echo "           -f compose.prod.yml -f compose.boot.yml down   # NO --remove-orphans"
+  echo "         sudo bash $INCOMING/scripts/bootstrap.sh --bring-up"
+  exit 1
+fi
+echo "  compose project OK ($RUNNING_PROJECT)"
+
 # Phase 9 backfill: kiba-backup's env_file: requires backup.env to exist
 # (compose v2 errors out otherwise). generate-secrets.sh creates it on
 # fresh installs; this branch handles the existing VPS where bootstrap
