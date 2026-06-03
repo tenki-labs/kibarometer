@@ -6,6 +6,12 @@
 // The bar's gradient is the only color on the landing page — the marker
 // uses the foreground color so it stays high-contrast against the gradient
 // in both light and dark mode.
+//
+// Marker + tick positions come from gaugePositionPct (percentile rank, not a
+// linear min→max sweep) so the median sits dead-center and the marker agrees
+// with the level label. See app/(site)/_lib/gauge.ts.
+
+import { gaugePositionPct } from "../_lib/gauge";
 
 type Props = {
   value: number;
@@ -17,11 +23,6 @@ type Props = {
   ariaLabel?: string;
 };
 
-function clampPct(value: number, min: number, max: number): number {
-  if (max === min) return 50;
-  return Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
-}
-
 export function TemperaturGauge({
   value,
   min,
@@ -31,10 +32,11 @@ export function TemperaturGauge({
   p90,
   ariaLabel,
 }: Props) {
-  const markerPct = clampPct(value, min, max);
-  const p10Pct = clampPct(p10, min, max);
-  const p50Pct = clampPct(p50, min, max);
-  const p90Pct = clampPct(p90, min, max);
+  const bounds = { min, max, p10, p50, p90 };
+  const markerPct = gaugePositionPct(value, bounds);
+  const p10Pct = gaugePositionPct(p10, bounds);
+  const p50Pct = gaugePositionPct(p50, bounds);
+  const p90Pct = gaugePositionPct(p90, bounds);
 
   return (
     <div className="relative h-3.5 w-full" role="img" aria-label={ariaLabel}>
