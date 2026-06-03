@@ -5,7 +5,16 @@
 #   Reset everything:  ./reset.sh
 #
 
-name: supabase
+# Compose PROJECT name. MUST stay kiba-namespaced (kibarometer) — it is NOT
+# just cosmetic. Apollo is a shared host; the upstream value `supabase` collides
+# with other supabase stacks there (e.g. /home/einar/opt/datafish/supabase, also
+# project `supabase`). When the colliding stack runs `compose up --remove-orphans`,
+# Docker treats our same-project containers as orphans and DELETES them — this is
+# what repeatedly took kiba-supabase-db (and admin login) down. Container-name
+# namespacing (kiba-*) does NOT protect against this; --remove-orphans matches on
+# the project label. Matches compose.yml's `name: kibarometer` so the whole merged
+# stack is one project. fork-supabase-compose.sh rewrites + asserts this; CI guards it.
+name: kibarometer
 
 services:
 

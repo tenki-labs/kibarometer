@@ -52,6 +52,13 @@ jobs:
         run: |
           ! grep -qE '^\s*container_name:\s*supabase-' docker/supabase/docker-compose.yml
           ! grep -q '/opt/tenki/' docker/supabase/docker-compose.yml
+          # Project name must be kiba-namespaced. Upstream ships `name: supabase`,
+          # which collides with other supabase stacks on the shared Apollo host —
+          # their `compose up --remove-orphans` then deletes kiba-supabase-db as an
+          # orphan of project `supabase`, taking admin login down. This guard is the
+          # piece that was missing for months. See docker/supabase/docker-compose.yml.
+          grep -qE '^name:\s*kibarometer\s*$' docker/supabase/docker-compose.yml
+          ! grep -qE '^name:\s*supabase\s*$' docker/supabase/docker-compose.yml
 
       - name: Validate stripped supabase services stay stripped
         # Phase 0.5 stripped storage/imgproxy/realtime/edge-functions/vector/
