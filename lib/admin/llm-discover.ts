@@ -18,6 +18,7 @@ import "server-only";
 
 import { sbFetch } from "@/lib/admin/sb";
 import { mlxChat, mlxConfigured, MlxError } from "@/lib/admin/mlx";
+import { isTransientMlxFailure } from "./llm-failure";
 import { loadActivePrompt } from "@/lib/admin/llm-prompts";
 
 const JOB_NAME = "llm_discover";
@@ -160,7 +161,14 @@ export async function runDiscover(args: {
           await markFailed(sb, posting.id, "tier1_parse_failed", true);
         } else {
           httpFails += 1;
-          await markFailed(sb, posting.id, "tier1_failed", true);
+          // Transient infra failures (502 / unreachable) must not consume the
+          // permanent retry budget — see lib/admin/llm-failure.ts.
+          await markFailed(
+            sb,
+            posting.id,
+            "tier1_failed",
+            !isTransientMlxFailure(err),
+          );
         }
       }
       // Every third row, plus on the last row of the batch.
