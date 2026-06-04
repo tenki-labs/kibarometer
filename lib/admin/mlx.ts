@@ -15,6 +15,12 @@
 import "server-only";
 
 import { sbFetch } from "@/lib/admin/sb";
+import { MlxError } from "./mlx-error";
+
+// Re-exported so existing `import { MlxError } from "@/lib/admin/mlx"` call
+// sites keep working after the class moved to its own server-only-free module.
+export { MlxError } from "./mlx-error";
+export type { MlxErrorKind } from "./mlx-error";
 
 const DEFAULT_BASE_URL = "https://mlx.tenki.no/v1";
 const DEFAULT_MODEL = "mlx-community/gemma-3-4b-it-4bit";
@@ -33,25 +39,6 @@ export function mlxConfigured(): MlxConfig | null {
   };
 }
 
-export type MlxErrorKind = "auth" | "unreachable" | "parse" | "http" | "config";
-
-export class MlxError extends Error {
-  kind: MlxErrorKind;
-  status?: number;
-  body?: string;
-  constructor(
-    kind: MlxErrorKind,
-    message: string,
-    status?: number,
-    body?: string,
-  ) {
-    super(message);
-    this.name = "MlxError";
-    this.kind = kind;
-    this.status = status;
-    this.body = body;
-  }
-}
 
 type ChatMessage = {
   role: "system" | "user" | "assistant";

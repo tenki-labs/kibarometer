@@ -20,6 +20,7 @@ import "server-only";
 
 import { sbFetch } from "@/lib/admin/sb";
 import { mlxChat, mlxConfigured, MlxError } from "@/lib/admin/mlx";
+import { isTransientMlxFailure } from "./llm-failure";
 import { loadActivePrompt } from "@/lib/admin/llm-prompts";
 import { parseTier1, validatePhrases } from "@/lib/admin/llm-brreg-parse";
 
@@ -148,7 +149,9 @@ export async function runBrregTier1(args: {
           await markFailed(sb, company.orgnr, true);
         } else {
           httpFails += 1;
-          await markFailed(sb, company.orgnr, true);
+          // Transient infra failures (502 / unreachable) must not consume the
+          // permanent retry budget — see lib/admin/llm-failure.ts.
+          await markFailed(sb, company.orgnr, !isTransientMlxFailure(err));
         }
       }
       if ((idx + 1) % 3 === 0 || idx === candidates.length - 1) {

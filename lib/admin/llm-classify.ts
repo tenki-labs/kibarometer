@@ -22,6 +22,7 @@ import "server-only";
 
 import { sbFetch } from "@/lib/admin/sb";
 import { mlxChat, mlxConfigured, MlxError } from "@/lib/admin/mlx";
+import { isTransientMlxFailure } from "./llm-failure";
 import { loadActivePrompt } from "@/lib/admin/llm-prompts";
 
 const JOB_NAME = "llm_classify";
@@ -200,7 +201,14 @@ export async function runClassify(args: {
           await markFailed(sb, posting.id, "tier2_parse_failed", true);
         } else {
           httpFails += 1;
-          await markFailed(sb, posting.id, "tier2_failed", true);
+          // Transient infra failures (502 / unreachable) must not consume the
+          // permanent retry budget — see lib/admin/llm-failure.ts.
+          await markFailed(
+            sb,
+            posting.id,
+            "tier2_failed",
+            !isTransientMlxFailure(err),
+          );
         }
       }
       // Heartbeat after each row — Tier 2 is slower so per-row is fine.

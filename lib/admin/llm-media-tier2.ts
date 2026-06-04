@@ -14,6 +14,7 @@ import "server-only";
 
 import { sbFetch } from "@/lib/admin/sb";
 import { mlxChat, mlxConfigured, MlxError } from "@/lib/admin/mlx";
+import { isTransientMlxFailure } from "./llm-failure";
 import { loadActivePrompt } from "@/lib/admin/llm-prompts";
 import {
   parseTier2,
@@ -191,7 +192,9 @@ export async function runMediaTier2(args: {
           await markFailed(sb, article.id, true);
         } else {
           httpFails += 1;
-          await markFailed(sb, article.id, true);
+          // Transient infra failures (502 / unreachable) must not consume the
+          // permanent retry budget — see lib/admin/llm-failure.ts.
+          await markFailed(sb, article.id, !isTransientMlxFailure(err));
         }
       }
       await heartbeat(sb, job.id, {
