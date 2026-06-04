@@ -6,8 +6,7 @@ import { Button } from "@/components/ui/button";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { fmtDateTime } from "@/lib/admin/flash";
-import { deleteAction, toggleAction } from "@/app/admin/(app)/keywords/actions";
-import { DeleteKeywordButton } from "./delete-keyword-button";
+import { toggleAction } from "@/app/admin/(app)/keywords/actions";
 import { SubmitButton } from "./submit-button";
 
 const LANGUAGE_LABEL: Record<string, string> = {
@@ -89,31 +88,25 @@ export function KeywordRow({ kw }: { kw: KeywordRowData }) {
             <Link href={`/admin/keywords/${kw.id}`}>Endre</Link>
           </Button>
           {matchesInTagging ? (
-            // Active keyword: only show toggle (Deaktiver) — destructive
-            // delete sits behind a confirm in the inactive branch where
-            // it's the more useful action.
+            // Active keyword: "Deaktiver" (toggle → status='rejected') is the
+            // only removal path — a resurrection-safe soft-delete.
             <form action={toggle}>
               <SubmitButton variant="ghost" size="sm">
                 Deaktiver
               </SubmitButton>
             </form>
           ) : (
-            // Inactive keyword: offer both Aktiver (toggle back) and
-            // Slett (hard delete). Operators reviewing rejected
-            // candidates need a way to clean up the catalogue rather
-            // than just hide rows.
-            <>
-              <form action={toggle}>
-                <SubmitButton variant="ghost" size="sm">
-                  Aktiver
-                </SubmitButton>
-              </form>
-              <DeleteKeywordButton
-                id={kw.id}
-                term={kw.term}
-                action={deleteAction}
-              />
-            </>
+            // Inactive keyword: only "Aktiver" (toggle back to canonical).
+            // There is deliberately no hard-delete: removing a keyword must
+            // stay a soft-delete (status='rejected'), because the keyword
+            // seeds re-run on every deploy and would RESURRECT a hard-deleted
+            // seeded term as canonical (the "VIBE MAT AS" bug). See
+            // app/admin/(app)/keywords/actions.ts.
+            <form action={toggle}>
+              <SubmitButton variant="ghost" size="sm">
+                Aktiver
+              </SubmitButton>
+            </form>
           )}
         </div>
       </TableCell>

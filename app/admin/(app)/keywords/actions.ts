@@ -75,36 +75,17 @@ export async function toggleAction(id: string) {
   }
 }
 
-// Hard delete a keyword row. Replaces the previous "Skjul" affordance,
-// which set status='rejected' (a soft-delete that left the keyword in
-// the catalogue forever, accumulating as cruft).
-//
-// What gets cleaned up:
-//   - The keywords row itself (PostgREST DELETE).
-//   - Stale references in nav_postings.matched_keywords (text[]) clear
-//     at the next reprocess run when applyTags() rebuilds the array.
-//   - Same for media_articles.matched_keywords (jsonb) at the next
-//     media-fetch-classify tick on those rows.
-//   - keyword_candidates rows that referenced this term are NOT
-//     touched — they're audit history. If the same phrase resurfaces
-//     in the next refresh_keyword_candidates() run, a new pending row
-//     gets inserted with the existing rejected/promoted history alongside.
-//
-// No cascade FK in schema, so this is safe to run synchronously.
-export async function deleteAction(id: string) {
-  try {
-    if (!id) throw new Error("Mangler id");
-    await sbFetch(`/keywords?id=eq.${encodeURIComponent(id)}`, {
-      service: true,
-      method: "DELETE",
-      prefer: "return=minimal",
-    });
-    redirect(`/admin/keywords${flashQs({ ok: "Slettet" })}`);
-  } catch (err) {
-    if (isRedirect(err)) throw err;
-    redirect(`/admin/keywords${flashQs({ error: `Sletting feilet: ${msg(err)}` })}`);
-  }
-}
+// NOTE: there is intentionally NO hard-delete action for keywords. Removing a
+// keyword is a soft-delete — `toggleAction` sets status='rejected' (see
+// lib/admin/legacy/keywords.js: `toggle`). A hard `DELETE` used to live here,
+// but the keyword seeds in re-runnable migrations (0006_keywords.sql,
+// 0030_brreg.sql) use `insert ... on conflict (term_norm, language) do
+// nothing`: once the row is hard-deleted there is no conflict, so the next
+// deploy RE-INSERTS the term as a fresh `canonical` keyword — silently
+// resurrecting a term the operator removed (this is the "VIBE MAT AS"
+// food-company false-positive that re-appeared after every deploy). A
+// `rejected` tombstone survives `on conflict do nothing`, so a soft-delete
+// stays removed across deploys. Do not reintroduce a DELETE affordance here.
 
 function isRedirect(err: unknown): boolean {
   return (
