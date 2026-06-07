@@ -1,18 +1,16 @@
-// app/(site)/_lib/gauge.ts — shared gauge math for the landing-page
-// Temperatur cards. Kept framework-free and pure so the card models can be
-// unit-tested without rendering the server component.
-
-export type GaugeData = {
-  value: number;
-  min: number;
-  max: number;
-  p10: number;
-  p50: number;
-  p90: number;
-};
+// app/(site)/_lib/gauge.ts — shared gauge math for the landing-page Temperatur
+// cards. Kept framework-free and pure so the card models can be unit-tested
+// without rendering the server component.
+//
+// The bar is a DIVERGING gauge: a neutral midpoint sits at the center (grey),
+// and the value diverges left (cold) / right (warm) from it. For the momentum
+// cards the neutral is 0 % change; for the media index it is 50. This makes the
+// bar's direction agree with the headline's sign (↑ positive → warm/right,
+// ↓ negative → cold/left), which the old absolute-level percentile gauge did
+// not.
 
 /** Linear-interpolated percentile of an ascending-sorted array. */
-export function percentile(sortedAsc: number[], p: number): number {
+export function percentile(sortedAsc: readonly number[], p: number): number {
   if (sortedAsc.length === 0) return 0;
   if (sortedAsc.length === 1) return sortedAsc[0];
   const idx = (sortedAsc.length - 1) * (p / 100);
@@ -23,51 +21,105 @@ export function percentile(sortedAsc: number[], p: number): number {
 }
 
 /**
- * Horizontal position (0..100) of `value` on the gauge bar, by **percentile
- * rank** rather than a linear min→max sweep. Anchored on the distribution's
- * own quantiles:
- *
- *   min → 0%   p10 → 10%   p50 → 50%   p90 → 90%   max → 100%
- *
- * with linear interpolation between adjacent anchors. Two reasons this beats
- * the old `((value-min)/(max-min))*100`:
- *
- *  1. The median lands dead-center, so the gradient's neutral-grey midpoint
- *     actually means "typical". A linear scale drags the median toward the
- *     left/right on any skewed distribution, leaving the bulk of the bar
- *     empty and a normal reading looking pegged "hot".
- *  2. The marker stays in agreement with the høyt/over-snitt/under-snitt/lavt
- *     level label, which is itself percentile-based — a linear marker drifts
- *     off the label and reads as self-contradictory.
- *
- * Values outside the recorded [min,max] clamp to the edges; a flat
- * distribution (max == min) returns the neutral midpoint.
+ * Marker position (0..100 % of the bar) for a signed momentum value, with 0
+ * pinned at the **center** (50 %). The right half spans `[0, posSpan]`, the
+ * left half spans `[-negSpan, 0]` — asymmetric per side because growth is
+ * unbounded while decline floors at −100 %. Values past a span clamp to the
+ * edge. `negSpan`/`posSpan` are positive magnitudes (see `momentumSpans`).
  */
-export function gaugePositionPct(
-  value: number,
-  bounds: Pick<GaugeData, "min" | "max" | "p10" | "p50" | "p90">,
+export function divergingMomentumPct(
+  pct: number,
+  negSpan: number,
+  posSpan: number,
 ): number {
-  const { min, max, p10, p50, p90 } = bounds;
-  if (max <= min) return 50;
-  if (value <= min) return 0;
-  if (value >= max) return 100;
-
-  // (value, percent) anchors — ascending in value by quantile definition.
-  const anchors: ReadonlyArray<readonly [number, number]> = [
-    [min, 0],
-    [p10, 10],
-    [p50, 50],
-    [p90, 90],
-    [max, 100],
-  ];
-  for (let i = 0; i < anchors.length - 1; i++) {
-    const [av, ap] = anchors[i];
-    const [bv, bp] = anchors[i + 1];
-    if (value <= bv) {
-      if (bv <= av) return bp; // degenerate segment — snap to the upper anchor
-      const t = (value - av) / (bv - av);
-      return ap + t * (bp - ap);
-    }
+  if (pct >= 0) {
+    const span = posSpan > 0 ? posSpan : 1;
+    return 50 + Math.min(1, pct / span) * 50;
   }
-  return 100;
+  const span = negSpan > 0 ? negSpan : 1;
+  return 50 - Math.min(1, -pct / span) * 50;
+}
+
+/**
+ * Generic diverging map around an explicit `neutral` with a symmetric
+ * `halfRange` (value at `neutral ± halfRange` → bar edge). Used by the media
+ * card: `divergingPct(index, 50, 50)` makes index 50 the center, 0 the cold
+ * edge and 100 the warm edge. A non-positive halfRange returns the midpoint.
+ */
+export function divergingPct(
+  value: number,
+  neutral: number,
+  halfRange: number,
+): number {
+  if (halfRange <= 0) return 50;
+  const t = (value - neutral) / halfRange;
+  return 50 + Math.max(-1, Math.min(1, t)) * 50;
+}
+
+// A pillar needs at least this many momentum samples before its own history is
+// trusted to set the gauge edges; below it we fall back to a symmetric ±100 %.
+export const MIN_MOMENTUM_POINTS = 8;
+export const DEFAULT_MOMENTUM_SPAN = 100;
+
+/**
+ * Robust per-side edges for a pillar's momentum gauge, from its history of
+ * signed %-changes. The right edge is the p95 of the positive swings, the left
+ * edge the |p5| of the negative swings — robust so a single freak week-over-
+ * week spike (common with small early denominators) doesn't set the edge and
+ * squash every normal reading to the center. Falls back to ±DEFAULT span when a
+ * side has no samples or the series is too short to trust.
+ */
+export function momentumSpans(series: readonly number[]): {
+  negSpan: number;
+  posSpan: number;
+} {
+  const finite = series.filter((x) => Number.isFinite(x));
+  if (finite.length < MIN_MOMENTUM_POINTS) {
+    return { negSpan: DEFAULT_MOMENTUM_SPAN, posSpan: DEFAULT_MOMENTUM_SPAN };
+  }
+  const sorted = [...finite].sort((a, b) => a - b);
+  const low = percentile(sorted, 5); // typically ≤ 0
+  const high = percentile(sorted, 95); // typically ≥ 0
+  return {
+    negSpan: low < 0 ? -low : DEFAULT_MOMENTUM_SPAN,
+    posSpan: high > 0 ? high : DEFAULT_MOMENTUM_SPAN,
+  };
+}
+
+/**
+ * Gauge model for a momentum card: the marker position scaled against the
+ * pillar's own history. Returns `null` — so the caller draws NO bar — when
+ * there is no comparable, finite number. The non-finite guard mirrors
+ * fmtMomentumPct (which renders "—"): without it a NaN pct would render a
+ * "—" headline next to a bar with a NaN marker (`left: NaN%`).
+ */
+export function momentumGauge(
+  pct: number | null,
+  series: readonly number[],
+): { markerPct: number } | null {
+  if (pct == null || !Number.isFinite(pct)) return null;
+  const { negSpan, posSpan } = momentumSpans(series);
+  return { markerPct: divergingMomentumPct(pct, negSpan, posSpan) };
+}
+
+/**
+ * Trend word under a momentum gauge. Bucketed on the SAME threshold as the
+ * headline arrow (fmtMomentumPct: |pct| < 1 → "≈ 0 %", else ↑ / ↓) so the
+ * word, the arrow and the marker direction never contradict each other.
+ */
+export function trendDescriptor(pct: number | null): string {
+  if (pct == null || !Number.isFinite(pct)) return "ukjent";
+  if (Math.abs(pct) < 1) return "stabilt";
+  return pct > 0 ? "stigende" : "fallende";
+}
+
+/**
+ * Tone word for the media index (0..100). Flips at the marker's own center
+ * (50, the neutral waterline) rather than a wider dead-band, so the word
+ * agrees with which side of center the marker sits on.
+ */
+export function mediaTone(index: number): string {
+  if (index > 50) return "optimistisk tone";
+  if (index < 50) return "kritisk tone";
+  return "nøytral tone";
 }

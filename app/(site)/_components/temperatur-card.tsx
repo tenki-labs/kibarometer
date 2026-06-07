@@ -1,29 +1,25 @@
 // app/(site)/_components/temperatur-card.tsx — landing-page pillar card.
 // Black-white baseline; the gauge bar is the single colored element on the
-// page. Hierarchy: pillar label → MoM momentum (the headline) → gauge →
-// level caption. Server component.
+// page. Hierarchy: pillar label → momentum (the headline) → diverging gauge →
+// trend caption. Server component.
 
 import Link from "next/link";
 
 import { TemperaturGauge } from "./temperatur-gauge";
 
 type GaugeData = {
-  value: number;
-  min: number;
-  max: number;
-  p10: number;
-  p50: number;
-  p90: number;
+  /** Marker position (0..100 % of the bar); 50 = neutral center. */
+  markerPct: number;
 };
 
 type Props = {
   href: string;
   pillarLabel: string;
-  /** Pre-formatted headline number, e.g. "↑ +11 %" / "↓ −4 %" / "55". */
+  /** Pre-formatted headline number, e.g. "↑ +11 %" / "↓ −4 %" / "55 / 100". */
   headlineValue: string;
   /** Small caption below the headline, e.g. "siste 30 dager vs. foregående 30" or "kibarometer-indeks · siste 30 dager". */
   headlineCaption: string;
-  /** "høyt" / "over snitt" / "under snitt" / "lavt" / "ukjent posisjon". */
+  /** Trend/tone word describing the bar, e.g. "stigende" / "fallende" / "stabilt" / "optimistisk tone". */
   levelLabel: string;
   /** Absolute level context, e.g. "6 800 ai-stillinger siste 30 dager". */
   levelCaption: string;
@@ -61,13 +57,8 @@ export function TemperaturCard({
       {gauge ? (
         <div className="mt-auto flex flex-col gap-2.5">
           <TemperaturGauge
-            value={gauge.value}
-            min={gauge.min}
-            max={gauge.max}
-            p10={gauge.p10}
-            p50={gauge.p50}
-            p90={gauge.p90}
-            ariaLabel={`${pillarLabel} nivå: ${levelLabel}`}
+            markerPct={gauge.markerPct}
+            ariaLabel={`${pillarLabel}: ${levelLabel}`}
           />
           <p className="text-xs leading-snug text-muted-foreground">
             <span className="capitalize text-foreground">{levelLabel}</span>{" "}

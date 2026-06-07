@@ -46,6 +46,10 @@ export type JobsMomentum = {
    *  with no client-side date logic. */
   pct: number | null;
   caption: string;
+  /** Window length (days) of the active comparison — 7 (WoW) or 30 (MoM).
+   *  Lets the landing-page momentum gauge build its scaling history with the
+   *  same window the headline currently uses. */
+  windowDays: number;
 };
 
 type HeadlineLike = {
@@ -76,7 +80,7 @@ export function buildJobsMomentum(
             headline.ai_count_prev_30d) *
           100
         : null;
-    return { pct, caption: "siste 30 dager vs. foregående 30" };
+    return { pct, caption: "siste 30 dager vs. foregående 30", windowDays: 30 };
   }
   // Anchor "now" to the latest posted_on we have, not wall clock — keeps
   // the window stable across 04:00 UTC snapshot rebuilds.
@@ -86,7 +90,7 @@ export function buildJobsMomentum(
     if (t > latest) latest = t;
   }
   if (latest === 0) {
-    return { pct: null, caption: "siste 7 dager vs. foregående 7" };
+    return { pct: null, caption: "siste 7 dager vs. foregående 7", windowDays: 7 };
   }
   const dayMs = 86_400_000;
   const sevenAgo = latest - 7 * dayMs;
@@ -99,5 +103,5 @@ export function buildJobsMomentum(
     else if (t > fourteenAgo && t <= sevenAgo) aiPrev7 += row.ai_count;
   }
   const pct = aiPrev7 > 0 ? ((ai7 - aiPrev7) / aiPrev7) * 100 : null;
-  return { pct, caption: "siste 7 dager vs. foregående 7" };
+  return { pct, caption: "siste 7 dager vs. foregående 7", windowDays: 7 };
 }
