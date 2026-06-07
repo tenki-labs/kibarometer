@@ -10,7 +10,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
 const TITLE = "Kibarometeret";
 const DESCRIPTION =
-  "Uavhengig dashbord som sporer AI-relaterte stillinger i norsk arbeidsmarked. Daglig oppdaterte tall fra NAVs stillingsfeed, åpen metode.";
+  "Åpent dashbord som sporer hvordan AI påvirker norsk arbeidsliv, medier, næringsliv og offentlig sektor.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
