@@ -26,7 +26,7 @@ type SiteContent = {
 export const metadata = {
   title: "Om — Kibarometeret",
   description:
-    "Kibarometeret er et uavhengig dashbord fra Tenki Labs som sporer AI-relaterte stillinger i norsk arbeidsmarked.",
+    "Kibarometeret er et åpent dashbord fra Tenki Labs som sporer hvordan kunstig intelligens påvirker norsk arbeidsliv, medier, næringsliv og offentlig sektor.",
 };
 
 export const dynamic = "force-dynamic";
