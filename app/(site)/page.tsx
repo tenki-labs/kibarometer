@@ -22,7 +22,7 @@ import {
   priorYearQuarter,
 } from "./_lib/format-quarter";
 import { OFFENTLIG_DATA_CUTOFF } from "./_lib/offentlig-cutoff";
-import { divergingMomentumPct, momentumSpans } from "./_lib/gauge";
+import { momentumGauge, trendDescriptor, mediaTone } from "./_lib/gauge";
 import { jobsMomentumSeries, offentligYoYSeries } from "./_lib/momentum-series";
 import { buildMediaCardModel } from "./_lib/media-card";
 import {
@@ -84,33 +84,6 @@ const NO_LONG_DATE = new Intl.DateTimeFormat("nb-NO", {
   month: "long",
   year: "numeric",
 });
-
-// Trend word describing the diverging momentum gauge.
-function trendDescriptor(pct: number | null): string {
-  if (pct == null) return "ukjent";
-  if (pct >= 2) return "stigende";
-  if (pct <= -2) return "fallende";
-  return "stabilt";
-}
-
-// Tone word for the media index (0..100, 50 = neutral waterline).
-function mediaTone(index: number): string {
-  if (index >= 55) return "optimistisk tone";
-  if (index <= 45) return "kritisk tone";
-  return "nøytral tone";
-}
-
-// Diverging momentum gauge marker (0..100), or null when there is no
-// comparable number. `series` is the pillar's own momentum history — its
-// robust p5/p95 set the cold/warm edges (see momentumSpans).
-function momentumGauge(
-  pct: number | null,
-  series: number[],
-): { markerPct: number } | null {
-  if (pct == null) return null;
-  const { negSpan, posSpan } = momentumSpans(series);
-  return { markerPct: divergingMomentumPct(pct, negSpan, posSpan) };
-}
 
 export default async function LandingPage() {
   type JobsDailyRow = Pick<SnapshotDaily, "posted_on" | "ai_count">;

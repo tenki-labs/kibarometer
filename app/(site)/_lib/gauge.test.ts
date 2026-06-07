@@ -4,6 +4,9 @@ import {
   divergingMomentumPct,
   divergingPct,
   momentumSpans,
+  momentumGauge,
+  trendDescriptor,
+  mediaTone,
   percentile,
   DEFAULT_MOMENTUM_SPAN,
 } from "./gauge";
@@ -88,5 +91,61 @@ describe("momentumSpans (robust per-side edges)", () => {
     expect(negSpan).toBe(DEFAULT_MOMENTUM_SPAN); // no negative side observed
     expect(posSpan).toBeGreaterThan(0);
     expect(posSpan).toBeLessThan(DEFAULT_MOMENTUM_SPAN);
+  });
+});
+
+describe("momentumGauge", () => {
+  const flat: number[] = []; // forces the ±DEFAULT span fallback
+
+  it("returns null on a null pct (no bar)", () => {
+    expect(momentumGauge(null, flat)).toBeNull();
+  });
+
+  it("returns null on a NON-FINITE pct — mirrors the '—' headline (regression #1)", () => {
+    expect(momentumGauge(NaN, flat)).toBeNull();
+    expect(momentumGauge(Infinity, flat)).toBeNull();
+    expect(momentumGauge(-Infinity, flat)).toBeNull();
+  });
+
+  it("renders a marker on the correct side for a finite pct", () => {
+    expect(momentumGauge(40, flat)!.markerPct).toBeGreaterThan(50); // warm
+    expect(momentumGauge(-40, flat)!.markerPct).toBeLessThan(50); // cold
+    expect(momentumGauge(0, flat)!.markerPct).toBe(50); // center
+  });
+});
+
+describe("trendDescriptor (word matches the headline arrow + marker)", () => {
+  it("treats |pct| < 1 as stabilt, matching fmtMomentumPct's '≈ 0 %'", () => {
+    expect(trendDescriptor(0)).toBe("stabilt");
+    expect(trendDescriptor(0.9)).toBe("stabilt");
+    expect(trendDescriptor(-0.9)).toBe("stabilt");
+  });
+
+  it("calls a 1–2 % move stigende/fallende, not stabilt (regression #2)", () => {
+    // Old code's |pct|<2 deadzone said "stabilt" while the headline showed
+    // "↑ +1,5 %" and the marker sat right-of-center — a 3-way contradiction.
+    expect(trendDescriptor(1.5)).toBe("stigende");
+    expect(trendDescriptor(-1.5)).toBe("fallende");
+    expect(trendDescriptor(85)).toBe("stigende");
+    expect(trendDescriptor(-91)).toBe("fallende");
+  });
+
+  it("returns ukjent for null / non-finite", () => {
+    expect(trendDescriptor(null)).toBe("ukjent");
+    expect(trendDescriptor(NaN)).toBe("ukjent");
+  });
+});
+
+describe("mediaTone (word agrees with which side of center the marker sits)", () => {
+  it("flips at the neutral center (50), not a 45–55 dead-band (regression #2)", () => {
+    // index 54 → markerPct 54 (right of center); the word must agree.
+    expect(mediaTone(54)).toBe("optimistisk tone");
+    expect(mediaTone(46)).toBe("kritisk tone");
+    expect(mediaTone(51)).toBe("optimistisk tone");
+    expect(mediaTone(49)).toBe("kritisk tone");
+  });
+
+  it("is neutral only at the exact waterline", () => {
+    expect(mediaTone(50)).toBe("nøytral tone");
   });
 });

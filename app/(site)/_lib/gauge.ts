@@ -85,3 +85,41 @@ export function momentumSpans(series: readonly number[]): {
     posSpan: high > 0 ? high : DEFAULT_MOMENTUM_SPAN,
   };
 }
+
+/**
+ * Gauge model for a momentum card: the marker position scaled against the
+ * pillar's own history. Returns `null` — so the caller draws NO bar — when
+ * there is no comparable, finite number. The non-finite guard mirrors
+ * fmtMomentumPct (which renders "—"): without it a NaN pct would render a
+ * "—" headline next to a bar with a NaN marker (`left: NaN%`).
+ */
+export function momentumGauge(
+  pct: number | null,
+  series: readonly number[],
+): { markerPct: number } | null {
+  if (pct == null || !Number.isFinite(pct)) return null;
+  const { negSpan, posSpan } = momentumSpans(series);
+  return { markerPct: divergingMomentumPct(pct, negSpan, posSpan) };
+}
+
+/**
+ * Trend word under a momentum gauge. Bucketed on the SAME threshold as the
+ * headline arrow (fmtMomentumPct: |pct| < 1 → "≈ 0 %", else ↑ / ↓) so the
+ * word, the arrow and the marker direction never contradict each other.
+ */
+export function trendDescriptor(pct: number | null): string {
+  if (pct == null || !Number.isFinite(pct)) return "ukjent";
+  if (Math.abs(pct) < 1) return "stabilt";
+  return pct > 0 ? "stigende" : "fallende";
+}
+
+/**
+ * Tone word for the media index (0..100). Flips at the marker's own center
+ * (50, the neutral waterline) rather than a wider dead-band, so the word
+ * agrees with which side of center the marker sits on.
+ */
+export function mediaTone(index: number): string {
+  if (index > 50) return "optimistisk tone";
+  if (index < 50) return "kritisk tone";
+  return "nøytral tone";
+}
