@@ -1,42 +1,22 @@
 // app/(site)/_components/temperatur-gauge.tsx — landing-page gauge bar.
 // Pure CSS gradient (cool → mid → warm) with a foreground marker at the
-// current value and tiny ticks at p10/p50/p90 of the trailing-90d
-// distribution. Server component, no recharts, no client JS.
+// current reading and a faint tick at the neutral center. Server component,
+// no recharts, no client JS.
 //
-// The bar's gradient is the only color on the landing page — the marker
-// uses the foreground color so it stays high-contrast against the gradient
-// in both light and dark mode.
-//
-// Marker + tick positions come from gaugePositionPct (percentile rank, not a
-// linear min→max sweep) so the median sits dead-center and the marker agrees
-// with the level label. See app/(site)/_lib/gauge.ts.
-
-import { gaugePositionPct } from "../_lib/gauge";
+// This is a DIVERGING gauge: the center (50 %, grey) is neutral — 0 % change
+// for the momentum cards, index 50 for media — and the marker diverges left
+// (cold/negative) or right (warm/positive). The caller computes `markerPct`
+// (0..100) via the diverging math in ../_lib/gauge.ts so the marker's
+// direction agrees with the headline's sign.
 
 type Props = {
-  value: number;
-  min: number;
-  max: number;
-  p10: number;
-  p50: number;
-  p90: number;
+  /** Marker position as a percent of the bar width (0 = left, 100 = right). */
+  markerPct: number;
   ariaLabel?: string;
 };
 
-export function TemperaturGauge({
-  value,
-  min,
-  max,
-  p10,
-  p50,
-  p90,
-  ariaLabel,
-}: Props) {
-  const bounds = { min, max, p10, p50, p90 };
-  const markerPct = gaugePositionPct(value, bounds);
-  const p10Pct = gaugePositionPct(p10, bounds);
-  const p50Pct = gaugePositionPct(p50, bounds);
-  const p90Pct = gaugePositionPct(p90, bounds);
+export function TemperaturGauge({ markerPct, ariaLabel }: Props) {
+  const pct = Math.max(0, Math.min(100, markerPct));
 
   return (
     <div className="relative h-3.5 w-full" role="img" aria-label={ariaLabel}>
@@ -47,18 +27,16 @@ export function TemperaturGauge({
             "linear-gradient(to right, oklch(0.62 0.10 250), oklch(0.82 0.015 250), oklch(0.65 0.13 25))",
         }}
       />
-      {[p10Pct, p50Pct, p90Pct].map((p, i) => (
-        <span
-          key={i}
-          aria-hidden="true"
-          className="absolute top-1/2 h-2.5 w-px -translate-y-1/2 bg-foreground/20"
-          style={{ left: `${p}%` }}
-        />
-      ))}
+      {/* Neutral center tick (0 % change / index 50). */}
+      <span
+        aria-hidden="true"
+        className="absolute top-1/2 h-2.5 w-px -translate-y-1/2 bg-foreground/20"
+        style={{ left: "50%" }}
+      />
       <span
         aria-hidden="true"
         className="absolute top-1/2 h-3.5 w-[2px] -translate-x-1/2 -translate-y-1/2 rounded-[1px] bg-foreground ring-[1.5px] ring-background"
-        style={{ left: `${markerPct}%` }}
+        style={{ left: `${pct}%` }}
       />
     </div>
   );

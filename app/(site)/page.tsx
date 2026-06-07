@@ -5,7 +5,6 @@ import { AlertTriangle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { sb } from "@/lib/supabase";
 import type {
-  BrregSnapshotDaily,
   BrregSnapshotHeadline,
   BrregSnapshotQuarterlyAiGrowth,
   MediaSnapshotIndex,
@@ -23,7 +22,8 @@ import {
   priorYearQuarter,
 } from "./_lib/format-quarter";
 import { OFFENTLIG_DATA_CUTOFF } from "./_lib/offentlig-cutoff";
-import { percentile, type GaugeData } from "./_lib/gauge";
+import { divergingMomentumPct, momentumSpans } from "./_lib/gauge";
+import { jobsMomentumSeries, offentligYoYSeries } from "./_lib/momentum-series";
 import { buildMediaCardModel } from "./_lib/media-card";
 import {
   TemperaturCard,
@@ -85,53 +85,40 @@ const NO_LONG_DATE = new Intl.DateTimeFormat("nb-NO", {
   year: "numeric",
 });
 
-function compute30dRollingSeries(
-  daily: Array<{ date: string; ai: number }>,
-): number[] {
-  const asc = [...daily].sort((a, b) => a.date.localeCompare(b.date));
-  const windows: number[] = [];
-  let sum = 0;
-  for (let i = 0; i < asc.length; i++) {
-    sum += asc[i].ai;
-    if (i >= 30) sum -= asc[i - 30].ai;
-    if (i >= 29) windows.push(sum);
-  }
-  return windows;
+// Trend word describing the diverging momentum gauge.
+function trendDescriptor(pct: number | null): string {
+  if (pct == null) return "ukjent";
+  if (pct >= 2) return "stigende";
+  if (pct <= -2) return "fallende";
+  return "stabilt";
 }
 
-function gaugeFromSeries(value: number, series: number[]): GaugeData | null {
-  if (series.length < 5) return null;
-  const sorted = [...series].sort((a, b) => a - b);
-  return {
-    value,
-    min: sorted[0],
-    max: sorted[sorted.length - 1],
-    p10: percentile(sorted, 10),
-    p50: percentile(sorted, 50),
-    p90: percentile(sorted, 90),
-  };
+// Tone word for the media index (0..100, 50 = neutral waterline).
+function mediaTone(index: number): string {
+  if (index >= 55) return "optimistisk tone";
+  if (index <= 45) return "kritisk tone";
+  return "nøytral tone";
 }
 
-function levelDescriptor(value: number, gauge: GaugeData | null): string {
-  if (!gauge) return "ukjent posisjon";
-  if (value >= gauge.p90) return "høyt";
-  if (value >= gauge.p50) return "over snitt";
-  if (value >= gauge.p10) return "under snitt";
-  return "lavt";
+// Diverging momentum gauge marker (0..100), or null when there is no
+// comparable number. `series` is the pillar's own momentum history — its
+// robust p5/p95 set the cold/warm edges (see momentumSpans).
+function momentumGauge(
+  pct: number | null,
+  series: number[],
+): { markerPct: number } | null {
+  if (pct == null) return null;
+  const { negSpan, posSpan } = momentumSpans(series);
+  return { markerPct: divergingMomentumPct(pct, negSpan, posSpan) };
 }
 
 export default async function LandingPage() {
   type JobsDailyRow = Pick<SnapshotDaily, "posted_on" | "ai_count">;
-  type BrregDailyRow = Pick<
-    BrregSnapshotDaily,
-    "registrert_dato" | "ai_relevant_count"
-  >;
 
   const [
     jobsHeadline,
     jobsDaily,
     brregHeadline,
-    brregDaily,
     brregYoy,
     mediaSeries,
     offentligHeadline,
@@ -143,8 +130,8 @@ export default async function LandingPage() {
       ).catch(() => null),
       // snapshot_daily filtered to JOBBMARKED_DATA_CUTOFF — pre-cutoff
       // rows are tagged title-only and undercount AI by ~10x; including
-      // them in the gauge series + momentum computation publishes the
-      // same artifact the /arbeidsmarked page already truncates away.
+      // them in the momentum computation publishes the same artifact the
+      // /arbeidsmarked page already truncates away.
       // See app/(site)/_lib/data-cutoff.ts.
       sb<JobsDailyRow[]>(
         `/snapshot_daily?order=posted_on.desc&posted_on=gte.${JOBBMARKED_DATA_CUTOFF}&limit=150&select=posted_on,ai_count`,
@@ -152,14 +139,11 @@ export default async function LandingPage() {
       sb<BrregSnapshotHeadline[]>(
         "/brreg_snapshot_headline?order=computed_for.desc&limit=1",
       ).catch(() => null),
-      sb<BrregDailyRow[]>(
-        "/brreg_snapshot_daily?order=registrert_dato.desc&limit=5000&select=registrert_dato,ai_relevant_count",
-      ).catch(() => null),
-      // Latest completed-quarter YoY row. The `not.is.null` filter
-      // skips quarters without a prior-year comparison so we always
-      // get a renderable number.
+      // Full YoY history (newest first): [0] is the headline quarter; the
+      // whole series scales the Oppstart momentum gauge. The `not.is.null`
+      // filter drops quarters without a prior-year comparison.
       sb<BrregSnapshotQuarterlyAiGrowth[]>(
-        "/brreg_snapshot_quarterly_ai_growth?yoy_growth_pct=not.is.null&order=reg_quarter.desc&limit=1",
+        "/brreg_snapshot_quarterly_ai_growth?yoy_growth_pct=not.is.null&order=reg_quarter.desc&limit=80",
       ).catch(() => null),
       sb<MediaSnapshotIndex[]>(
         "/media_snapshot_index?order=date.desc&limit=90",
@@ -167,10 +151,10 @@ export default async function LandingPage() {
       sb<OffentligHeadlineRow[]>(
         "/offentlig_snapshot_headline?order=computed_for.desc&limit=1&select=computed_for,computed_at,total_saker_ai_12m,debate_yoy_pct",
       ).catch(() => null),
-      // Monthly storting saker, summed across categories per month. Used
-      // for the 12-month rolling gauge series. Filtered to the offentlig
-      // pillar's documented cutoff so pre-2019 backfill noise doesn't
-      // skew the gauge percentiles.
+      // Monthly storting saker, summed across categories per month. Used to
+      // build the YoY momentum history that scales the gauge. Filtered to the
+      // offentlig pillar's documented cutoff so pre-2019 backfill noise
+      // doesn't skew the edges.
       sb<OffentligMonthlyRow[]>(
         `/offentlig_snapshot_storting_monthly?order=computed_for.asc&computed_for=gte.${OFFENTLIG_DATA_CUTOFF}&select=computed_for,ai_count`,
       ).catch(() => null),
@@ -183,24 +167,24 @@ export default async function LandingPage() {
   const jobs = jobsHeadline?.[0] ?? null;
   let jobsCard;
   if (jobs && jobsDaily && jobsDaily.length > 0) {
-    const series = compute30dRollingSeries(
-      jobsDaily.map((d) => ({ date: d.posted_on, ai: d.ai_count })),
-    );
-    const gauge = gaugeFromSeries(jobs.ai_count_30d, series);
     // Momentum pct is week-over-week until 2026-06-12, then auto-flips
-    // to 30/30 — see app/(site)/_lib/data-cutoff.ts for why the 30/30
-    // ratio from snapshot_headline is misleading right now.
+    // to 30/30 — see app/(site)/_lib/data-cutoff.ts.
     const momentum = buildJobsMomentum(jobs, jobsDaily);
     const m = fmtMomentumPct(momentum.pct);
+    // Scale the gauge against this pillar's own history of the SAME window.
+    const series = jobsMomentumSeries(
+      jobsDaily.map((d) => ({ date: d.posted_on, ai: d.ai_count })),
+      momentum.windowDays,
+    );
     jobsCard = (
       <TemperaturCard
         href="/arbeidsmarked"
         pillarLabel="Arbeidsmarked"
         headlineValue={m.display}
         headlineCaption={momentum.caption}
-        levelLabel={levelDescriptor(jobs.ai_count_30d, gauge)}
+        levelLabel={trendDescriptor(momentum.pct)}
         levelCaption={`${fmtNumber(jobs.ai_count_30d)} ai-stillinger siste 30 dager`}
-        gauge={gauge}
+        gauge={momentumGauge(momentum.pct, series)}
       />
     );
   } else {
@@ -212,24 +196,12 @@ export default async function LandingPage() {
   const brreg = brregHeadline?.[0] ?? null;
   const yoyRow = brregYoy?.[0] ?? null;
   let oppstartCard;
-  if (brreg && brregDaily && brregDaily.length > 0) {
-    const byDate = new Map<string, number>();
-    for (const r of brregDaily) {
-      byDate.set(
-        r.registrert_dato,
-        (byDate.get(r.registrert_dato) ?? 0) + r.ai_relevant_count,
-      );
-    }
-    const dailyAgg = Array.from(byDate.entries()).map(([date, ai]) => ({
-      date,
-      ai,
-    }));
-    const series = compute30dRollingSeries(dailyAgg);
-    const gauge = gaugeFromSeries(brreg.ai_relevant_count_30d, series);
-    // Year-on-year quarterly growth replaces the previous month-over-
-    // month (siste 30 dager vs. foregående 30) headline. YoY is less
-    // noisy and easier to cite — see brreg_snapshot_quarterly_ai_growth.
-    const m = fmtMomentumPct(yoyRow?.yoy_growth_pct ?? null);
+  if (brreg) {
+    // Year-on-year quarterly growth (less noisy + easier to cite than MoM).
+    const pct = yoyRow?.yoy_growth_pct ?? null;
+    const yoySeries = (brregYoy ?? [])
+      .map((r) => r.yoy_growth_pct)
+      .filter((x): x is number => x != null);
     const headlineCaption = yoyRow
       ? `${formatQuarterLong(yoyRow.reg_quarter)} vs. ${priorYearQuarter(yoyRow.reg_quarter)}`
       : "år/år-sammenligning ikke tilgjengelig ennå";
@@ -237,11 +209,11 @@ export default async function LandingPage() {
       <TemperaturCard
         href="/oppstart"
         pillarLabel="Oppstart"
-        headlineValue={m.display}
+        headlineValue={fmtMomentumPct(pct).display}
         headlineCaption={headlineCaption}
-        levelLabel={levelDescriptor(brreg.ai_relevant_count_30d, gauge)}
+        levelLabel={trendDescriptor(pct)}
         levelCaption={`${fmtNumber(brreg.ai_relevant_count_30d)} ai-relevante selskaper siste 30 dager`}
-        gauge={gauge}
+        gauge={momentumGauge(pct, yoySeries)}
       />
     );
   } else {
@@ -254,8 +226,7 @@ export default async function LandingPage() {
   const mediaLatest = media[0] ?? null;
   // buildMediaCardModel returns null when the latest media_snapshot_index
   // row is the no-signal sentinel (index 50, 0 AI articles) — i.e. the
-  // classification pipeline has gone quiet — so we render the Empty card
-  // instead of publishing a hard-coded-looking "50 / 100 · over snitt".
+  // classification pipeline has gone quiet — so we render the Empty card.
   const mediaModel = buildMediaCardModel(media);
   let mediaCard;
   if (mediaModel) {
@@ -265,9 +236,9 @@ export default async function LandingPage() {
         pillarLabel="Mediedekning"
         headlineValue={`${mediaModel.indexValue} / 100`}
         headlineCaption="kibarometer-indeks · siste 30 dager"
-        levelLabel={levelDescriptor(mediaModel.indexValue, mediaModel.gauge)}
+        levelLabel={mediaTone(mediaModel.indexValue)}
         levelCaption={`${fmtNumber(mediaModel.aiArticleCount7d)} ai-artikler siste 7 dager`}
-        gauge={mediaModel.gauge}
+        gauge={{ markerPct: mediaModel.markerPct }}
       />
     );
   } else {
@@ -279,8 +250,8 @@ export default async function LandingPage() {
   const off = offentligHeadline?.[0] ?? null;
   let offentligCard;
   if (off && offentligMonthly && offentligMonthly.length >= 12) {
-    // Sum across categories per month so the gauge series matches the
-    // headline's "total saker AI" semantics (not per-category).
+    // Sum across categories per month, then derive the YoY momentum history
+    // that scales the gauge (matches the headline's debate_yoy_pct).
     const byMonth = new Map<string, number>();
     for (const r of offentligMonthly) {
       byMonth.set(
@@ -288,31 +259,20 @@ export default async function LandingPage() {
         (byMonth.get(r.computed_for) ?? 0) + r.ai_count,
       );
     }
-    const monthly = Array.from(byMonth.entries())
+    const monthlyAsc = Array.from(byMonth.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([, v]) => v);
-    // 12-month rolling sum so the gauge value (total_saker_ai_12m) is
-    // dimensionally comparable to the series percentiles.
-    const series: number[] = [];
-    let sum = 0;
-    for (let i = 0; i < monthly.length; i++) {
-      sum += monthly[i];
-      if (i >= 12) sum -= monthly[i - 12];
-      if (i >= 11) series.push(sum);
-    }
-    const currentValue =
-      off.total_saker_ai_12m ?? series[series.length - 1] ?? 0;
-    const gauge = gaugeFromSeries(currentValue, series);
-    const m = fmtMomentumPct(off.debate_yoy_pct);
+    const pct = off.debate_yoy_pct;
+    const currentValue = off.total_saker_ai_12m ?? 0;
     offentligCard = (
       <TemperaturCard
         href="/offentlig"
         pillarLabel="Offentlig sektor"
-        headlineValue={m.display}
+        headlineValue={fmtMomentumPct(pct).display}
         headlineCaption="siste 12 mnd vs. forrige 12 mnd"
-        levelLabel={levelDescriptor(currentValue, gauge)}
+        levelLabel={trendDescriptor(pct)}
         levelCaption={`${fmtNumber(currentValue)} ai-saker siste 12 mnd`}
-        gauge={gauge}
+        gauge={momentumGauge(pct, offentligYoYSeries(monthlyAsc))}
       />
     );
   } else {
