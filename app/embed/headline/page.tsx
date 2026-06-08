@@ -1,18 +1,14 @@
 // app/embed/headline/page.tsx — minimal embeddable headline strip.
 import { Sparkline } from "@/app/_components/charts";
-import { sb, type SnapshotDaily, type SnapshotHeadline } from "@/lib/supabase";
+import { getJobsHeadlineRecent } from "@/lib/public-data/jobs";
 
 export const metadata = {
   title: "AI-stillinger denne uken — Kibarometeret",
 };
 
 export default async function EmbedHeadline() {
-  const [headlineRows, daily] = await Promise.all([
-    sb<SnapshotHeadline[]>("/snapshot_headline?order=computed_for.desc&limit=1"),
-    sb<SnapshotDaily[]>("/snapshot_daily?order=posted_on.desc&limit=30"),
-  ]);
-  const h = headlineRows[0];
-  const sparkValues = [...daily].reverse().map((d) => d.ai_count);
+  const { headline: h, recentDaily } = await getJobsHeadlineRecent();
+  const sparkValues = [...recentDaily].reverse().map((d) => d.ai_count);
 
   if (!h) {
     return <main className="embed-wrap"><p>Ingen data ennå.</p></main>;

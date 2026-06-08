@@ -66,3 +66,22 @@ jobs:
         # CI catches it here.
         run: |
           ! grep -qE '^\s+(storage|imgproxy|realtime|functions|vector|supavisor):$' docker/supabase/docker-compose.yml
+
+      - name: Guard public API/embed against unfloored NAV snapshot reads
+        # /api/v1/trend and /embed/trend once read snapshot_monthly, which
+        # refresh_snapshot_monthly() builds with NO date floor — leaking the
+        # pre-JOBBMARKED_DATA_CUTOFF months the /arbeidsmarked chart hides
+        # (pre-cutoff NAV rows are title-only and undercount AI ~10x). Public
+        # NAV snapshot series must go through lib/public-data/jobs, which floors
+        # at the cutoff, so the API/embed can never diverge from the site.
+        #
+        # Match the PostgREST path `/snapshot_daily` / `/snapshot_monthly` (the
+        # leading slash is how sb() addresses a table), so prose mentions in
+        # comments, `brreg_snapshot_daily` (oppstart has no cutoff by design),
+        # and `media_snapshot_*` don't false-positive. Fails if any app/api or
+        # app/embed file reads the NAV daily/monthly snapshots directly.
+        run: |
+          if grep -rnE '/snapshot_(daily|monthly)' app/api app/embed; then
+            echo "::error::Read NAV daily/monthly snapshots via lib/public-data/jobs (floored at JOBBMARKED_DATA_CUTOFF), not directly — see matches above."
+            exit 1
+          fi

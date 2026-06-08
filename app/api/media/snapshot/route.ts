@@ -93,6 +93,6 @@ export async function GET() {
       baseline_mean: a.baseline_mean,
       z_score: a.z_score,
     })),
-    docs: "https://kibarometer.no/mediedekning",
+    docs: "https://kibarometer.no/docs/media",
   });
 }
