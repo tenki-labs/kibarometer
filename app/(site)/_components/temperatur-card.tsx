@@ -17,7 +17,7 @@ type Props = {
   pillarLabel: string;
   /** Pre-formatted headline number, e.g. "↑ +11 %" / "↓ −4 %" / "55 / 100". */
   headlineValue: string;
-  /** Small caption below the headline, e.g. "siste 30 dager vs. foregående 30" or "kibarometer-indeks · siste 30 dager". */
+  /** Small caption below the headline, e.g. "siste 30 dager vs. forrige 30 dager" or "kibarometer-indeks · siste 30 dager". */
   headlineCaption: string;
   /** Trend/tone word describing the bar, e.g. "stigende" / "fallende" / "stabilt" / "optimistisk tone". */
   levelLabel: string;
