@@ -5,5 +5,10 @@ services:
   studio:    { mem_limit: 192m }
   kong:      { mem_limit: 384m }
   auth:      { mem_limit: 96m }
-  rest:      { mem_limit: 96m }
+  # 96m OOM-killed PostgREST on every NAV batch upsert (50-page backfill
+  # body) from 2026-06-03 (fleet re-up for the project rename, PR #190)
+  # until 2026-07-10 — killing NAV ingest silently. 256m verified against
+  # the full 95k-row backlog drain. Don't lower without re-testing
+  # POST /nav_postings with a full backfill page.
+  rest:      { mem_limit: 256m }
   meta:      { mem_limit: 96m }
