@@ -103,12 +103,15 @@ for KV in "MLX_BASE_URL=https://mlx.tenki.no/v1" "MLX_API_KEY="; do
   fi
 done
 
-# Manual-only Claude backfill drain: idempotently append ANTHROPIC_* placeholders.
+# Claude config: idempotently append ANTHROPIC_* + LLM_PROVIDER placeholders.
 # ANTHROPIC_API_KEY blank by default — operator pastes a sk-ant-… key from the
 # Anthropic console. Until then, the /admin/llm "Backfill via Claude" card
 # renders the not-configured alert. ANTHROPIC_CONCURRENCY defaults to 4 inside
-# the orchestrator; raise to 8 once on Anthropic Tier 2+.
-for KV in "ANTHROPIC_API_KEY=" "ANTHROPIC_CONCURRENCY="; do
+# the orchestrator; raise to 8 once on Anthropic Tier 2+. LLM_PROVIDER
+# switches the shared cron Tier 1/Tier 2 pipeline: blank/"mlx" = the MLX
+# endpoint, "anthropic" = Claude Haiku via the Messages API (set to
+# "anthropic" 2026-07 when the MLX Mac mini was decommissioned).
+for KV in "ANTHROPIC_API_KEY=" "ANTHROPIC_CONCURRENCY=" "LLM_PROVIDER="; do
   KEY=${KV%%=*}
   if ! sudo grep -q "^${KEY}=" "$ADMIN_ENV_PRE"; then
     echo "  appending $KEY to admin.env"
@@ -184,7 +187,9 @@ done
 # on /admin/llm. Blank by default; operator pastes a sk-ant-… key from the
 # Anthropic console. ANTHROPIC_CONCURRENCY can override the default p-limit
 # (4) for orgs on Anthropic Tier 2+ that can sustain higher RPM.
-for KEY in ANTHROPIC_API_KEY ANTHROPIC_CONCURRENCY; do
+# LLM_PROVIDER=anthropic routes the cron Tier 1/Tier 2 pipeline to Claude
+# Haiku instead of the MLX endpoint.
+for KEY in ANTHROPIC_API_KEY ANTHROPIC_CONCURRENCY LLM_PROVIDER; do
   VAL=$(sudo grep "^${KEY}=" "$ADMIN_ENV" 2>/dev/null | cut -d= -f2- || echo "")
   if sudo grep -q "^${KEY}=" "$PROD_ENV"; then
     sudo sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$PROD_ENV"
