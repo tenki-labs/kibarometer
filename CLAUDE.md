@@ -65,8 +65,12 @@ waiting for the daily 04:00 snapshot tick.
 
 Tier ticks across pillars are offset to keep the single Mac mini from
 seeing overlapping calls — see [scripts/fetcher-crontab](scripts/fetcher-crontab)
-for the exact schedule. All Tier jobs no-op silently when `MLX_API_KEY`
-is unset.
+for the exact schedule. **`LLM_PROVIDER=anthropic` (set 2026-07 when the
+MLX Mac mini was decommissioned) routes every `mlxChat()` call to Claude
+Haiku via [lib/admin/anthropic.ts](lib/admin/anthropic.ts) instead of the
+MLX endpoint** — orchestrators are provider-agnostic and gate on
+`mlxConfigured()`. Tier jobs no-op silently when the active provider's
+key (`MLX_API_KEY` / `ANTHROPIC_API_KEY`) is unset.
 
 **Public docs.** Per-pillar methodology lives at `/docs/arbeidsmarked`,
 `/docs/media`, and `/docs/oppstart`, plus `/docs/nokkelord` (taxonomy)

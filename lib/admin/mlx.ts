@@ -15,7 +15,13 @@
 import "server-only";
 
 import { sbFetch } from "@/lib/admin/sb";
+import {
+  AnthropicError,
+  anthropicConfigured,
+  anthropicTextChat,
+} from "@/lib/admin/anthropic";
 import { MlxError } from "./mlx-error";
+import type { MlxErrorKind } from "./mlx-error";
 
 // Re-exported so existing `import { MlxError } from "@/lib/admin/mlx"` call
 // sites keep working after the class moved to its own server-only-free module.
@@ -24,6 +30,19 @@ export type { MlxErrorKind } from "./mlx-error";
 
 const DEFAULT_BASE_URL = "https://mlx.tenki.no/v1";
 const DEFAULT_MODEL = "mlx-community/gemma-3-4b-it-4bit";
+const ANTHROPIC_MODELS_URL = "https://api.anthropic.com/v1/models";
+
+// Which backend serves the shared Tier 1/Tier 2 pipeline. "mlx" (default)
+// talks to the OpenAI-compatible endpoint at MLX_BASE_URL; "anthropic"
+// routes every mlxChat() through lib/admin/anthropic.ts (Claude Haiku via
+// the Messages API). Introduced 2026-07 when the MLX Mac mini was
+// decommissioned. Orchestrators are provider-agnostic: they gate on
+// mlxConfigured() and parse JSON out of the returned text either way.
+export type LlmProvider = "mlx" | "anthropic";
+
+export function llmProvider(): LlmProvider {
+  return process.env.LLM_PROVIDER === "anthropic" ? "anthropic" : "mlx";
+}
 
 export type MlxConfig = {
   baseUrl: string;
@@ -31,6 +50,13 @@ export type MlxConfig = {
 };
 
 export function mlxConfigured(): MlxConfig | null {
+  if (llmProvider() === "anthropic") {
+    // The Tier pipeline is "configured" when the active provider is usable.
+    // baseUrl is informational here — the anthropic SDK owns its own URL.
+    const cfg = anthropicConfigured();
+    if (!cfg) return null;
+    return { baseUrl: "https://api.anthropic.com/v1", apiKey: cfg.apiKey };
+  }
   const apiKey = process.env.MLX_API_KEY;
   if (!apiKey) return null;
   return {
@@ -70,6 +96,9 @@ export type MlxChatArgs = {
 // Single retry on 5xx (1s backoff). No retry on 401/403 — token revoked
 // or invalid; surfacing fast lets the orchestrator stop firing.
 export async function mlxChat(args: MlxChatArgs): Promise<MlxChatResponse> {
+  if (llmProvider() === "anthropic") {
+    return anthropicBackedChat(args);
+  }
   const cfg = mlxConfigured();
   if (!cfg) {
     throw new MlxError("config", "MLX_API_KEY is not set");
@@ -169,6 +198,59 @@ export async function mlxChat(args: MlxChatArgs): Promise<MlxChatResponse> {
   return result;
 }
 
+// Anthropic-backed variant of mlxChat. Same MlxChatResponse contract:
+// orchestrators keep parsing JSON out of `content` and reading token usage.
+// AnthropicError kinds map onto MlxError kinds so the per-row retry logic
+// in the orchestrators (recoverable vs abort) behaves identically.
+async function anthropicBackedChat(args: MlxChatArgs): Promise<MlxChatResponse> {
+  let resp;
+  try {
+    resp = await anthropicTextChat({
+      system: args.system,
+      user: args.user,
+      maxTokens: args.maxTokens,
+      temperature: args.temperature,
+      model: args.model,
+    });
+  } catch (err) {
+    if (err instanceof AnthropicError) {
+      const kind: MlxErrorKind =
+        err.kind === "config"
+          ? "config"
+          : err.kind === "auth"
+            ? "auth"
+            : err.kind === "unreachable"
+              ? "unreachable"
+              : err.kind === "parse"
+                ? "parse"
+                : "http"; // rate_limit + server → retryable http
+      if (kind !== "config") {
+        await recordFailure(kind, err.message);
+      }
+      throw new MlxError(kind, err.message, err.status, err.body);
+    }
+    const m = err instanceof Error ? err.message : String(err);
+    await recordFailure("network", m);
+    throw new MlxError("unreachable", `network: ${m}`);
+  }
+
+  const totalPrompt =
+    resp.usage.input_tokens +
+    resp.usage.cache_creation_input_tokens +
+    resp.usage.cache_read_input_tokens;
+  const result: MlxChatResponse = {
+    content: resp.content,
+    usage: {
+      prompt_tokens: totalPrompt,
+      completion_tokens: resp.usage.output_tokens,
+      total_tokens: totalPrompt + resp.usage.output_tokens,
+    },
+    model: resp.model,
+  };
+  await recordSuccess(result.model);
+  return result;
+}
+
 // /v1/models lookup. Cached 5 min so repeated /admin/llm renders don't
 // hammer the tunnel. Returns null on any failure (the page falls back to
 // the value cached in mlx_health.model_id).
@@ -176,6 +258,9 @@ let cachedModel: { id: string; expiresAt: number } | null = null;
 const MODEL_CACHE_TTL_MS = 5 * 60 * 1000;
 
 export async function mlxModelId(): Promise<string | null> {
+  if (llmProvider() === "anthropic") {
+    return anthropicConfigured()?.model ?? null;
+  }
   const cfg = mlxConfigured();
   if (!cfg) return null;
   if (cachedModel && cachedModel.expiresAt > Date.now()) {
@@ -208,6 +293,9 @@ export type MlxPingResult = {
 };
 
 export async function mlxPing(): Promise<MlxPingResult> {
+  if (llmProvider() === "anthropic") {
+    return anthropicPing();
+  }
   const cfg = mlxConfigured();
   if (!cfg) {
     return { ok: false, modelId: null, error: "MLX_API_KEY er ikke satt" };
@@ -242,6 +330,49 @@ export async function mlxPing(): Promise<MlxPingResult> {
       await recordSuccess(id);
     }
     return { ok: true, modelId: id, error: null };
+  } catch (err) {
+    const m = err instanceof Error ? err.message : String(err);
+    await recordFailure("network", m);
+    return { ok: false, modelId: null, error: m };
+  }
+}
+
+// Heartbeat for LLM_PROVIDER=anthropic: cheap GET /v1/models validates the
+// key without inference, mirroring the MLX heartbeat semantics — the
+// mlx-heartbeat cron keeps the /admin/llm badge honest between Tier ticks.
+async function anthropicPing(): Promise<MlxPingResult> {
+  const cfg = anthropicConfigured();
+  if (!cfg) {
+    return { ok: false, modelId: null, error: "ANTHROPIC_API_KEY er ikke satt" };
+  }
+  try {
+    const res = await fetch(ANTHROPIC_MODELS_URL, {
+      headers: {
+        "x-api-key": cfg.apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      cache: "no-store",
+    });
+    if (res.status === 401 || res.status === 403) {
+      const body = await readBodyShort(res);
+      await recordFailure(`http ${res.status}`, body || "auth failed");
+      return {
+        ok: false,
+        modelId: null,
+        error: `Auth-feil ${res.status}: Anthropic-nøkkelen mangler eller er ugyldig`,
+      };
+    }
+    if (!res.ok) {
+      const body = await readBodyShort(res);
+      await recordFailure(`http ${res.status}`, body);
+      return {
+        ok: false,
+        modelId: null,
+        error: `HTTP ${res.status}${body ? `: ${body}` : ""}`,
+      };
+    }
+    await recordSuccess(cfg.model);
+    return { ok: true, modelId: cfg.model, error: null };
   } catch (err) {
     const m = err instanceof Error ? err.message : String(err);
     await recordFailure("network", m);

@@ -162,6 +162,81 @@ export async function anthropicChat(
   };
 }
 
+// Plain-text chat completion — the Anthropic analog of mlxChat(). Used by
+// lib/admin/mlx.ts when LLM_PROVIDER=anthropic routes the cron Tier 1/2
+// pipeline here. No tool forcing: the MLX orchestrators already ship
+// JSON-in-text prompts with parse-and-retry, and Haiku follows them far more
+// reliably than the 4-bit Gemma they were tuned for. System prompt carries
+// cache_control so the K sequential calls inside one cron tick read the
+// cache written by the first call.
+export type AnthropicTextChatArgs = {
+  system: string;
+  user: string;
+  maxTokens?: number;
+  temperature?: number;
+  model?: string;
+};
+
+export type AnthropicTextChatResponse = {
+  content: string;
+  usage: AnthropicChatUsage;
+  model: string;
+};
+
+export async function anthropicTextChat(
+  args: AnthropicTextChatArgs,
+): Promise<AnthropicTextChatResponse> {
+  const cfg = anthropicConfigured();
+  if (!cfg) {
+    throw new AnthropicError("config", "ANTHROPIC_API_KEY is not set");
+  }
+
+  const client = new Anthropic({ apiKey: cfg.apiKey });
+
+  let response;
+  try {
+    response = await client.messages.create({
+      model: args.model || cfg.model,
+      max_tokens: args.maxTokens ?? DEFAULT_MAX_TOKENS,
+      ...(args.temperature !== undefined
+        ? { temperature: args.temperature }
+        : {}),
+      system: [
+        {
+          type: "text",
+          text: args.system,
+          cache_control: { type: "ephemeral" },
+        },
+      ],
+      messages: [{ role: "user", content: args.user }],
+    });
+  } catch (err) {
+    throw classifyError(err);
+  }
+
+  const textBlock = response.content.find(
+    (b): b is Anthropic.TextBlock => b.type === "text",
+  );
+  if (!textBlock) {
+    throw new AnthropicError(
+      "parse",
+      `no text block in response (stop_reason=${response.stop_reason})`,
+    );
+  }
+
+  return {
+    content: textBlock.text,
+    usage: {
+      input_tokens: response.usage.input_tokens,
+      output_tokens: response.usage.output_tokens,
+      cache_creation_input_tokens:
+        response.usage.cache_creation_input_tokens ?? 0,
+      cache_read_input_tokens: response.usage.cache_read_input_tokens ?? 0,
+    },
+    model: response.model,
+  };
+}
+
 function classifyError(err: unknown): AnthropicError {
   if (err instanceof AnthropicError) return err;
 
