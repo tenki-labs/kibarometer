@@ -96,7 +96,15 @@ export function coverageHorizonMs(
 // is misleading. Pass to TimeRangeToggle's `disabledValues` so the toggle
 // can grey them out with a tooltip. Returns [] for empty/unknown horizons
 // (don't disable anything when we have no data to compare against).
+//
+// "max" is excluded unconditionally: it IS the full-dataset window every
+// other range is compared against (its cutoff is -Infinity, which always
+// sorts before earliestMs), so it must never grey itself. Without this a
+// young pillar like /arbeidsmarked — where even the 6m window predates the
+// data cutoff — would be left with no full-period option at all.
 export function unavailableRanges(earliestMs: number, nowMs: number): Range[] {
   if (!Number.isFinite(earliestMs)) return [];
-  return VALID_RANGES.filter((r) => rangeCutoffMs(r, nowMs) < earliestMs);
+  return VALID_RANGES.filter(
+    (r) => r !== "max" && rangeCutoffMs(r, nowMs) < earliestMs,
+  );
 }
