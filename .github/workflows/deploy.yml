@@ -19,7 +19,11 @@ jobs:
     # steps and run them on Apollo with the deploy user's docker access.
     runs-on: [self-hosted, apollo]
     environment: production
-    timeout-minutes: 15
+    # 30, not 15: a cold build of the kiba-scraper image (scrapegraphai +
+    # Playwright + Chromium) plus kiba-web can run ~16-18 min when the
+    # build cache is cold or /srv is under disk pressure, which tripped the
+    # old 15 min cap (deploy 34481307924). Warm-cache deploys stay well under.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
