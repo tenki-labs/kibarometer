@@ -27,6 +27,7 @@ import { type Series } from "@/app/(site)/_components/stacked-area-chart";
 import { StackedBarChart } from "@/app/(site)/_components/stacked-bar-chart";
 import {
   TimeRangeToggle,
+  STANDARD_RANGE_OPTIONS,
   type Range,
 } from "@/app/(site)/_components/time-range-toggle";
 import {
@@ -192,6 +193,29 @@ export function Scroller({
     [nowMs],
   );
 
+  // Data here starts at JOBBMARKED_DATA_CUTOFF, so the sub-cutoff trailing
+  // ranges (6m/1år/Siden 2024) are always greyed and add only noise. Drop
+  // them from the menu entirely and relabel "max" as "Hele perioden" (the
+  // full collected period). As live data grows past the cutoff,
+  // disabledRanges shrinks and 6m/1år reappear on their own — no follow-up.
+  const jobsRangeOptions = useMemo(
+    () => {
+      const disabled = new Set(disabledRanges);
+      return STANDARD_RANGE_OPTIONS.filter(
+        (o) => !disabled.has(o.value),
+      ).map((o) =>
+        o.value === "max" ? { ...o, label: "Hele perioden" } : o,
+      );
+    },
+    [disabledRanges],
+  );
+
+  // A hand-typed ?range=6m would point `range` at an option we no longer
+  // render; fall back to "max" so the trigger label matches the chart.
+  const toggleValue: Range = jobsRangeOptions.some((o) => o.value === range)
+    ? range
+    : "max";
+
   const skillSeries = useMemo(
     () => buildSeries(skillCategoryDaily, range, (r) => r.slug, "ai", nowMs),
     [skillCategoryDaily, range, nowMs],
@@ -285,9 +309,9 @@ export function Scroller({
               Norsk arbeidsmarked
             </h2>
             <TimeRangeToggle
-              value={range}
+              value={toggleValue}
               onChange={onRangeChange}
-              disabledValues={disabledRanges}
+              options={jobsRangeOptions}
             />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
@@ -320,9 +344,9 @@ export function Scroller({
               KI-jobber i kategorier
             </h2>
             <TimeRangeToggle
-              value={range}
+              value={toggleValue}
               onChange={onRangeChange}
-              disabledValues={disabledRanges}
+              options={jobsRangeOptions}
             />
           </div>
           <p className="max-w-[60ch] text-sm text-muted-foreground">
