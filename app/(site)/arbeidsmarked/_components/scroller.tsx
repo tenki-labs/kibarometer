@@ -285,7 +285,6 @@ export function Scroller({
                   caption: momentum.caption,
                 }}
                 stats={stats}
-                definition="AI-relatert = annonsen nevner minst ett kuratert nøkkelord (regelbasert, ikke språkmodell). Måler omtale av AI, ikke faktisk bruk."
                 footer={
                   <>
                     Oppdatert{" "}
