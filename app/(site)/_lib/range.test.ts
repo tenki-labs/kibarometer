@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { rangeCutoffMs, unavailableRanges } from "./range";
+import { grainForSpanMs, rangeCutoffMs, unavailableRanges } from "./range";
+
+const DAY = 86_400_000;
 
 // Regression guard for the disabled-"max" bug: unavailableRanges greys ranges
 // whose trailing window reaches before the earliest data (they'd render
@@ -43,5 +45,29 @@ describe("unavailableRanges", () => {
 describe("rangeCutoffMs", () => {
   it('resolves "max" to -Infinity (earliest available data → now)', () => {
     expect(rangeCutoffMs("max", NOW)).toBe(-Infinity);
+  });
+});
+
+describe("grainForSpanMs (open-ended max window)", () => {
+  it("uses weekly for the ~5-month /arbeidsmarked span (not monthly)", () => {
+    // cutoff 2026-04-13 → now 2026-09-09 ≈ 149 days: the case that regressed
+    // to ~6 monthly dots before this fix.
+    expect(grainForSpanMs(149 * DAY)).toBe("week");
+  });
+
+  it("uses monthly for a multi-year span (media/offentlig max)", () => {
+    expect(grainForSpanMs(985 * DAY)).toBe("month"); // ~2.7 y
+    expect(grainForSpanMs(2555 * DAY)).toBe("month"); // ~7 y
+  });
+
+  it("uses daily for a short span", () => {
+    expect(grainForSpanMs(30 * DAY)).toBe("day");
+  });
+
+  it("honours the day/week/month boundaries", () => {
+    expect(grainForSpanMs(49 * DAY)).toBe("day");
+    expect(grainForSpanMs(50 * DAY)).toBe("week");
+    expect(grainForSpanMs(550 * DAY)).toBe("week");
+    expect(grainForSpanMs(551 * DAY)).toBe("month");
   });
 });
