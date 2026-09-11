@@ -32,10 +32,12 @@ import {
 } from "@/app/(site)/_components/time-range-toggle";
 import {
   bucketGrainForRange,
+  grainForSpanMs,
   dateKey,
   parseRange,
   rangeCutoffMs,
   unavailableRanges,
+  type BucketGrain,
 } from "@/app/(site)/_lib/range";
 import {
   fmtMomentumPct,
@@ -101,8 +103,8 @@ function buildSeries<R extends { posted_on: string; ai_count: number; total_coun
   getKey: (row: R) => string,
   metric: "ai" | "total",
   nowMs: number,
+  grain: BucketGrain,
 ): Series {
-  const grain = bucketGrainForRange(range);
   const cutoffMs = rangeCutoffMs(range, nowMs);
 
   // Group: dateBucket -> (categoryKey -> count)
@@ -216,9 +218,18 @@ export function Scroller({
     ? range
     : "max";
 
+  // "Hele perioden" (max) here spans only ~5 months (floored at the cutoff),
+  // so its canonical monthly grain collapses the chart to ~6 dots. Derive the
+  // grain from the actual cutoff→now span instead (→ weekly today). Other
+  // ranges keep their fixed grain.
+  const chartGrain: BucketGrain =
+    range === "max"
+      ? grainForSpanMs(nowMs - JOBBMARKED_DATA_CUTOFF_MS)
+      : bucketGrainForRange(range);
+
   const skillSeries = useMemo(
-    () => buildSeries(skillCategoryDaily, range, (r) => r.slug, "ai", nowMs),
-    [skillCategoryDaily, range, nowMs],
+    () => buildSeries(skillCategoryDaily, range, (r) => r.slug, "ai", nowMs, chartGrain),
+    [skillCategoryDaily, range, nowMs, chartGrain],
   );
 
   // Per-bucket (ai_count, total_count) for segment 2's AI-share area chart.
@@ -226,7 +237,7 @@ export function Scroller({
   // predicate as snapshot_headline.ai_count_30d (no `category is not null`
   // filter). Bucket grain follows bucketGrainForRange.
   const aiShareBuckets = useMemo<AIShareBucket[]>(() => {
-    const grain = bucketGrainForRange(range);
+    const grain = chartGrain;
     const cutoffMs = rangeCutoffMs(range, nowMs);
     const buckets = new Map<string, { ai: number; total: number }>();
     for (const row of snapshotDaily) {
@@ -241,7 +252,7 @@ export function Scroller({
     return [...buckets.entries()]
       .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
       .map(([date, v]) => ({ date, aiCount: v.ai, totalCount: v.total }));
-  }, [snapshotDaily, range, nowMs]);
+  }, [snapshotDaily, range, nowMs, chartGrain]);
 
   // Container is a snap scroller from sm: up. On mobile we let normal page
   // scroll handle things and skip the cinematic effect.

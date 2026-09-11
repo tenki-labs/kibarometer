@@ -39,6 +39,20 @@ export function bucketGrainForRange(r: Range): BucketGrain {
   }
 }
 
+// Bucket grain for an open-ended "max" window, chosen from the ACTUAL data
+// span rather than a fixed assumption. bucketGrainForRange maps "max" to
+// month because it assumes years of history (weekly would be 150+ jittery
+// points); but a young pillar like /arbeidsmarked — whose "max" is floored at
+// JOBBMARKED_DATA_CUTOFF, so only ~5 months — collapses to ~6 monthly dots
+// that way. Pick from the span instead: <=49d → day, <=550d (~18 mo) → week,
+// else month. A multi-year media/offentlig "max" still lands on month.
+export function grainForSpanMs(spanMs: number): BucketGrain {
+  const days = spanMs / 86_400_000;
+  if (days <= 49) return "day";
+  if (days <= 550) return "week";
+  return "month";
+}
+
 // YYYY-MM-DD (daily), YYYY-Www (ISO 8601 weekly), or YYYY-MM (monthly)
 // projected from an ISO date. Bucket keys sort lexicographically in
 // chronological order in all three formats, including across year boundaries.
