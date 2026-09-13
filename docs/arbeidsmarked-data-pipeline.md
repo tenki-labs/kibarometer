@@ -37,6 +37,41 @@ snapshot_*  ────►  PostgREST  ────►  /arbeidsmarked
 `category` and skill `slug` are only populated after Tier 2 finishes — so any
 snapshot keyed on those is *a subset* of what `is_ai` alone counts.
 
+## Where description text comes from (archive pipeline)
+
+NAV's feed API only returns `description` for ACTIVE ads. Every row that
+was INACTIVE when `enrichNav` reached it — all backfilled history, plus
+~half of live ingest before 2026-09 — used to stay title-only forever and
+undercount AI ~10x. Since 0075 the same ad page is recovered from three
+other places, in this order, by `archive-enrich-nav` (every 15 min):
+
+| Source        | What it is                                                     | Reach                              |
+| ------------- | -------------------------------------------------------------- | ---------------------------------- |
+| `live_page`   | `arbeidsplassen.nav.no/stillinger/stilling/{uuid}` — the site keeps INACTIVE ads ~5 months after `expires` | Postings < ~11 months old |
+| `commoncrawl` | WARC records located via `index.commoncrawl.org` (per crawl)   | ~117k unique ad pages 2024–2026    |
+| `wayback`     | Raw `id_` captures located via the CDX API (per month)         | ~140k unique ad pages 2024–2026    |
+
+`nav_postings.description_source` records provenance (`nav_api` for the
+feed). `archive_result` records the last outcome (`found:<source>`,
+`live_miss`, `archive_miss`) and `archive_checked_at` when. Capture
+locators live in `nav_archive_index`, pulled by the Monday
+`archive-index-nav` cron (finished Common Crawl crawls and old Wayback
+months are pulled once; the two newest months are re-pulled).
+
+Two consequences for anyone reading the charts:
+
+- **Pre-2026 coverage is a sample.** 2024 has on the order of 20k
+  archived ads against roughly 500k positions registered that year.
+  Fine for an AI-*share* series, wrong for absolute counts.
+- **`posted_at` improves when a capture is found.** Backfilled rows carry
+  NAV's bulk-import timestamp as `posted_at`; a recovered page carries the
+  real `published` date and overwrites it. Week buckets can shift after a
+  backfill pass — that's the data getting more honest, not a bug.
+
+All three sources are parsed by `lib/admin/legacy/nav-archive-parse.js`
+(description = first `.job-posting-text` block; metadata from the RSC
+`adData` blob). Fixtures under `test/fixtures/` are real captures.
+
 ## Snapshot tables consumed by `/arbeidsmarked`
 
 | Table                            | Predicate                                  | Used by               | Notes                                                                       |

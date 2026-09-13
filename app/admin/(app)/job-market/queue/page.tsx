@@ -25,6 +25,8 @@ import { fmtDateTime } from "@/lib/admin/flash";
 import { sbFetch } from "@/lib/admin/sb";
 
 import {
+  runArchiveEnrichAction,
+  runArchiveIndexAction,
   runEnrichAction,
   runTier1Action,
   runTier2Action,
@@ -90,11 +92,18 @@ export default async function NavQueuePage({ searchParams }: Props) {
   const ENRICH_FILTER = "status=eq.ACTIVE&detail_fetched_at=is.null";
   const T1_FILTER = "tier1_completed_at=is.null&detail_fetched_at=not.is.null&ingest_mode=eq.live&is_ai=eq.true&llm_retry_count=lt.3";
   const T2_FILTER = "is_ai=eq.true&tier2_completed_at=is.null&llm_retry_count=lt.3";
+  // Arkiv: postings since 2024 still without description text. Drained by
+  // archive-enrich-nav (live page → Common Crawl → Wayback); rows the
+  // archives don't have stay here — that's the honest residual.
+  const ARCHIVE_FILTER = "description=is.null&posted_at=gte.2024-01-01";
+  const ARCHIVE_FOUND_FILTER = "description_source=in.(live_page,commoncrawl,wayback)";
 
   const [
     enrichCount,
     t1Count,
     t2Count,
+    archiveCount,
+    archiveFoundCount,
     candidatesCount,
     enrichRows,
     t1Rows,
@@ -103,6 +112,8 @@ export default async function NavQueuePage({ searchParams }: Props) {
     fetchCount(ENRICH_FILTER),
     fetchCount(T1_FILTER),
     fetchCount(T2_FILTER),
+    fetchCount(ARCHIVE_FILTER),
+    fetchCount(ARCHIVE_FOUND_FILTER),
     sbFetch<CandidateCountRow[] | { count: number }>(
       `/keyword_candidates?select=count&status=eq.pending`,
       { service: true, headers: { Prefer: "count=exact" } },
@@ -127,7 +138,7 @@ export default async function NavQueuePage({ searchParams }: Props) {
         description="Pågående pipeline-trinn for NAV. Cron drainer normaltilstand — disse tellingene skal trende mot null mellom kjøringer. Operasjoner-kortet under er escape hatches."
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard
           label="Berikelse"
           value={enrichCount.toLocaleString("nb-NO")}
@@ -142,6 +153,11 @@ export default async function NavQueuePage({ searchParams }: Props) {
           label="Klassifisering T2"
           value={t2Count.toLocaleString("nb-NO")}
           hint="Cron hvert 15. min"
+        />
+        <StatCard
+          label="Arkiv"
+          value={archiveCount.toLocaleString("nb-NO")}
+          hint={`Uten tekst siden 2024 · ${archiveFoundCount.toLocaleString("nb-NO")} hentet fra arkiv`}
         />
         <StatCard
           label="Kandidater"
@@ -164,7 +180,7 @@ export default async function NavQueuePage({ searchParams }: Props) {
             Operasjoner
           </CardTitle>
           <CardDescription>
-            De fem essensielle knappene for NAV-pipelinen. Cron dekker
+            De essensielle knappene for NAV-pipelinen. Cron dekker
             normaltilstand — bruk når du har en backfill-pukkel eller vil
             verifisere et taksonomi-skifte. Backfill kjører via en
             koordinator-jobb (~3 t) og kan stoppes fra dashboardet.
@@ -214,6 +230,21 @@ export default async function NavQueuePage({ searchParams }: Props) {
           <form action={refreshSnapshotsAction}>
             <SubmitButton variant="outline" size="sm" pendingLabel="Regner…">
               Refresh snapshots
+            </SubmitButton>
+          </form>
+          <form action={runArchiveEnrichAction}>
+            <SubmitButton
+              variant="outline"
+              size="sm"
+              pendingLabel="Kjører…"
+              disabled={archiveCount === 0}
+            >
+              Arkivberikelse ({archiveCount.toLocaleString("nb-NO")})
+            </SubmitButton>
+          </form>
+          <form action={runArchiveIndexAction}>
+            <SubmitButton variant="outline" size="sm" pendingLabel="Starter…">
+              Indekser arkiv
             </SubmitButton>
           </form>
         </CardContent>

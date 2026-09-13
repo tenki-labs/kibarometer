@@ -4,6 +4,10 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 
 import { enrichNav } from "@/lib/admin/legacy/jobs.js";
+import {
+  archiveEnrichNav,
+  archiveIndexNav,
+} from "@/lib/admin/legacy/nav-archive.js";
 import { runClassify } from "@/lib/admin/llm-classify";
 import { runDiscover } from "@/lib/admin/llm-discover";
 import { sbFetch } from "@/lib/admin/sb";
@@ -30,6 +34,41 @@ export async function runEnrichAction() {
   redirect(
     `${LIST}${flashQs({
       ok: "Berikelse-batch startet — følg progresjon på /admin/processes.",
+    })}`,
+  );
+}
+
+// Archive enrichment (one tick, ~60 s wall) — same orchestrator the
+// :00/:15/:30/:45 cron runs. Recovers descriptions from the live page /
+// Common Crawl / Wayback for postings the feed API can't serve.
+export async function runArchiveEnrichAction() {
+  after(async () => {
+    try {
+      await archiveEnrichNav({ sb: sbFetch, trigger: "manual" });
+    } catch {
+      // archiveEnrichNav writes its own failure PATCH to the jobs row.
+    }
+  });
+  redirect(
+    `${LIST}${flashQs({
+      ok: "Arkivberikelse-batch startet — følg progresjon på /admin/processes.",
+    })}`,
+  );
+}
+
+// Archive index refresh (minutes) — same orchestrator the Monday cron
+// runs. Skips Common Crawl crawls and Wayback months already pulled.
+export async function runArchiveIndexAction() {
+  after(async () => {
+    try {
+      await archiveIndexNav({ sb: sbFetch, trigger: "manual" });
+    } catch {
+      // archiveIndexNav writes its own failure PATCH to the jobs row.
+    }
+  });
+  redirect(
+    `${LIST}${flashQs({
+      ok: "Arkivindeksering startet — følg progresjon på /admin/processes.",
     })}`,
   );
 }

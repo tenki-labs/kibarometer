@@ -40,6 +40,8 @@ const NAV_JOB_NAMES = [
   "reprocess_nav_postings",
   "refresh_snapshots",
   "refresh_keyword_candidates",
+  "archive_enrich_nav",
+  "archive_index_nav",
 ];
 
 type SnapshotHeadline = {

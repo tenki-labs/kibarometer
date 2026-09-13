@@ -17,6 +17,21 @@
 # to stay clear of the :00/:15/:30/:45 backfill ticks. No-op when the queue
 # is empty. -m 90 gives slack on top of the 60s wall budget.
 5,20,35,50 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 90 ${ADMIN_URL}/admin/api/jobs/enrich-nav > /var/log/last-enrich.log 2>&1 || logger -s "kiba-fetcher: enrich-nav failed at $(date -Iseconds)"
+# Archive enrichment: recover description text for postings NAV's feed
+# API will never serve again (INACTIVE before enrichNav reached them, or
+# backfilled from the archive feed). Pass 1 hits arbeidsplassen.nav.no,
+# which keeps inactive ads for ~5 months after expiry; pass 2 fetches
+# Common Crawl / Wayback captures listed in nav_archive_index. HTTP only,
+# no LLM, so MLX offsets don't matter; :00/:15/:30/:45 were freed when
+# backfill-nav went daily. 60 s wall budget inside, -m 90 for slack.
+0,15,30,45 * * * * curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 90 ${ADMIN_URL}/admin/api/jobs/archive-enrich-nav > /var/log/last-archive-enrich.log 2>&1 || logger -s "kiba-fetcher: archive-enrich-nav failed at $(date -Iseconds)"
+# Archive index: pull the capture listings for every ad page from Common
+# Crawl (new crawls appear roughly monthly) and the Wayback CDX (the two
+# newest months are re-pulled). Finished crawls/months are skipped, so a
+# steady-state run is a handful of requests. Mondays 02:00 UTC — before
+# the 03:00 backup and the Sunday-night retag has long finished. 25 min
+# wall budget inside, -m 1800 for slack.
+0 2 * * 1 curl -fsS -X POST -H "Authorization: Bearer ${FETCHER_TOKEN}" -m 1800 ${ADMIN_URL}/admin/api/jobs/archive-index-nav > /var/log/last-archive-index.log 2>&1 || logger -s "kiba-fetcher: archive-index-nav failed at $(date -Iseconds)"
 # Snapshot refresh: recomputes the six dashboard tables in one transaction.
 # 04:00 server time (after the 03:00 backup, before morning traffic). One
 # run per day is enough — the dashboard reads pre-computed rows; the tag-time
