@@ -84,6 +84,14 @@ describe("parseArbeidsplassenAd — non-ad pages", () => {
     expect(ad.published).toBeNull();
   });
 
+  it("strips the RSC $D prefix from serialised dates (Common Crawl 2024-11+ pages)", () => {
+    const blob = JSON.stringify(`0:["$","x",null,{"adData":{"id":"0002237d-8398-4972-a437-993a3c280e85","status":"INACTIVE","title":"Sykepleier","published":"$D2024-10-23T22:00:00.000Z","expires":"$D2024-11-09T23:00:00.000Z"}}]`);
+    const html = `<script>self.__next_f.push([1,${blob}])</script><div class="job-posting-text"><p>x</p></div>`;
+    const ad = parseArbeidsplassenAd(html)!;
+    expect(ad.published).toBe("2024-10-23T22:00:00.000Z");
+    expect(ad.expires).toBe("2024-11-09T23:00:00.000Z");
+  });
+
   it("keeps nested markup inside the description block intact", () => {
     const html = `<div class="job-posting-text"><div><p>A</p><div><ul><li>B</li></ul></div></div></div><div class="job-posting-text"><p>employer</p></div>`;
     const ad = parseArbeidsplassenAd(html)!;

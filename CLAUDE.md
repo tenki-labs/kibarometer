@@ -90,31 +90,44 @@ them.**
    description. Documented in
    [lib/admin/legacy/nav-client.js:76-79](lib/admin/legacy/nav-client.js#L76-L79)
    and [lib/admin/legacy/nav-processor.js:78-81](lib/admin/legacy/nav-processor.js#L78-L81).
+   NAV declined extended API access (asked 2026-05-11, answered no
+   2026-09). **Don't propose backfill schemes against the feed API** —
+   "just drop the `status=eq.ACTIVE` filter in enrichNav" has been tried
+   and verified impossible.
 
 2. **The keyword matcher needs description.** Title-only matching catches
-   ~0.2% of AI postings; full-text matching catches ~2%. Rows that went
-   INACTIVE before `enrichNav` reached them (~15 min after ingest tick)
-   are permanently stuck on title-only matching and undercount AI by
-   roughly 10x. There is no way to recover their description from NAV's
-   public API.
+   ~0.2% of AI postings; full-text matching catches ~2%. Rows without
+   description undercount AI by roughly 10x. `description_source` on
+   `nav_postings` says where a row's text came from (`nav_api`,
+   `live_page`, `commoncrawl`, `wayback`, or null = none).
 
-3. **Historical reach is bounded by project age.** Kibarometer started
-   ingesting live NAV data 2026-05-04. Anything posted before that was
-   backfilled from NAV's archive feed and was INACTIVE at ingest — no
-   description, no enrichment, no path to recover. The /arbeidsmarked
-   chart truncates to **2026-04-13** (first week where description
-   coverage crosses 25%) via the constant in
-   [app/(site)/_lib/data-cutoff.ts](app/(site)/_lib/data-cutoff.ts).
+3. **The ad page outlives the API — that's the archive pipeline
+   (2026-09, [0075](supabase/migrations/0075_nav_archive.sql),
+   [lib/admin/legacy/nav-archive.js](lib/admin/legacy/nav-archive.js)).**
+   Three places still serve the full ad text, all parsed by the same
+   [nav-archive-parse.js](lib/admin/legacy/nav-archive-parse.js):
+   - `arbeidsplassen.nav.no/stillinger/stilling/{uuid}` keeps INACTIVE ads
+     for ~5 months after `expires` (measured 2026-09-13). The
+     `archive-enrich-nav` cron (:00/:15/:30/:45) tries it first for any
+     posting under ~11 months old, so the "stuck at summary" problem is
+     gone for everything posted since ~April 2026.
+   - Common Crawl (~117k unique ad pages 2024-2026) and the Wayback
+     Machine (~140k), listed into `nav_archive_index` by the Monday
+     `archive-index-nav` cron and drained by the same enrich tick
+     (Common Crawl first — no rate limit; Wayback ~1 req/s, backs off
+     on 429).
+   Coverage is a **sample, not a census**: 2024 has ~20k archived ads
+   against ~500k positions/year, 2025 is much denser. Treat pre-2026
+   AI-share numbers as sample-based and say so on the page.
 
-4. **Don't propose retroactive backfill schemes against NAV's API.** The
-   data isn't there to recover. If a future session has a clever idea
-   ("just drop the `status=eq.ACTIVE` filter in enrichNav!"), it has
-   already been considered and verified impossible — see commit
-   [git log fix/honest-jobbmarked-data-limits](https://github.com/tenki-labs/kibarometer/pulls?q=is%3Apr+honest-jobbmarked-data-limits)
-   and the two doc comments cited above. The only paths forward are
-   (a) accumulate live data over months, or (b) a non-public NAV
-   dataset (Oscar emailed `nav.team.arbeidsplassen@nav.no` 2026-05-11
-   asking; if that comes through, update this section).
+4. **Historical reach.** Kibarometer started ingesting live NAV data
+   2026-05-04. The /arbeidsmarked chart truncates to **2026-04-13**
+   (first week where description coverage crossed 25%) via the constant
+   in [app/(site)/_lib/data-cutoff.ts](app/(site)/_lib/data-cutoff.ts).
+   **Reassess that cutoff once the archive backfill has run** — measure
+   per-week `description is not null` share and move the cutoff back to
+   wherever it clears 25%, then update this section and
+   `/docs/arbeidsmarked`.
 
 5. **Audit /media and /oppstart for analogous constraints.** Both pillars
    use forward-only ingest patterns. The same "stuck-at-summary" shape

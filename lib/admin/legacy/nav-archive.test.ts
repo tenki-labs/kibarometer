@@ -130,7 +130,7 @@ describe("archiveIndexNav", () => {
       { match: /cdx\/search\/cdx\?.*from=202403/, reply: () => new Response("", { status: 200 }) },
     ]);
 
-    const r = await archiveIndexNav({ sb, fetcher, sleep: noSleep, now: () => new Date("2024-03-20T00:00:00Z") });
+    const r: any = await archiveIndexNav({ sb, fetcher, sleep: noSleep, now: () => new Date("2024-03-20T00:00:00Z") });
 
     expect(r.status).toBe("success");
     expect(r.cc_crawls_indexed).toBe(1);
@@ -162,7 +162,7 @@ describe("archiveIndexNav", () => {
       { match: /showNumPages/, reply: () => new Response('{"pages": 0}', { status: 200 }) },
       { match: /cdx\/search\/cdx/, reply: () => new Response("Temporarily Offline", { status: 503 }) },
     ]);
-    const r = await archiveIndexNav({ sb, fetcher, sleep: noSleep, now: () => new Date("2024-02-01T00:00:00Z") });
+    const r: any = await archiveIndexNav({ sb, fetcher, sleep: noSleep, now: () => new Date("2024-02-01T00:00:00Z") });
     expect(r.status).toBe("success");
     expect(r.cc_crawls_indexed).toBe(1);
     expect(r.wayback_months_indexed).toBe(0);
@@ -201,7 +201,7 @@ describe("archiveEnrichNav", () => {
 
   it("noops when both queues are empty", async () => {
     const { sb, calls } = baseSb([], {});
-    const r = await archiveEnrichNav({ sb, fetcher: makeFetcher([]).fetcher, sleep: noSleep, now: () => NOW });
+    const r: any = await archiveEnrichNav({ sb, fetcher: makeFetcher([]).fetcher, sleep: noSleep, now: () => NOW });
     expect(r.status).toBe("noop");
     expect(calls.some((c) => c.path === "/jobs" && c.init?.method === "POST")).toBe(false);
   });
@@ -216,7 +216,7 @@ describe("archiveEnrichNav", () => {
       { match: new RegExp(`stilling/${B}$`), reply: () => new Response("", { status: 404 }) },
       { match: new RegExp(`stilling/${C}$`), reply: () => new Response("", { status: 502 }) },
     ]);
-    const r = await archiveEnrichNav({ sb, fetcher, sleep: noSleep, now: () => NOW });
+    const r: any = await archiveEnrichNav({ sb, fetcher, sleep: noSleep, now: () => NOW });
 
     expect(r).toMatchObject({ status: "success", live_hits: 1, live_misses: 1, live_failed: 1 });
     expect(patches[A][0]).toMatchObject({
@@ -252,7 +252,7 @@ describe("archiveEnrichNav", () => {
       // C: capture without any ad body.
       { match: new RegExp(`${C}-1\\.warc\\.gz`), reply: () => new Response(warc("<html><body>Arbeidsplassen.no</body></html>"), { status: 206 }) },
     ]);
-    const r = await archiveEnrichNav({ sb, fetcher, sleep: noSleep, now: () => NOW });
+    const r: any = await archiveEnrichNav({ sb, fetcher, sleep: noSleep, now: () => NOW });
 
     expect(r).toMatchObject({ status: "success", archive_hits_commoncrawl: 1, archive_hits_wayback: 1, archive_misses: 1, archive_deferred: 0 });
     expect(patches[A][0]).toMatchObject({ description_source: "commoncrawl", is_ai: true, matched_keywords: ["KI"] });
@@ -270,7 +270,7 @@ describe("archiveEnrichNav", () => {
     const { fetcher, urls } = makeFetcher([
       { match: /web\.archive\.org/, reply: () => new Response("slow down", { status: 429 }) },
     ]);
-    const r = await archiveEnrichNav({ sb, fetcher, sleep: noSleep, now: () => NOW });
+    const r: any = await archiveEnrichNav({ sb, fetcher, sleep: noSleep, now: () => NOW });
     expect(r).toMatchObject({ archive_deferred: 2, archive_misses: 0, wayback_rate_limited: true });
     expect(urls.filter((u) => u.includes("web.archive.org"))).toHaveLength(1);
     expect(Object.keys(patches)).toEqual([]);
@@ -285,7 +285,7 @@ describe("archiveEnrichNav", () => {
     const { fetcher, urls } = makeFetcher([
       { match: /web\.archive\.org\/web\/.*stilling\/([0-9a-f-]+)$/, reply: (url) => new Response(adHtml(url.slice(-36), "<p>ok</p>"), { status: 200 }) },
     ]);
-    const r = await archiveEnrichNav({ sb, fetcher, sleep: noSleep, now: () => NOW, waybackBudget: 2 });
+    const r: any = await archiveEnrichNav({ sb, fetcher, sleep: noSleep, now: () => NOW, waybackBudget: 2 });
     expect(r).toMatchObject({ archive_hits_wayback: 2, archive_deferred: 1 });
     expect(urls).toHaveLength(2);
     expect(patches[C]).toBeUndefined();
@@ -298,8 +298,8 @@ describe("archiveEnrichNav", () => {
     ], patches);
     let t = 0;
     const { fetcher, urls } = makeFetcher([{ match: /./, reply: () => new Response("", { status: 404 }) }]);
-    const r = await archiveEnrichNav({ sb, fetcher, sleep: async () => { t += 1000; }, now: () => NOW, maxWallMs: -1 });
-    expect(r.stopped).toBe("wall");
+    const r: any = await archiveEnrichNav({ sb, fetcher, sleep: async () => { t += 1000; }, now: () => NOW, maxWallMs: -1 });
+    expect(r).toMatchObject({ stopped: "wall" });
     expect(urls).toHaveLength(0);
     expect(calls.find((c) => /^\/jobs\?id=eq\.job-1/.test(c.path) && c.init?.body?.status)?.init?.body.status).toBe("success");
     expect(t).toBe(0);
