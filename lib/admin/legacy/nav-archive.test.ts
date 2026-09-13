@@ -233,6 +233,8 @@ describe("archiveEnrichNav", () => {
     const liveQuery = calls.find((c) => c.path.startsWith("/nav_postings?description=is.null"))!.path;
     expect(liveQuery).toContain(encodeURIComponent("2025-10-18T12:00:00.000Z"));
     expect(liveQuery).toContain("limit=120");
+    // ACTIVE-and-not-yet-enriched rows belong to enrichNav, not the live pass.
+    expect(liveQuery).toContain("or=(status.neq.ACTIVE,status.is.null,detail_fetched_at.not.is.null)");
   });
 
   it("archive pass: Common Crawl first, Wayback as fallback, misses marked, wrong-id captures rejected", async () => {
